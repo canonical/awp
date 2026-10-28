@@ -1,0 +1,33 @@
+{
+  "language": "c",
+  "auto_wp_version": "0.1.0",
+  "created": "2026-10-28T15:00:01Z",
+  "skills": [
+    "directory-structure",
+    "ebios-risk-manager",
+    "ebios-sl",
+    "frama-c",
+    "frama-c-api",
+    "frama-c-internals",
+    "frama-c-launch",
+    "frama-c-monitoring",
+    "framac-sl",
+    "lean",
+    "linux-api",
+    "ocaml",
+    "polish-skill",
+    "rmf-sl",
+    "rocq",
+    "sl-auditor",
+    "sl-builder",
+    "sl-internal",
+    "sl-monitoring-sl",
+    "stride",
+    "time-loop"
+  ],
+  "commands": [
+    "ebios",
+    "rmf",
+    "time-loop"
+  ]
+}

@@ -1,0 +1,398 @@
+{
+  "sl_version": "1.0",
+  "id": "time-loop",
+  "kind": "monitor",
+  "terrain": [
+    "C"
+  ],
+  "monitors": "rmf-sl",
+  "description": "A time-boxed META squeeze loop that drives the existing `/rmf XXX XXX-analysis` campaign to MAXIMIZE HIGH-VALUE VERIFIED COVERAGE of a target XXX within an N-hour wall-clock budget (the generalized form of meta-penguin). It does NOT verify code itself: it triages, ranks, drives and monitors the downstream squeeze (rmf-sl code-blind risk authoring -> frama-c-launch onboarding -> frama-c-monitoring/framac-sl verification), so it IS an sl-monitoring-sl instance \u2014 judging the base loops' coverage claims and residue classifications against U and L only, never their rationale. The core logic is a per-cycle RESIDUE-CLASS TRIAGE (A tool/U-ceiling: SKIP; B BLOCKED crypto/entropy: SKIP; C unfinished-contract: the only class budget is spent on) ranked by RMF risk across TWO finding-bearing planes \u2014 Plane W (Tier-1 untrusted-input RTE via WP) and Plane H (Tier-3 authorization/integrity logic via macsl HAPPY system properties; a driver-only HAPPY prop is class-C-not-done, the in-situ proof is the lever) \u2014 delivering by DEFAULT within budget the full value order (finding-bearing class-C -> rigor-completion -> scope every out-of-plane liveness/DoS residual to a named tool; none gated on the user asking), with a diminishing-returns stop ONLY when no class-C of any tier remains on either plane AND every out-of-plane residual is scoped (terminating on Plane-W exhaustion while Plane-H leverage remains is plane-blindness). Dominant coherent-and-wrong: EXEMPT-BUCKET RELABELING \u2014 a cycle reporting exhaustive/converged while parking hard in-scope class-C work as residual/PARSE-BLOCKED/COQ-NEEDED WITHOUT its mandatory refutation probe; secondarily, budget-burning re-grinding class A/B to look busy. TERMINUS DELIVERABLE = a verification kit (the standard verification-kit shape); DONE = the reviewed-residue ledger is CLOSED (every alarm DISCHARGED / REVIEWED-FALSE-with-disjoint-justification / CARRIED-to-trusted-base) \u2014 NOT all-goals-green (unreachable); a class-C row is the only thing that blocks closure.",
+  "sources": [
+    {
+      "id": "rmf_report_target",
+      "name": "The code-blind XXX-analysis-rmf-report.md risk-ranked coverage target",
+      "type": "soft_authority",
+      "provenance": "exogenous",
+      "produced_by": null,
+      "notes": "U-material authored exogenously by rmf-sl (the base loop) \u2014 fixes WHAT must be covered and its risk ranking. The monitor reads its ranking, never its rationale."
+    },
+    {
+      "id": "framac_ceiling",
+      "name": "Frama-C 32.1 capability ceiling (WP/ACSL + sound cbits/why3 + patched frontend)",
+      "type": "soft_authority",
+      "provenance": "exogenous",
+      "produced_by": null,
+      "notes": "The soft, extensible upper frontier of L \u2014 a class-A 'tool limit' must BE this frontier, not laziness. A new shim/contract/lemma raises it."
+    },
+    {
+      "id": "nist_doctrine",
+      "name": "NIST RMF doctrine + the architectural threat model",
+      "type": "soft_authority",
+      "provenance": "exogenous",
+      "produced_by": null,
+      "notes": "The risk-author's (rmf-sl bridge row) exogenous U."
+    },
+    {
+      "id": "ranked_scenarios",
+      "name": "The report's ranked scenarios + ACSL expressibility",
+      "type": "soft_authority",
+      "provenance": "exogenous",
+      "produced_by": null,
+      "notes": "The onboarder/verifier bridge row's U \u2014 the slice of the report it consumes (ranking only, not rationale)."
+    },
+    {
+      "id": "admissible_input_envelope",
+      "name": "The deployment admissible-input envelope (the complete RTE-obligation set Oracle B must span), authored CODE-BLIND by rmf-sl/ebios-sl",
+      "type": "soft_authority",
+      "provenance": "exogenous",
+      "produced_by": null,
+      "notes": "The UPPER bound for ALARM-SET COMPLETENESS (Oracle B), parallel to ranked_scenarios for attack-surface coverage. Exogenous: it is a deployment-contract RISK decision (which inputs the system admits), authored by the code-blind risk loop \u2014 NOT by the verifier, else the verifier defines its own completeness target (self-certification). It fixes the nondet harness's `requires` envelope; a too-tight envelope (narrower than this contract) is the formal-test analog of a smuggled axiom. The verifier's Oracle-B mechanism (nondet_harness_oracle) discharges over EXACTLY this envelope; an in-scope Tier-1 entry not spanned by a harness over it is a completeness hole."
+    },
+    {
+      "id": "mission_budget",
+      "name": "Mission + the N-hour wall-clock budget + value objective",
+      "type": "soft_authority",
+      "provenance": "exogenous",
+      "produced_by": null,
+      "notes": "The coordinator's U: maximize security-relevant verified coverage per unit budget (NOT raw cell count)."
+    },
+    {
+      "id": "tl_probe_claim",
+      "name": "One design/method claim under test (per probe)",
+      "type": "soft_authority",
+      "provenance": "authored",
+      "produced_by": null,
+      "notes": "A question posed to the loop, not authored by the probe \u2014 keeps the probe non-self-certifying. Its produced_by is null."
+    },
+    {
+      "id": "wp_verdicts",
+      "name": "Frama-C/WP machine verdicts (+ Alt-Ergo/Z3/audited admit-free Coq, NO EVA) over XXX's source",
+      "type": "executable_oracle",
+      "provenance": "external_tool",
+      "produced_by": null,
+      "executable": true,
+      "notes": "The hard interpretation-free floor; the base loops' MACHINE verdicts re-read as the monitor's differential L (borrowed_from rmf-sl pipeline)."
+    },
+    {
+      "id": "faithfulness_oracle",
+      "name": "Faithfulness oracle: strip(//@) == pristine XXX/",
+      "type": "executable_oracle",
+      "provenance": "external_tool",
+      "produced_by": null,
+      "executable": true,
+      "notes": "diff of de-annotated overlay vs pristine source."
+    },
+    {
+      "id": "refutation_probe",
+      "name": "The refutation probe (the A<->C discriminator) + the lever probe",
+      "type": "executable_oracle",
+      "provenance": "external_tool",
+      "produced_by": null,
+      "executable": true,
+      "notes": "Supply the antecedent a residue points at, re-run; instant-Valid => missing-hypothesis (class C), not a tool limit (class A). The load-bearing differential comparator."
+    },
+    {
+      "id": "tl_rmf_lint",
+      "name": "rmf-lint.sh (exit 0) + the code-blindness check",
+      "type": "executable_oracle",
+      "provenance": "external_tool",
+      "produced_by": null,
+      "executable": true,
+      "notes": "The risk-author bridge row's L: structure/coverage/endogeneity + auditor green that rmf-sl read no code."
+    },
+    {
+      "id": "wp_unit_gates",
+      "name": "Per-unit WP discharge + the faithfulness gate (verify.sh)",
+      "type": "executable_oracle",
+      "provenance": "external_tool",
+      "produced_by": null,
+      "executable": true,
+      "notes": "The onboarder/verifier bridge row's L: per-unit verification conditions discharged by the base pipeline."
+    },
+    {
+      "id": "coverage_ledger",
+      "name": "The coverage ledger + gate verdicts (verdicts.tsv, prover logs, faithfulness diff)",
+      "type": "executable_oracle",
+      "provenance": "external_tool",
+      "produced_by": null,
+      "executable": true,
+      "notes": "The coordinator's L: the gate machine output it schedules and adjudicates against."
+    },
+    {
+      "id": "triage_verdicts",
+      "name": "Per-classification verdicts on the base loops' coverage claims + the A/B/C residue triage + Monitor packets keyed to RS#",
+      "type": "artifact",
+      "provenance": "internal",
+      "produced_by": "base_sl_monitor"
+    },
+    {
+      "id": "campaign_schedule",
+      "name": "The N-hour schedule + per-cycle residue triage + value/exposure ranking + self-justification log",
+      "type": "artifact",
+      "provenance": "internal",
+      "produced_by": "time_coordinator"
+    },
+    {
+      "id": "tl_probe_verdict",
+      "name": "One recorded probe verdict (the tool's actual behaviour)",
+      "type": "artifact",
+      "provenance": "internal",
+      "produced_by": "probe"
+    },
+    {
+      "id": "rmf_deliverable",
+      "name": "XXX-analysis-rmf-report.md, R1-R5 (R5 PENDING) \u2014 the base risk study",
+      "type": "artifact",
+      "provenance": "internal",
+      "produced_by": "risk_author"
+    },
+    {
+      "id": "verifier_deliverable",
+      "name": "The onboarding context + ACSL contracts + WP convergence on targeted units",
+      "type": "artifact",
+      "provenance": "internal",
+      "produced_by": "onboarder_verifier"
+    },
+    {
+      "id": "base_rationale",
+      "name": "The base loops' account of WHY they classified a goal ('I tried, it's hard')",
+      "type": "rationale",
+      "provenance": "internal",
+      "produced_by": "onboarder_verifier",
+      "notes": "The monitor is a differential comparator over verdicts; it must NEVER read this. Barriered from every monitoring actor."
+    },
+    {
+      "id": "happy_insitu",
+      "name": "macsl HAPPY \\prop discharge IN-SITU on the real TU + its attack-suite non-vacuity (Plane H)",
+      "type": "executable_oracle",
+      "provenance": "external_tool",
+      "produced_by": null,
+      "executable": true,
+      "notes": "Tier-3 authorization/integrity logic (EoP/STRIDE-S/E/T). macsl only (NEVER MetAcsl/HILARE), -no-autoload-plugins. A DRIVER verdict is NOT in-situ; a driver-only \\prop is class-C-not-done."
+    },
+    {
+      "id": "nondet_harness_oracle",
+      "name": "Oracle B: WP-over-nondet-harness alarm-set EMISSION (Frama_C_make_unknown/interval/nondet over the admissible-input envelope, pure WP -wp-rte, NO EVA)",
+      "type": "executable_oracle",
+      "provenance": "external_tool",
+      "produced_by": null,
+      "executable": true,
+      "notes": "The completeness half of the two-oracle squeeze. Oracle A (wp_unit_gates) DISCHARGES per-contract POs but never certifies the alarm set is COMPLETE (an un-driven input emits no PO; silence != safety). Oracle B exercises the REAL entry over the WHOLE admissible space via a nondet driver, then runs -wp -wp-rte ON THE DRIVER => WP discharges RTE POs for ALL admissible inputs (pure WP, no EVA; EVA-based whole-program interpreters are barred (EVA is barred)). Non-vacuity: a seeded out-of-envelope input MUST alarm, and the requires-envelope must be no narrower than the deployment contract (a too-tight envelope is the formal-test analog of a smuggled axiom). An in-scope Tier-1 entry with Oracle-A-only and no harness is class-C completeness-gap, not covered."
+    }
+  ],
+  "actors": [
+    {
+      "id": "time_coordinator",
+      "name": "Time coordinator",
+      "role": "coordinator",
+      "builds": "The N-hour schedule; the per-cycle residue triage (A/B/C) + value/exposure ranking; the coverage ledger + gate verdicts + the self-justification log; Gate-A adjudication",
+      "produces": [
+        "campaign_schedule"
+      ],
+      "upper_bound": {
+        "text": "The report's coverage target + Frama-C's ceiling + the mission/budget",
+        "sources": [
+          "rmf_report_target",
+          "framac_ceiling",
+          "mission_budget"
+        ]
+      },
+      "lower_bound": {
+        "text": "The gate machine output (verdicts.tsv, prover logs, faithfulness diff)",
+        "sources": [
+          "coverage_ledger"
+        ],
+        "executable": true,
+        "borrowed_from": "rmf-sl"
+      },
+      "forbidden_moves": [
+        "edit source/ACSL",
+        "rubber-stamp",
+        "spend a cycle on class A/B while class-C-on-valued-surface remains",
+        "declare done while any exemption is un-probed",
+        "treat 'no finding-bearing class-C' as terminus (premature convergence)",
+        "stop-and-ask the user whether to do rigor-completion / address an out-of-plane residual (do both by default within budget)",
+        "fold an out-of-plane liveness/DoS residual into 'exhausted' instead of scoping it to a named tool"
+      ],
+      "must_not_see": [
+        "base_rationale"
+      ]
+    },
+    {
+      "id": "risk_author",
+      "name": "risk-author = rmf-sl (code-blind, bridge row)",
+      "role": "sub_loop",
+      "builds": "XXX-analysis-rmf-report.md, R1-R5, R5 PENDING (the whole rmf-sl cast collapsed to one row)",
+      "produces": [
+        "rmf_deliverable"
+      ],
+      "expands_to": "rmf-sl",
+      "upper_bound": {
+        "text": "NIST RMF doctrine + the architectural threat model",
+        "sources": [
+          "nist_doctrine"
+        ]
+      },
+      "lower_bound": {
+        "text": "rmf-lint.sh (exit 0) + the code-blindness check",
+        "sources": [
+          "tl_rmf_lint"
+        ],
+        "executable": true,
+        "borrowed_from": "rmf-sl"
+      },
+      "forbidden_moves": [
+        "read the implementation",
+        "inflate scope",
+        "(the rmf-sl cast's own forbidden moves)"
+      ],
+      "must_not_see": []
+    },
+    {
+      "id": "onboarder_verifier",
+      "name": "onboarder/verifier = frama-c-launch + frama-c-monitoring/framac-sl (Plane W) + macsl (Plane H) (bridge row)",
+      "role": "sub_loop",
+      "builds": "Plane W: build/onboarding context, ACSL contracts, WP convergence on targeted units; Plane H: HAPPY \\prop + attack suite driven IN-SITU on the real TU via macsl (the whole verification cast collapsed to one row)",
+      "produces": [
+        "verifier_deliverable",
+        "base_rationale"
+      ],
+      "expands_to": "frama-c-monitoring",
+      "upper_bound": {
+        "text": "The report's ranked scenarios (Plane W untrusted-input + Plane H authorization-logic) + the admissible-input envelope (Oracle-B alarm-set completeness) + ACSL/HAPPY expressibility",
+        "sources": [
+          "ranked_scenarios",
+          "admissible_input_envelope"
+        ]
+      },
+      "lower_bound": {
+        "text": "Per-unit WP discharge + the macsl HAPPY in-situ verdict + the faithfulness gate",
+        "sources": [
+          "wp_unit_gates",
+          "happy_insitu",
+          "nondet_harness_oracle"
+        ],
+        "executable": true,
+        "borrowed_from": "rmf-sl"
+      },
+      "forbidden_moves": [
+        "weaken a contract to land",
+        "classify a goal residual without the probe",
+        "touch the report",
+        "use EVA",
+        "report a macsl DRIVER verdict as in-situ",
+        "use MetAcsl/HILARE for a HAPPY \\prop"
+      ],
+      "must_not_see": [
+        "base_rationale"
+      ]
+    },
+    {
+      "id": "base_sl_monitor",
+      "name": "base-SL monitor = sl-monitoring-sl (the meta-loop's watching role)",
+      "role": "monitor",
+      "builds": "Per-classification verdicts on the base loops' coverage claims + the A/B/C residue triage; the Monitor packets keyed to RS#",
+      "produces": [
+        "triage_verdicts"
+      ],
+      "invokes": {
+        "loop": "sl-monitoring-sl",
+        "row": "Monitor loop"
+      },
+      "upper_bound": {
+        "text": "U_top = the report target + the admissible-input envelope (Oracle-B completeness obligation) + Frama-C's ceiling (a 'tool limit' must BE a frontier, not laziness)",
+        "sources": [
+          "rmf_report_target",
+          "admissible_input_envelope",
+          "framac_ceiling"
+        ]
+      },
+      "lower_bound": {
+        "text": "L_top = prover verdicts + the refutation probe (the A-vs-C discriminator) + Oracle-B alarm-set completeness (every in-scope Tier-1 entry harnessed-or-OUT-OF-SCOPE) as differential comparators",
+        "sources": [
+          "wp_verdicts",
+          "refutation_probe",
+          "nondet_harness_oracle"
+        ],
+        "executable": true,
+        "borrowed_from": "rmf-sl"
+      },
+      "forbidden_moves": [
+        "edit the base loop's work",
+        "accept an exemption without probe evidence",
+        "let a class-C residue be parked as class-A",
+        "read the base loop's rationale"
+      ],
+      "must_not_see": [
+        "base_rationale"
+      ]
+    },
+    {
+      "id": "probe",
+      "name": "Probe (optional)",
+      "role": "probe",
+      "optional": true,
+      "builds": "One experiment, one recorded verdict (the refutation probe = the A<->C discriminator; the lever probe for PARSE-BLOCKED)",
+      "produces": [
+        "tl_probe_verdict"
+      ],
+      "upper_bound": {
+        "text": "One design claim per probe",
+        "sources": [
+          "tl_probe_claim"
+        ]
+      },
+      "lower_bound": {
+        "text": "The tool's actual behaviour (faithfulness oracle / lever re-run)",
+        "sources": [
+          "faithfulness_oracle"
+        ],
+        "executable": true
+      },
+      "forbidden_moves": [
+        "implement a fix"
+      ],
+      "must_not_see": [
+        "base_rationale"
+      ]
+    }
+  ],
+  "disjointness": {
+    "rationale": "The meta-loop never certifies the base loops' deliverable with the pair that produced it. rmf-sl holds doctrine + the threat model, never the code (the exogeneity barrier that makes the report a valid U). The onboarder/verifier holds the report + WP, and the report is exogenous to it. The base-SL monitor squeezes the base machine verdicts + the refutation probe (L_top) against the report target + the Frama-C ceiling (U_top), and is physically barriered from the base loops' 'I tried, it's hard' rationale \u2014 it is a differential comparator over verdicts, never a reader of reasoning. The coordinator holds the schedule + triage + the gate ledger and NEVER edits. No actor relieves its own exemption: a residue's class (esp. the A-vs-C call) is set by the monitor's probe, from a base the verifier does not hold. The two sub_loop bridge rows read deliberately distinct (U,L): the risk-author reads doctrine vs rmf-lint, the verifier reads ranked scenarios vs the per-unit WP gates; the monitor's (U_top,L_top) differs from both (aggregate prover verdicts + the refutation probe).",
+    "load_bearing_barrier": "base-SL monitor (and every monitoring actor) \u22a5 base rationale \u2014 the meta-loop judges the base loops ONLY through their machine WP verdicts and the refutation probe, never the producers' 'it's hard' account. Reading base rationale would collapse the monitor into the loop it monitors and let exempt-bucket relabeling pass. Inherited base barriers (rmf-sl code-blindness) are never weakened: driving the base as a sub-loop adds barriers, it never removes them.",
+    "catchability": [
+      {
+        "actor": "onboarder_verifier",
+        "blind_spot": "relabel hard class-C work as class-A/residual to look done (exempt-bucket relabeling)",
+        "caught_by": "base_sl_monitor",
+        "via": "the mandatory refutation probe flips it => it was class C, unfinished => REJECT"
+      },
+      {
+        "actor": "time_coordinator",
+        "blind_spot": "burn budget re-grinding class A/B to look busy when the high-value class-C thread is exhausted",
+        "caught_by": "base_sl_monitor",
+        "via": "Gate-S diminishing-returns stop + the per-cycle self-justification \u2014 a cycle that can't name a high-value class-C target must stop; the monitor's verdicts withhold green from un-probed exemptions so the coordinator cannot aggregate to done"
+      },
+      {
+        "actor": "risk_author",
+        "blind_spot": "endogenous U \u2014 scenarios silently read off the implementation",
+        "caught_by": "base_sl_monitor",
+        "via": "the code-blindness auditor (rmf-lint) leg is squeezed by the monitor against the ceiling; an endogenous-U leak is a REJECT"
+      },
+      {
+        "actor": "base_sl_monitor",
+        "blind_spot": "the monitor itself rubber-stamps a classification or accepts an un-probed exemption",
+        "caught_by": "time_coordinator",
+        "via": "the coordinator adjudicates the verdict log at Gate A and refuses 'done' on a sub-loop's say-so"
+      },
+      {
+        "actor": "probe",
+        "blind_spot": "mis-reads the tool's behaviour / over-generalizes one experiment",
+        "caught_by": "time_coordinator",
+        "via": "the coordinator adjudicates probe verdicts at Gate A; the probe never fixes, only records"
+      }
+    ],
+    "endogeneity_flags": [],
+    "terminus": "R5/Authorize PENDING is the human AO, OUTSIDE the loop \u2014 the AO signs, the loop never does; combined with the diminishing-returns early stop (when only class A/B remain, stop and report honestly). No in-loop human_terminus actor."
+  }
+}

@@ -1,0 +1,94 @@
+{
+  "sl_version": "1.0",
+  "id": "creusot-monitoring",
+  "kind": "monitor",
+  "terrain": ["A", "B"],
+  "monitors": "creusot-sl",
+  "description": "The top loop that drives and MONITORS creusot-sl across a whole crate. It schedules the crate's *.rs files leaf-first (propagating each proven callee #[ensures] as the caller's #[requires]), instantiates a creusot-sl sub-loop per file, and squeezes the base loop's soft outputs (its learned skills and inferred/strengthened contracts) against the mission guidance from a disjoint evidence base. Dominant coherent-and-wrong: a crate that LOOKS verified because each file went green, but where the base loop strengthened a contract for local convenience that is globally or guidance-wrong (e.g. specified network behaviour the guidance said to disregard). A Phase-0 architectural audit reads the implementation to seed U and rank the schedule; the functional claims it extracts are therefore ENDOGENOUS (declared below) — a PASS against them is self-consistency, not conformance. The top loop's own learned skills are closed at a cross-provider/human disjoint base.",
+  "sources": [
+    {"id": "mission_guidance", "name": "Mission guidance + scope (analyze crate xxx in dir yyy; e.g. 'specify thoroughly; disregard network access')", "type": "soft_authority", "provenance": "authored", "executable": false, "notes": "the citable instruction on what/how much to verify; the monitor's and coordinator's U"},
+    {"id": "system_intent", "name": "The system's own documented intent (docstrings / README the architect reads)", "type": "soft_authority", "provenance": "exogenous", "executable": false, "notes": "the architect's upper bound alongside the mission"},
+    {"id": "architecture_audit_claims", "name": "Phase-0 architectural-audit claims (properties the system asserts about itself)", "type": "soft_authority", "provenance": "endogenous", "produced_by": "architect", "executable": false, "notes": "read OFF the implementation, so endogenous: verifying these is a self-consistency check, not conformance. Declared in endogeneity_flags. Safety/robustness properties the audit merely MOTIVATES (true for any input) are exogenous and live as the base loop's requirement, not here."},
+    {"id": "impl_source", "name": "The crate's source (read-only, for the architect's Phase-0 audit)", "type": "artifact", "provenance": "exogenous", "produced_by": null, "executable": false, "notes": "what the architect deep-reads; never edited"},
+    {"id": "dep_graph_oracle", "name": "Actual dependency graph (cargo metadata + module/use graph + compile)", "type": "executable_oracle", "provenance": "external_tool", "executable": true, "notes": "the scheduler's runnable lower bound — the real call/module graph, not an assumed one"},
+    {"id": "base_oracle", "name": "The creusot-sl machine verdicts returned across the sub-loop boundary + cross-unit cargo creusot discharge + linked cargo test", "type": "executable_oracle", "provenance": "external_tool", "executable": true, "notes": "the monitor's L, used as a differential comparator. Distinct id from the base loop's own creusot_oracle: this is the base verdict as it RETURNS to the monitor, plus the cross-unit obligation the base loop cannot see."},
+    {"id": "crate_plan", "name": "The per-crate plan, file schedule decisions, and gate verdicts", "type": "artifact", "provenance": "internal", "produced_by": "coordinator", "executable": false},
+    {"id": "file_schedule", "name": "The leaf-first topo-order refined by the audit value/risk ranking; the parallelizable-independent set", "type": "artifact", "provenance": "internal", "produced_by": "scheduler", "executable": false},
+    {"id": "scope_map", "name": "Creusot-amenability scope map (amenable vs out-of-reach: FFI/firmware/external-crate)", "type": "artifact", "provenance": "internal", "produced_by": "architect", "executable": false},
+    {"id": "value_risk_ranking", "name": "Value/risk ranking that focuses the schedule (e.g. attack-surface-first)", "type": "artifact", "provenance": "internal", "produced_by": "architect", "executable": false},
+    {"id": "base_skill", "name": "The base loop's consolidated skill / inferred-or-strengthened contract (soft output under test)", "type": "artifact", "provenance": "internal", "produced_by": "sub_creusot_sl", "executable": false, "notes": "read by the monitor as the ARTIFACT under test, never as a bound"},
+    {"id": "base_rationale", "name": "The base agent's private rationale for the skill/contract", "type": "rationale", "provenance": "internal", "produced_by": "sub_creusot_sl", "executable": false, "notes": "stays inside the sub-agent; the monitor and coordinator must never read it (forbidden move)"},
+    {"id": "skill_verdict", "name": "Gate S verdict on each base skill/inferred contract (PASS / CARVE-OUT / REJECT)", "type": "artifact", "provenance": "internal", "produced_by": "monitor", "executable": false, "notes": "plus routed surprises -> getting-better/ (feature gaps) and bugs-to-report/ (tool bugs)"},
+    {"id": "top_learned_skill", "name": "The top loop's OWN learned skills (coordinator / scheduler / monitor heuristics)", "type": "artifact", "provenance": "internal", "produced_by": "coordinator", "executable": false, "notes": "must be audited from a DISJOINT base (cross-provider/human), never self-audited"},
+    {"id": "external_review", "name": "Cross-provider / human reviewer judgment", "type": "human_judgment", "provenance": "human", "produced_by": "disjoint_base", "executable": false, "notes": "closes the top loop's own-skill audit and the editorial soft side; no executable refuter"}
+  ],
+  "actors": [
+    {
+      "id": "coordinator", "name": "Mission coordinator", "role": "coordinator",
+      "builds": "the per-crate plan, the file schedule, gate verdicts, gap-doc adjudication, routing of suggestions/bugs, flag-rate calibration of the monitor, and this SL-1.0 self-description",
+      "produces": ["crate_plan", "top_learned_skill"],
+      "upper_bound": {"text": "the mission guidance + scope, sharpened by the (endogenous) architecture-audit claims", "sources": ["mission_guidance", "architecture_audit_claims"]},
+      "lower_bound": {"text": "the aggregated creusot-sl verdicts + cross-unit cargo creusot/test output", "sources": ["base_oracle"], "executable": true},
+      "forbidden_moves": ["edit Rust/Pearlite", "declare the crate done on a sub-loop's say-so", "absorb a tooling surprise locally instead of routing it", "read a base agent's rationale", "self-audit the top loop's own skills"],
+      "must_not_see": ["base_rationale"]
+    },
+    {
+      "id": "architect", "name": "Architect / auditor (Phase 0)", "role": "other",
+      "builds": "the read-only architectural audit -> the claim set, the Creusot-amenability scope map, and the value/risk ranking",
+      "produces": ["architecture_audit_claims", "scope_map", "value_risk_ranking"],
+      "upper_bound": {"text": "the mission + the system's own documented intent", "sources": ["mission_guidance", "system_intent"]},
+      "lower_bound": {"text": "the actual source, read-only (claims must be read out of the code, not invented)", "sources": ["impl_source"], "executable": false},
+      "forbidden_moves": ["edit the target", "verify anything itself", "assert a claim it did not read out of the code"],
+      "must_not_see": []
+    },
+    {
+      "id": "scheduler", "name": "Scheduler / graph planner", "role": "other",
+      "builds": "the module+call graph of the crate; the leaf-first topo-order refined by the audit ranking; the parallelizable-independent set",
+      "produces": ["file_schedule"],
+      "upper_bound": {"text": "the mission scope + the audit value/risk ranking", "sources": ["mission_guidance", "value_risk_ranking"]},
+      "lower_bound": {"text": "the actual dependency graph (cargo metadata, module/use graph, compile)", "sources": ["dep_graph_oracle"], "executable": true},
+      "forbidden_moves": ["skip a file silently", "verify anything itself"],
+      "must_not_see": []
+    },
+    {
+      "id": "monitor", "name": "Base-SL monitor (sl-monitoring-sl Gate S)", "role": "monitor",
+      "builds": "per-skill / per-inferred-contract verdicts on what creusot-sl learned or strengthened (trigger test for ignore-signal, validity test for defer-to-oracle)",
+      "produces": ["skill_verdict"],
+      "upper_bound": {"text": "the mission guidance the skill/contract must not contradict", "sources": ["mission_guidance"]},
+      "lower_bound": {"text": "the creusot-sl oracle + cross-unit discharge, used as a differential comparator", "sources": ["base_oracle"], "borrowed_from": "creusot-sl", "executable": true},
+      "forbidden_moves": ["edit creusot-sl's implementation", "read a producing agent's rationale", "fake a PASS for an un-runnable sub-loop", "emit a silent fix instead of a verdict"],
+      "must_not_see": ["base_rationale"]
+    },
+    {
+      "id": "sub_creusot_sl", "name": "Bridge -> a creusot-sl instance (run as a sub-agent, one per file)", "role": "sub_loop", "expands_to": "creusot-sl",
+      "builds": "the base loop collapsed to one row; returns per-file verified Rust+specs and its soft outputs (skills, inferred contracts), never its rationale",
+      "produces": ["base_skill", "base_rationale"],
+      "upper_bound": {"text": "the base loop's own bounds (see creusot-sl.sl.json / the `creusot-sl` skill (`config/skills/creusot-sl/SKILL.md`))", "sources": [], "borrowed_from": "creusot-sl"},
+      "lower_bound": {"text": "the base loop's per-file machine gates, returned", "sources": [], "borrowed_from": "creusot-sl", "executable": true},
+      "forbidden_moves": ["leak the base loop's rationale or implementation across the sub-agent boundary"],
+      "must_not_see": []
+    },
+    {
+      "id": "disjoint_base", "name": "Cross-provider / human reviewer (terminus)", "role": "disjoint_base",
+      "builds": "the terminal review of what the top loop cannot self-certify: its OWN learned skills, the editorial faithfulness of carve-outs, and self-description accuracy (sl-auditor Dimension 8)",
+      "produces": ["external_review"],
+      "upper_bound": {"text": "the mission guidance: are the top loop's own skills / carve-outs a faithful reading of it, or do they share the loop's blind spot?", "sources": ["mission_guidance"]},
+      "lower_bound": {"text": "no executable oracle — soft-vs-soft faithfulness and self-description accuracy have no hard refuter; this absence is why the reviewer is the terminus", "sources": [], "absent_reason": "a same-provider-family judge shares the author's blind spot (only partial disjointness); closed by a disjoint cross-provider or human reviewer, not a machine"},
+      "forbidden_moves": ["count a same-provider-family judge as full disjointness", "certify without passing known-contradiction / known-consistent controls"],
+      "must_not_see": []
+    }
+  ],
+  "disjointness": {
+    "rationale": "The scheduler holds 'what the dependency graph is' (never the specs); the base creusot-sl instances hold 'what discharges within a file'; the monitor holds 'what the guidance mandates across files' + 'what the base oracle actually returns' — a disjoint evidence base from the base loop that produced the skill/contract; the coordinator holds the guidance + aggregated verdicts (never producing a file's artifact). Intersection = a crate whose every file is base-DONE AND whose inferred contracts/skills survive the guidance + cross-unit oracle from outside the base loop. The base loop runs as a sub-agent so its rationale is physically absent from the monitor's context.",
+    "load_bearing_barrier": "the monitor and coordinator never see the base agent's rationale (it never leaves the sub-agent); they judge each base skill/contract only against the guidance U and the base oracle L",
+    "catchability": [
+      {"actor": "sub_creusot_sl", "blind_spot": "the base loop strengthens a contract for LOCAL convenience in a way that is globally or guidance-wrong (e.g. specifies network behaviour the guidance said to disregard)", "caught_by": "monitor", "via": "the trigger/validity test against the guidance U and the cross-unit oracle L the base agents do not hold"},
+      {"actor": "monitor", "blind_spot": "mis-calibration — rubber-stamping (flags nothing) or saturating (flags everything); and an over-broad coordinator triage it does not police", "caught_by": "coordinator", "via": "flag-rate calibration + a periodic ground-truth comparison against a reference/gold annotation set (catches an over-broad TRIVIAL fast-path)"},
+      {"actor": "architect", "blind_spot": "its claims are read OFF the code (endogenous), so a functional PASS against them is self-consistency mistaken for conformance", "caught_by": "coordinator", "via": "Gate A_top + endogeneity_flags: functional audit claims are recorded as self-consistency; only exogenous safety/robustness is claimed as conformance (docs/u-provenance-ledger.md)"},
+      {"actor": "scheduler", "blind_spot": "a wrong topo-order (a callee verified before it is proven, or a file silently skipped)", "caught_by": "coordinator", "via": "the leaf-first order + cross-unit Gate B_top (each callee proven before its callers; no in-scope file skipped)"},
+      {"actor": "coordinator", "blind_spot": "its own editorial judgment and the top loop's OWN learned skills", "caught_by": "disjoint_base", "via": "cross-provider / human review — the recursion stops at an external reviewer (sl-auditor Dimension 8)"}
+    ],
+    "endogeneity_flags": ["architecture_audit_claims"],
+    "terminus": "disjoint_base (a cross-provider or human reviewer closes the top loop's own-skill audit and the editorial soft side; the automation alone does not)"
+  }
+}

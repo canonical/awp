@@ -1,0 +1,91 @@
+{
+  "sl_version": "1.0",
+  "id": "creusot-sl",
+  "kind": "base",
+  "terrain": ["A", "B"],
+  "monitors": null,
+  "description": "The Creusot Squeeze Loop: annotates EXISTING Rust with Pearlite and proves it with `cargo creusot`, one function/unit at a time, so the loop converges on correct code-with-specs rather than a plausible-looking one. The requirement is external (transcription, A) but the Pearlite contracts that make it checkable are authored upstream by an actor that never sees the implementation (authored authority, B) — author independence carries the soundness argument. Dominant coherent-and-wrong: a vacuously-true / weaker-than-intended contract (#[ensures(true)], an unsatisfiable #[requires], a proof of an adjacent weaker property) that Why3 discharges while proving the wrong theorem. NOTE: this registry models the FULL loop, whose U is an EXTERNAL requirement (exogenous). The lightweight 3-agent appendix variant instead derives U from a summary of the code (endogenous) — there a PASS certifies self-consistency, not conformance; see docs/u-provenance-ledger.md.",
+  "sources": [
+    {"id": "requirement", "name": "External requirement (plain English / standard / ticket)", "type": "soft_authority", "provenance": "exogenous", "executable": false, "notes": "the U of the full loop; the strongest claim the code must satisfy. If instead derived from a code summary (lightweight variant), this becomes endogenous and a PASS is self-consistency only."},
+    {"id": "public_surface", "name": "Public function signatures / documented surface", "type": "artifact", "provenance": "exogenous", "produced_by": null, "executable": false, "notes": "the public interface the spec author and verifier may see; carries no implementation body"},
+    {"id": "implementation_body", "name": "The existing Rust function bodies (pre-existing)", "type": "artifact", "provenance": "exogenous", "produced_by": null, "executable": false, "notes": "the code under test; barriered from the spec author and verifier (they must reason from the requirement + surface, never the body)"},
+    {"id": "contracts", "name": "Pearlite contracts (requires/ensures/invariant authored from the requirement)", "type": "artifact", "provenance": "internal", "produced_by": "spec_author", "executable": false, "notes": "the spec author's deliverable; the annotator's upper bound"},
+    {"id": "proof_scaffolding", "name": "Proof scaffolding added to the original Rust (invariants, variants, ghost/snapshot, proof_assert!)", "type": "artifact", "provenance": "internal", "produced_by": "annotator", "executable": false, "notes": "the implementation artifact; must be ABSENT from the spec author's and verifier's context (physical barrier)"},
+    {"id": "adversarial_props", "name": "Adversarial properties + mutation probes authored from the requirement + surface", "type": "artifact", "provenance": "internal", "produced_by": "verifier", "executable": false, "notes": "the acceptance evidence; must be ABSENT from the annotator's context so it cannot tune the code to them"},
+    {"id": "creusot_oracle", "name": "cargo creusot -> Creusot->Coma->Why3 -> SMT discharge (Proved ... checkmark)", "type": "executable_oracle", "provenance": "external_tool", "executable": true, "notes": "the per-obligation discharge verdict; mechanical and interpretation-free, no actor can alter it"},
+    {"id": "standing_invariant", "name": "Standing invariant: cargo test + standing proof count + determinism re-run", "type": "executable_oracle", "provenance": "external_tool", "executable": true, "subtype": "invariant", "notes": "rerun every cycle; previously discharged VCs stay discharged, determinism re-run agrees (zero regression)"},
+    {"id": "mutation_probe", "name": "Scripted mutation probe (flip a comparator, drop a +1, widen a bound)", "type": "executable_oracle", "provenance": "external_tool", "executable": true, "notes": "the Gate C non-vacuity oracle: a mutation that violates the requirement MUST break the proof, else the spec is vacuous"},
+    {"id": "creusot_behaviour", "name": "Creusot/Why3's actual behaviour on a construct (capability)", "type": "executable_oracle", "provenance": "external_tool", "executable": true, "notes": "what WP/the provers actually do; the probe's and spec author's expressibility oracle"},
+    {"id": "probe_experiment", "name": "Minimal Creusot/Why3 capability experiment (one claim, one recorded verdict)", "type": "artifact", "provenance": "internal", "produced_by": "probe", "executable": false, "notes": "pins one tool-behaviour claim before machinery is built on it"},
+    {"id": "cs_external_review", "name": "Cross-provider / human reviewer judgment", "type": "human_judgment", "provenance": "human", "produced_by": "human_reviewer", "executable": false, "notes": "audits the coordinator's own consolidated heuristics and the Gate A editorial faithfulness; no executable refuter"}
+  ],
+  "actors": [
+    {
+      "id": "coordinator", "name": "Coordinator", "role": "coordinator",
+      "builds": "Gate A approvals, sequencing, gap-doc adjudication, DONE verdicts",
+      "produces": [],
+      "upper_bound": {"text": "the external requirement + plan sections", "sources": ["requirement"]},
+      "lower_bound": {"text": "the machine gate output (why3find discharge logs, test + mutation results, standing-invariant re-run)", "sources": ["creusot_oracle", "standing_invariant", "mutation_probe"], "executable": true},
+      "forbidden_moves": ["edit Rust/Pearlite", "approve an unjudged (DRAFT) plan", "let a producer's self-report end an item"],
+      "must_not_see": []
+    },
+    {
+      "id": "spec_author", "name": "Spec author", "role": "property_author",
+      "builds": "the Pearlite contracts (requires/ensures + the requirement's invariants) from the requirement, blind to the body",
+      "produces": ["contracts"],
+      "upper_bound": {"text": "the external requirement + the public signatures", "sources": ["requirement", "public_surface"]},
+      "lower_bound": {"text": "expressibility: each clause must be dischargeable by SOME Why3 mechanism", "sources": ["creusot_behaviour"], "executable": true},
+      "forbidden_moves": ["read or infer the implementation body", "see the adversarial properties"],
+      "must_not_see": ["implementation_body", "proof_scaffolding", "adversarial_props"]
+    },
+    {
+      "id": "annotator", "name": "Annotator (implementer)", "role": "implementer",
+      "builds": "internal proof scaffolding on the original Rust: #[invariant], #[variant], ghost/snapshot, intermediate proof_assert!, minimal proof-preserving refactor",
+      "produces": ["proof_scaffolding"],
+      "upper_bound": {"text": "the contracts (the strongest mandated claim)", "sources": ["contracts"]},
+      "lower_bound": {"text": "cargo creusot discharge + the standing test/invariant suite", "sources": ["creusot_oracle", "standing_invariant"], "executable": true},
+      "forbidden_moves": ["weaken a contract or a gate to land", "add #[trusted]/assume! to the target", "touch the acceptance evidence"],
+      "must_not_see": ["adversarial_props", "mutation_probe"]
+    },
+    {
+      "id": "verifier", "name": "Exerciser / Verifier", "role": "exerciser",
+      "builds": "adversarial properties + the mutation probes from requirement + surface only; runs cargo creusot fresh",
+      "produces": ["adversarial_props"],
+      "upper_bound": {"text": "the requirement's acceptance clauses + the documented public surface", "sources": ["requirement", "public_surface"]},
+      "lower_bound": {"text": "what actually discharges/proves when run, and whether the mutation breaks the proof", "sources": ["creusot_oracle", "mutation_probe"], "executable": true},
+      "forbidden_moves": ["read the implementation body or the annotator's diff", "anchor the adversarial properties to implementation quirks"],
+      "must_not_see": ["implementation_body", "proof_scaffolding"]
+    },
+    {
+      "id": "probe", "name": "Probe", "role": "probe", "optional": true,
+      "builds": "minimal Creusot/Why3 capability experiments (does WP handle this construct? does this prover discharge?)",
+      "produces": ["probe_experiment"],
+      "upper_bound": {"text": "one design claim per probe, drawn from the requirement context", "sources": ["requirement"]},
+      "lower_bound": {"text": "Creusot/Why3's actual behaviour", "sources": ["creusot_behaviour"], "executable": true},
+      "forbidden_moves": ["implement a fix (a probe writes a verdict, never a fix)"],
+      "must_not_see": []
+    },
+    {
+      "id": "human_reviewer", "name": "Cross-provider / human reviewer (terminus)", "role": "human_terminus",
+      "builds": "the terminal review of what the loop cannot self-certify: the coordinator's own consolidated heuristics and the Gate A editorial faithfulness (a contract as a faithful reading of the requirement)",
+      "produces": ["cs_external_review"],
+      "upper_bound": {"text": "the external requirement: is the coordinator's heuristic / carve-out a faithful reading of it, or does it share the loop's blind spot?", "sources": ["requirement"]},
+      "lower_bound": {"text": "no executable oracle — soft-vs-soft faithfulness has no hard refuter; this absence is why the reviewer is the terminus", "sources": [], "absent_reason": "a same-provider-family judge shares the author's blind spot (only partial disjointness); closed by a disjoint cross-provider or human reviewer, not a machine"},
+      "forbidden_moves": ["count a same-provider-family judge as full disjointness"],
+      "must_not_see": []
+    }
+  ],
+  "disjointness": {
+    "rationale": "The spec author holds the requirement (never the code); the annotator holds the contracts (never the adversarial properties); the verifier holds the requirement + the runnable oracle (never the code or the diff); the coordinator holds the requirement + gate output (never producing an artifact it grades). Intersection = Rust that both discharges contracts authored from the requirement AND survives adversarial properties derived independently from that same requirement — and no single actor can certify it alone.",
+    "load_bearing_barrier": "spec author and verifier are delegated from fresh, body-free contexts: the implementation body and the annotator's diff are physically absent, not merely off-limits by instruction",
+    "catchability": [
+      {"actor": "annotator", "blind_spot": "games a weak contract — writes code that satisfies a vacuous spec", "caught_by": "verifier", "via": "adversarial properties + the Gate C mutation probe (a violating mutant must break the proof)"},
+      {"actor": "spec_author", "blind_spot": "writes a vacuous / weaker-than-intended contract", "caught_by": "verifier", "via": "the mutation probe fires, and adversarial properties that SHOULD fail against a vacuous spec do not"},
+      {"actor": "spec_author", "blind_spot": "misreads the requirement", "caught_by": "coordinator", "via": "Gate A judges the contracts against the requirement (amend/cut/sharpen)"},
+      {"actor": "verifier", "blind_spot": "anchors its adversarial properties to implementation quirks", "caught_by": "coordinator", "via": "structurally prevented by the barrier; the coordinator confirms each adversarial property derives from U"},
+      {"actor": "coordinator", "blind_spot": "its own editorial (Gate A) judgment and its own consolidated heuristics", "caught_by": "human_reviewer", "via": "the coordinator's heuristics are audited by the verifier or a cross-provider/human reviewer — never self-audited (Gate S / disjoint base)"}
+    ],
+    "endogeneity_flags": [],
+    "terminus": "human_reviewer — Gate A editorial faithfulness (is each contract a faithful reading of the requirement?) and the coordinator's own heuristics close at a cross-provider/human review; the requirement is exogenous, so the mechanical oracle carries the main soundness and the editorial residual is the only soft-side hole. In the lightweight variant (endogenous U) the whole loop is a self-consistency check and needs an external requirement before any conformance claim."
+  }
+}

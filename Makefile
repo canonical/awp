@@ -1,0 +1,94 @@
+# auto-wp — test targets (see tests.md).
+#
+# Levels 1 and 2 are run by `make test` and `make test-l2`. Levels 3 and 4
+# (provision, smoke, workspace, acceptance) take hours and need a Claude
+# token; they have targets but are never run by `test` or `test-l2`.
+
+SHELL := /bin/bash
+.SHELLFLAGS := -o pipefail -c
+.DEFAULT_GOAL := help
+
+PYTHON ?= python3
+OUT    := tests/out
+STAMP   = $(shell date -u +%Y%m%d-%H%M%S)
+
+SCRIPTS := $(wildcard tests/lib/*.sh tests/c/*.sh tests/rust/*.sh)
+
+.PHONY: help test test-l2 test-c-l2 test-rust-l2 check-scripts \
+        provision-c provision-rust smoke-c smoke-rust workspace-rust \
+        clean clean-lxc
+
+help: ## Show this help
+	@echo "auto-wp test targets:"
+	@grep -E '^[a-zA-Z0-9_-]+:.*## ' $(MAKEFILE_LIST) \
+	    | awk -F':.*## ' '{ printf "  %-16s %s\n", $$1, $$2 }'
+	@echo "Logs go to $(OUT)/. KEEP=1 keeps level-2+ containers."
+
+$(OUT):
+	@mkdir -p $(OUT)
+
+test: | $(OUT) ## Level 1: program and template tests on the host (seconds)
+	$(PYTHON) -m unittest discover -s tests -v 2>&1 | tee $(OUT)/level1-$(STAMP).log
+
+test-l2: ## Level 2: C and Rust install tests in fresh LXD containers (minutes)
+	@rc=0; \
+	$(MAKE) --no-print-directory test-c-l2 || rc=1; \
+	$(MAKE) --no-print-directory test-rust-l2 || rc=1; \
+	exit $$rc
+
+test-c-l2: | $(OUT) ## Level 2, C: tests/c/install-test.sh
+	tests/c/install-test.sh 2>&1 | tee $(OUT)/c-install-$(STAMP).log
+
+test-rust-l2: | $(OUT) ## Level 2, Rust: tests/rust/install-test.sh
+	tests/rust/install-test.sh 2>&1 | tee $(OUT)/rust-install-$(STAMP).log
+
+check-scripts: ## bash -n on every script (+ shellcheck if installed), modes
+	@rc=0; \
+	for f in $(SCRIPTS); do \
+	    if bash -n "$$f"; then echo "ok    bash -n $$f"; else echo "FAIL  bash -n $$f"; rc=1; fi; \
+	    if [ ! -x "$$f" ]; then echo "FAIL  not executable: $$f"; rc=1; fi; \
+	done; \
+	if command -v shellcheck >/dev/null; then \
+	    shellcheck -x -S warning $(SCRIPTS) && echo "ok    shellcheck" || rc=1; \
+	else echo "skip  shellcheck (not installed)"; fi; \
+	$(PYTHON) -m py_compile tests/test_auto_wp.py tests/test_templates.py \
+	    && echo "ok    py_compile tests/*.py" || rc=1; \
+	exit $$rc
+
+# --- levels 3 and 4: by hand only (hours; need a Claude token) -------------
+
+provision-c: | $(OUT) ## Build autowp-c-base (hours)
+	tests/c/provision.sh 2>&1 | tee $(OUT)/c-provision-$(STAMP).log
+
+provision-rust: | $(OUT) ## Build autowp-rust-base (hours)
+	tests/rust/provision.sh 2>&1 | tee $(OUT)/rust-provision-$(STAMP).log
+
+smoke-c: | $(OUT) ## Level 3, C: 3-hour /time-loop run (token)
+	tests/c/smoke-test.sh 2>&1 | tee $(OUT)/c-smoke-$(STAMP).log
+
+workspace-rust: | $(OUT) ## Level 3, Rust: why3find.json workspace cases A-H
+	tests/rust/workspace-test.sh 2>&1 | tee $(OUT)/rust-workspace-$(STAMP).log
+
+smoke-rust: | $(OUT) ## Level 3, Rust: creusot-launch smoke test (token)
+	tests/rust/smoke-test.sh 2>&1 | tee $(OUT)/rust-smoke-$(STAMP).log
+
+# --- cleanup ---------------------------------------------------------------
+
+clean: ## Remove temporary files (never sources, test.txt or LXD objects)
+	@removed=$$( { \
+	    find . -path ./.git -prune -o -type d -name __pycache__ -print; \
+	    find . -path ./.git -prune -o -type f \( -name '*.pyc' -o -name '*.pyo' -o -name '*~' \) -print; \
+	    [ -e $(OUT) ] && echo ./$(OUT); \
+	} | sort -u ); \
+	if [ -n "$$removed" ]; then \
+	    echo "$$removed" | sed 's/^/removing /'; \
+	    echo "$$removed" | xargs -d '\n' rm -rf --; \
+	else echo "nothing to clean"; fi
+
+clean-lxc: ## Delete leftover test containers autowp-* (not the base containers)
+	@for c in $$(lxc list --format csv -c n); do \
+	    case "$$c" in \
+	        autowp-c-base|autowp-rust-base) echo "keeping $$c" ;; \
+	        autowp-*) echo "deleting $$c"; lxc delete --force "$$c" ;; \
+	    esac; \
+	done

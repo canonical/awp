@@ -1,0 +1,116 @@
+{
+  "sl_version": "1.0",
+  "id": "frama-c-launch",
+  "kind": "monitor",
+  "monitors": "frama-c-monitoring",
+  "terrain": ["A", "C"],
+  "description": "The onboarding loop that prepares a heterogeneous C/C++ codebase for Frama-C verification and hands a validated onboarding package (build flags, scope map, durable <target>-acsl/ overlay, faithfulness baseline pin, one leaf smoke proof) up to frama-c-monitoring. It is itself an sl-monitoring-sl over its own prep work: a disjoint onboarding monitor squeezes the prober's flag-set, the architect's scope map and the scaffolder's baseline pin against the SHIPPED build profile and the real attack surface. Its distinctive lower bound is purpose-built ONBOARDING oracles (the parse oracle, frama-c -wp-detect, the strip-ACSL==HEAD faithfulness round-trip, one end-to-end smoke proof) — NOT WP verdicts (that layer is below). Dominant coherent-and-wrong: a config that parses cleanly but selects the WRONG feature set, a scope map that silently drops an attack-surface module, or a baseline pinned to the wrong commit/submodule.",
+  "sources": [
+    { "id": "mission_guidance", "name": "The onboarding mission + build docs + named profile (guidance)", "type": "soft_authority", "provenance": "exogenous", "produced_by": null, "notes": "The campaign's stated goal and the chosen build profile; the coordinator's U." },
+    { "id": "shipped_build_docs", "name": "The target's DOCUMENTED build for the chosen profile (configure defaults / README / user_settings.h)", "type": "soft_authority", "provenance": "exogenous", "produced_by": null, "notes": "The prober's U — what the project says it builds, never read off the proof annotations." },
+    { "id": "documented_intent", "name": "The system's documented intent + an EBIOS/RMF study if present (exogenous risk bound)", "type": "soft_authority", "provenance": "exogenous", "produced_by": null, "notes": "The architect's U — the *-rmf-report.md / *-ebios-report.md drives the attack-surface ranking (risk = severity x likelihood)." },
+    { "id": "overlay_convention", "name": "The mbedtls-acsl durable-overlay layout convention", "type": "soft_authority", "provenance": "exogenous", "produced_by": null, "notes": "The scaffolder's U — the canonical setup.sh/verify.sh/patches/harness/sessions layout." },
+    { "id": "attack_surface_gold", "name": "Shipped profile + attack-surface gold + monitoring guidance", "type": "soft_authority", "provenance": "exogenous", "produced_by": null, "notes": "The onboarding monitor's U — the gold differential reference against which the prep outputs are judged." },
+    { "id": "fcl_probe_claim", "name": "One Frama-C capability design claim under test (per probe)", "type": "soft_authority", "provenance": "authored", "produced_by": null, "notes": "A question posed to the loop, not authored by the probe — keeps the probe non-self-certifying; distinct id from any prep agent's U." },
+
+    { "id": "parse_oracle", "name": "The parse oracle — does the unit actually preprocess + parse with these flags", "type": "executable_oracle", "provenance": "external_tool", "produced_by": null, "executable": true },
+    { "id": "wp_detect", "name": "frama-c -wp-detect — are the provers + the framac-coq8 switch present", "type": "executable_oracle", "provenance": "external_tool", "produced_by": null, "executable": true },
+    { "id": "source_readonly", "name": "The actual target source (read-only)", "type": "artifact", "provenance": "exogenous", "produced_by": null, "notes": "The architect's L — the real code, read to map WP-amenability and rank the attack surface; never edited." },
+    { "id": "faithfulness_roundtrip", "name": "The faithfulness round-trip (setup applies+reverses; strip-ACSL == HEAD per repo + submodule)", "type": "executable_oracle", "provenance": "external_tool", "produced_by": null, "executable": true },
+    { "id": "smoke_proof", "name": "One end-to-end smoke proof (one leaf unit proven, to show the pipeline composes)", "type": "executable_oracle", "provenance": "external_tool", "produced_by": null, "executable": true },
+    { "id": "framac_behaviour", "name": "Frama-C's actual behaviour (per probe experiment)", "type": "executable_oracle", "provenance": "external_tool", "produced_by": null, "executable": true },
+
+    { "id": "preprocess_context", "name": "The preprocess context (compile_commands.json / per-unit flags + feature defines + force-includes + -machdep) + toolchain confirmation", "type": "artifact", "provenance": "internal", "produced_by": "prober" },
+    { "id": "scope_map", "name": "The scope map (WP-amenable vs BLOCKED, with reasons) + the attack-surface ranking", "type": "artifact", "provenance": "internal", "produced_by": "architect" },
+    { "id": "overlay", "name": "The <target>-acsl/ overlay (setup.sh/verify.sh/patches/harness/README/verdicts.tsv) + the faithfulness baseline pin", "type": "artifact", "provenance": "internal", "produced_by": "scaffolder" },
+    { "id": "onboarding_verdicts", "name": "Per-onboarding PASS/CARVE-OUT/REJECT verdicts on the flag-set, scope map and baseline pin", "type": "artifact", "provenance": "internal", "produced_by": "onboarding_monitor" },
+    { "id": "fcl_probe_verdict", "name": "One recorded probe verdict (Frama-C's actual behaviour)", "type": "artifact", "provenance": "internal", "produced_by": "probe" },
+
+    { "id": "prep_notes", "name": "The prep agents' private rationale / working notes", "type": "rationale", "provenance": "internal", "produced_by": "prober", "notes": "A judge (coordinator / onboarding monitor) must never read it." },
+    { "id": "architect_notes", "name": "The architect's ranking rationale", "type": "rationale", "provenance": "internal", "produced_by": "architect", "notes": "Barriered from the prober and the monitor." }
+  ],
+  "actors": [
+    {
+      "id": "coordinator",
+      "name": "Launch coordinator",
+      "role": "coordinator",
+      "builds": "the onboarding plan; Gate approvals; the handoff of the onboarding package to frama-c-monitoring; gap-doc adjudication",
+      "produces": [],
+      "upper_bound": { "text": "the mission + build docs + the named profile", "sources": ["mission_guidance"] },
+      "lower_bound": { "text": "the aggregated onboarding oracles (parse / toolchain / faithfulness / smoke)", "sources": ["parse_oracle", "wp_detect", "faithfulness_roundtrip", "smoke_proof"], "executable": true },
+      "forbidden_moves": ["edit source/ACSL", "declare onboarding done on a prober's say-so", "pick a profile not in the guidance"],
+      "must_not_see": ["prep_notes", "architect_notes"]
+    },
+    {
+      "id": "prober",
+      "name": "Build/toolchain prober (configurator)",
+      "role": "other",
+      "builds": "the preprocess context (compile_commands.json / per-unit flags + feature defines + force-includes + -machdep); the toolchain confirmation",
+      "produces": ["preprocess_context", "prep_notes"],
+      "upper_bound": { "text": "the target's DOCUMENTED build for the chosen profile (configure defaults, README, user_settings.h)", "sources": ["shipped_build_docs"] },
+      "lower_bound": { "text": "the parse oracle + -wp-detect (does it actually preprocess/parse + are the provers present)", "sources": ["parse_oracle", "wp_detect"], "executable": true },
+      "forbidden_moves": ["pick flags that merely make it parse regardless of the shipped profile", "declare a unit BLOCKED to dodge a flag problem"],
+      "must_not_see": ["architect_notes"]
+    },
+    {
+      "id": "architect",
+      "name": "Architect / auditor (Phase 0)",
+      "role": "other",
+      "builds": "the scope map (WP-amenable vs BLOCKED, with reasons) + the attack-surface ranking",
+      "produces": ["scope_map", "architect_notes"],
+      "upper_bound": { "text": "the mission + the system's documented intent + an EBIOS/RMF study if present (the exogenous risk bound)", "sources": ["documented_intent"] },
+      "lower_bound": { "text": "the actual source (read-only)", "sources": ["source_readonly"], "executable": false },
+      "forbidden_moves": ["edit the target", "verify anything", "assert a claim it didn't read out of the code", "rank by raw input-exposure when a risk level is available (use risk = severity x likelihood)"],
+      "must_not_see": ["prep_notes"]
+    },
+    {
+      "id": "scaffolder",
+      "name": "Scaffolder",
+      "role": "other",
+      "builds": "the <target>-acsl/ overlay (setup.sh/verify.sh/patches/harness/README/verdicts.tsv); the faithfulness baseline pin",
+      "produces": ["overlay"],
+      "upper_bound": { "text": "the mbedtls-acsl layout (the durable-overlay convention)", "sources": ["overlay_convention"] },
+      "lower_bound": { "text": "the faithfulness round-trip (setup applies+reverses; strip-ACSL == HEAD per repo + submodule)", "sources": ["faithfulness_roundtrip"], "executable": true },
+      "forbidden_moves": ["pin the baseline to a dirty/patched commit", "track the vendored clone itself", "alter the source"],
+      "must_not_see": ["prep_notes", "architect_notes"]
+    },
+    {
+      "id": "onboarding_monitor",
+      "name": "Onboarding monitor (sl-monitoring-sl)",
+      "role": "monitor",
+      "builds": "per-onboarding verdicts on the prober's flag-set, the architect's scope map, and the baseline pin — PASS / CARVE-OUT / REJECT",
+      "produces": ["onboarding_verdicts"],
+      "invokes": { "loop": "sl-monitoring-sl", "row": "Monitor loop" },
+      "upper_bound": { "text": "U (shipped profile + attack-surface gold + guidance)", "sources": ["attack_surface_gold"] },
+      "lower_bound": { "text": "L (this loop's OWN onboarding oracles: parse / faithfulness / smoke), as a differential comparator over the prep agents' produced artifacts", "sources": ["smoke_proof", "preprocess_context", "scope_map", "overlay"], "executable": true },
+      "forbidden_moves": ["edit the prober's/architect's work", "read a prep agent's rationale", "accept an onboarding it has not gated", "fake a PASS for an un-runnable oracle"],
+      "must_not_see": ["prep_notes", "architect_notes"]
+    },
+    {
+      "id": "probe",
+      "name": "Probe (optional)",
+      "role": "probe",
+      "optional": true,
+      "builds": "minimal Frama-C capability experiments on this target (does it parse this construct? does -machdep X matter? does -wp-fct rescue a whole-file abort?)",
+      "produces": ["fcl_probe_verdict"],
+      "upper_bound": { "text": "one design claim per probe", "sources": ["fcl_probe_claim"] },
+      "lower_bound": { "text": "Frama-C's actual behaviour", "sources": ["framac_behaviour"], "executable": true },
+      "forbidden_moves": ["implement a fix"],
+      "must_not_see": []
+    }
+  ],
+  "disjointness": {
+    "rationale": "The onboarding monitor runs the prober/architect/scaffolder as sub-agents: the delegation boundary is the physical barrier — it sees only their returned artifacts (preprocess_context, scope_map, overlay), never a prep agent's rationale (prep_notes / architect_notes), and squeezes those artifacts against the shipped build + attack-surface gold, not a build that merely happens to parse. No single (U,L) certifies the package: the prober holds the shipped build docs + the parse/-wp-detect oracles; the architect holds the documented intent/risk study + the read-only source; the scaffolder holds the overlay convention + the faithfulness round-trip; each pair is genuinely distinct. Structure is the prober's, scope is the architect's, durability/faithfulness is the scaffolder's, and the monitor judges all three against the gold — never authoring what it grades.",
+    "load_bearing_barrier": "the prober selects flags from the SHIPPED build profile (shipped_build_docs + the parse/-wp-detect oracles), never flags that merely make a file parse; and the onboarding monitor differentially compares the prober/architect/scaffolder outputs against the shipped build + attack-surface gold while barriered from the prep agents' rationale. If the monitor read the prep rationale, or the prober chose parse-only flags, the package would converge on a config that parses but selects the wrong feature set — the coherent-and-wrong this loop exists to catch.",
+    "catchability": [
+      { "actor": "prober", "blind_spot": "flags that parse cleanly but select the WRONG feature set / a different profile than the shipped one", "caught_by": "onboarding_monitor", "via": "differential comparison of preprocess_context against the shipped-profile attack-surface gold (not a build that merely parses)" },
+      { "actor": "architect", "blind_spot": "a scope map that silently drops an attack-surface module / mis-ranks the queue", "caught_by": "onboarding_monitor", "via": "the monitor squeezes scope_map against the attack-surface gold + the risk study" },
+      { "actor": "scaffolder", "blind_spot": "a baseline pinned to the wrong commit/submodule; a dirty pin", "caught_by": "onboarding_monitor", "via": "the faithfulness round-trip (strip-ACSL == HEAD per repo + submodule) run differentially over the overlay" },
+      { "actor": "onboarding_monitor", "blind_spot": "the monitor itself rubber-stamps or mis-gates an onboarding", "caught_by": "coordinator", "via": "the coordinator refuses to hand the package to frama-c-monitoring on the monitor's say-so until the aggregated onboarding oracles (parse/toolchain/faithfulness/smoke) are green" },
+      { "actor": "coordinator", "blind_spot": "bad framing / rubber-stamped 'done' / hands off an un-gated package", "caught_by": "onboarding_monitor", "via": "the monitor will not have emitted PASS verdicts, so the Gate has no green to stand on" },
+      { "actor": "probe", "blind_spot": "mis-reads Frama-C's behaviour / over-generalizes one experiment", "caught_by": "coordinator", "via": "the coordinator adjudicates probe verdicts at the Gate; the probe never fixes, only records" }
+    ],
+    "endogeneity_flags": ["architect"],
+    "terminus": null
+  }
+}

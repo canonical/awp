@@ -1,0 +1,5 @@
+# test outputs and Python caches (removed by make clean)
+tests/out/
+__pycache__/
+*.py[co]
+*~
