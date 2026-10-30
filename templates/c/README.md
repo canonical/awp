@@ -6,52 +6,67 @@ base into it, start Claude Code in it, and type one command.
 ## Quick start
 
 The campaign runs for days without asking for permission, so run Claude Code
-in an LXD container. The agent can then change only the container: not your
-files, not your SSH keys, not your Claude login. You need LXD on the host
-(`lxc list` works as your user) and a `use-frama-c` checkout.
+in an LXD container. The agent can then change only the container and `{{DIR}}`,
+which LXD mounts into it: not your other files, not your SSH keys, not your
+Claude login. You need LXD on the host
+(`lxc list` works as your user).
 
 **1. On the host**, from the directory that contains `{{DIR}}`, create the
-container and copy `{{DIR}}` and the `use-frama-c` tools into it:
+container and mount `{{DIR}}` into it:
 
 ```
 CT=wp-{{DIR}}
-UFC=~/git/use-frama-c
-lxc launch ubuntu:24.04 "$CT"
-tar -cf - {{DIR}} | lxc exec "$CT" -- sudo -u ubuntu tar -C /home/ubuntu -xf -
-(cd "$UFC" && tar --exclude=_build -cf - *.sh frama-c-patches framac-src \
-      framac-gold macsl no-ceiling.md) |
-  lxc exec "$CT" -- sudo -u ubuntu sh -c 'mkdir -p /home/ubuntu/git/use-frama-c &&
-      tar -C /home/ubuntu/git/use-frama-c -xf -'
+NET=lxdbr0
+lxc network show "$NET" >/dev/null 2>&1 || lxc network create "$NET"
+lxc launch ubuntu:24.04 "$CT" --network "$NET"
+lxc exec "$CT" -- cloud-init status --wait
+lxc config device add "$CT" {{DIR}} disk source="$PWD/{{DIR}}" \
+    path=/home/ubuntu/{{DIR}} shift=true
 lxc exec "$CT" --env DEBIAN_FRONTEND=noninteractive -- sh -c 'apt-get update &&
     apt-get install -y git python3 tmux \
     curl opam build-essential pkg-config libgtk-3-dev libgraphviz-dev \
     libgtksourceview-3.0-dev bear autoconf automake autopoint gettext bison \
     flex libtool libdevmapper-dev libfreetype-dev libfuse3-dev liblzma-dev \
     fonts-unifont unzip rsync m4 libgmp-dev zlib1g-dev'
+lxc exec "$CT" -- sh -c 'ln -s /etc/apparmor.d/opam /etc/apparmor.d/disable/ &&
+    apparmor_parser -R /etc/apparmor.d/opam'
 lxc exec "$CT" -- sudo -iu ubuntu
 ```
 
-If `apt-get` cannot reach the network, the container has no network
-interface (the `default` profile of some LXD installs has none). Add one with
-`lxc config device add "$CT" eth0 nic network=lxdbr0 name=eth0`, using the
-name of a managed bridge from `lxc network list`, and run `apt-get` again.
+`NET` is the LXD bridge that gives the container its network access. The
+second line creates the bridge `lxdbr0` if it does not exist yet; to use a
+bridge you already have, set `NET` to a name whose `MANAGED` column is `YES`
+in `lxc network list`. Without `--network`, the container gets its network
+from the `default` profile, and on some LXD installs that profile has none:
+`apt-get update` then fails.
+
+The `lxc config device add` line mounts `{{DIR}}` at `/home/ubuntu/{{DIR}}`
+in the container. `shift=true` makes your files appear there as owned by the
+user `ubuntu`, and the files the agent creates belong to you on the host.
+Everything the run writes is in `{{DIR}}` on the host as soon as it is
+written. `cloud-init status --wait` waits until the container has created
+`/home/ubuntu`, so that the mount does not create it first.
+
+The `apparmor_parser` line unloads the AppArmor profile that Ubuntu 24.04
+ships for opam. Inside an LXD container that profile stops opam's downloads
+from opening network sockets, so `opam init` fails with "Could not resolve
+host". The link keeps the profile unloaded after a restart of the container.
 
 The last command opens a shell as the user `ubuntu` in the container.
 
-**2. In the container**, clone the code, link the tools, and start Claude Code
-in `tmux`, so the run goes on when you close the terminal:
+**2. In the container**, clone the code, fetch the Frama-C and macsl sources,
+and start Claude Code in `tmux`, so the run goes on when you close the
+terminal:
 
 ```
 cd {{DIR}}
 git clone https://gitlab.freedesktop.org/gnu-grub/grub.git
-UFC=~/git/use-frama-c
-ln -s "$UFC"/*.sh "$UFC"/frama-c-patches "$UFC"/framac-src \
-      "$UFC"/framac-gold "$UFC"/macsl "$UFC"/no-ceiling.md .
 git config user.name "Your Name"
 git config user.email "you@example.com"
 git init --bare ~/{{DIR}}.git
 git remote add origin ~/{{DIR}}.git
 opam init --disable-sandboxing -y --bare
+bin/fetch-sources.sh
 curl -fsSL https://claude.ai/install.sh | bash
 . ~/.profile
 tmux new -s wp
@@ -91,22 +106,17 @@ lxc exec wp-{{DIR}} -- sudo -iu ubuntu tmux attach -t wp
   start a new campaign with a new budget, add `--fresh`.
 - On the first run, `frama-c-launch` builds the Frama-C toolchain in the
   container. This takes a few hours and counts against the 72.
-- The loop commits a checkpoint after every cycle and pushes it to
-  `~/{{DIR}}.git`, a bare repository in the container, so it needs no
-  credentials. To get the results on the host, copy that repository out and
-  clone it:
-
-  ```
-  lxc file pull -r wp-{{DIR}}/home/ubuntu/{{DIR}}.git .
-  git clone {{DIR}}.git {{DIR}}-results
-  ```
-
-  Do not share a host directory with the container instead: the agent could
-  then leave git hooks or scripts there that would later run on the host.
+- The loop commits a checkpoint after every cycle, in `{{DIR}}/.git`, so the
+  history is on the host too. It pushes the checkpoint to `~/{{DIR}}.git`, a
+  bare repository in the container, so it needs no credentials.
+- The agent can write anything in `{{DIR}}`, including `.git/hooks/` and the
+  scripts in `bin/`. Before you run git or a script in `{{DIR}}` on the host,
+  check that `.git/hooks/` holds only `*.sample` files and read `git diff` of
+  `bin/`: a hook or script left there would run with your rights.
 - `grub/` is a separate git repository. Git does not track it inside
   `{{DIR}}` unless you add it as a submodule.
-- When you are done, `lxc delete --force wp-{{DIR}}` removes the container,
-  its copy of the code and the Claude login.
+- When you are done, `lxc delete --force wp-{{DIR}}` removes the container
+  and the Claude login. `{{DIR}}` and its results stay on the host.
 - The container name `wp-{{DIR}}` must contain only letters, digits and
   hyphens. Pick another name if `{{DIR}}` has other characters.
 
@@ -129,19 +139,14 @@ prompt until you answer it.
 
 ## Prerequisites
 
-- **On the host:** LXD, usable as your user (`lxc list` works), and a
-  `use-frama-c` checkout (`~/git/use-frama-c` in the commands above). The C
-  skills call tools that live at the root of `use-frama-c` and are not part of
-  this directory: the lint checks `rmf-lint.sh` and `ebios-lint.sh` (the
-  machine gates of `rmf-sl` and `ebios-sl`), the `framac-*.sh` campaign
-  scripts, the patched Frama-C source (`framac-src/`, `frama-c-patches/`),
-  without which `frama-c-launch` treats the toolchain as non-conformant, and
-  the `macsl` plugin. Step 1 copies them into the container, and step 2 links
-  them into `{{DIR}}`.
+- **On the host:** LXD, usable as your user (`lxc list` works). Nothing else:
+  this directory carries everything the skills need, and step 2 downloads the
+  rest.
 - **In the container:** Claude Code (installed in step 2), and Frama-C 32.1
   with WP and the provers in the `framac-coq8` opam switch. `frama-c-launch`
   checks the toolchain on the first run, and builds it from `framac-src/`
-  plus `frama-c-patches/` if it is missing.
+  (fetched by `bin/fetch-sources.sh`, with `frama-c-patches/` applied) if it is
+  missing.
 - Optional: `~/.local-llm-machine-ip.txt` in the container, one line with the
   IP address of a local LLM host (for example an ollama server) that the
   container can reach. The cross-provider judge in `sl-auditor` and
@@ -154,7 +159,17 @@ prompt until you answer it.
   (`config/commands/`), listed in `config/auto-wp.json`.
 - `.agents` and `.claude/` — links to `config/`, so the agent harness finds
   them.
-- In the container, the links to the `use-frama-c` tools (step 2).
+- `bin/` — the scripts the C skills run, always from the project root (for
+  example `bin/rmf-lint.sh grub-analysis-rmf-report.md`): the lint checks
+  `bin/rmf-lint.sh` and `bin/ebios-lint.sh` (the machine gates of `rmf-sl`
+  and `ebios-sl`), the `bin/framac-*.sh` campaign scripts,
+  `bin/ledger-ratchet.sh`, `bin/crosswalk-gen.sh` and `bin/fetch-sources.sh`.
+- The data those scripts and skills read: the Frama-C patches
+  (`frama-c-patches/`), the gold corpus (`framac-gold/`) and `no-ceiling.md`.
+- `bin/fetch-sources.sh` downloads the two trees too large to ship here:
+  `framac-src/` (Frama-C 32.1, the release archive, with `frama-c-patches/` applied) and
+  `macsl/` (the macsl plugin, from GitHub at a fixed commit). `.gitignore`
+  keeps both out of the project history.
 
 You can edit the skills in place. The loops add what they learn under
 `config/skills/*/getting-better/` and `config/skills/*/references/learned-*.md`.

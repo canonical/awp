@@ -114,6 +114,7 @@ content belong on the host, not in a container:
 | T4 | No editor backup (`*~`) and nothing from `use-creusot/config/foo/` in `templates/`. |
 | T5 | Both `README.md` templates contain only the placeholders `{{DIR}}` and `{{LANGUAGE}}`. |
 | T6 | The three `time-loop` changes of `auto-wp.md` §4.2.2 are in `templates/c/`: `commands/time-loop.md` no longer contains "Stop early" nor "(diminishing returns)", and contains the replacement "Stop" bullet; `skills/time-loop/SKILL.md` no longer contains "DIMINISHING-RETURNS stop fires ONLY", and its description contains "There is no diminishing-returns stop"; both files name `XXX.md` as the report file and state that a re-run keeps the stored deadline. |
+| T7 | `templates/c/tools/bin/` holds the 21 scripts (`auto-wp.md` §4.2.1), `templates/c/tools/` has no `*.sh` at its top level, and no file under `templates/` outside `tools/` names one of these scripts without its `bin/` prefix (bare or `./name.sh`). |
 
 ### 3.3 Claude Code in the container
 
@@ -179,7 +180,7 @@ Used by levels 3 and 4 (C3.x, C4.x, R4.x refer to them):
 |---|---|
 | K1 | **Source untouched.** `git -C grub rev-parse HEAD` is the cloned commit, `git -C grub diff --quiet HEAD` succeeds, and `git -C grub status --porcelain --untracked-files=no` is empty. Untracked build output inside `grub/` (configure results, `compile_commands.json` from `bear -- make`) is allowed: onboarding builds in the source tree. |
 | K2 | **Token not written anywhere.** `grep -rlqF -f /run/autowp/token ~ /tmp` finds nothing, and the same over `git -C ~/remote.git log -p --all`. The pattern comes from the file, so it never appears on a command line, and `-l` prints only file names; on a hit the check prints `FAIL: K2: token found in <path>` and never the matching line. |
-| K3 | *Informational.* Files changed outside an allowlist (`~/foobar`, `~/git/use-frama-c`, `~/.claude`, `~/.cache`, `~/.opam`, `~/.local/share/claude`, `~/.config`, `~/.bash_history`, `~/.gitconfig`, `~/remote.git`, `/tmp`), from a `find -newer` listing. The C tools are reached through links from `foobar/`, and some of them write next to themselves (`framac-canary.sh` uses `$(dirname "$0")`, `framac-corpus-db.sh` uses `$(pwd)`), so writes into `~/git/use-frama-c` are expected and listed, not failed. |
+| K3 | *Informational.* Files changed outside an allowlist (`~/foobar`, `~/toolchain`, `~/.claude`, `~/.cache`, `~/.opam`, `~/.local/share/claude`, `~/.config`, `~/.bash_history`, `~/.gitconfig`, `~/remote.git`, `/tmp`), from a `find -newer` listing. The C tools are regular files in `foobar/`, so their writes (`framac-canary.sh` writes next to itself, `framac-corpus-db.sh` into `$(pwd)`) fall inside `~/foobar`; writes into `~/toolchain` (the base's build tree) are listed separately. |
 | K4 | **Commands loaded.** Step 4 of §3.5 succeeded. |
 
 ## 5. C tests (`tests/c/`)
@@ -198,18 +199,10 @@ hours, mostly building the toolchain.
    - Required to configure and build GRUB from git: `autoconf automake
      autopoint gettext bison flex python3 libtool`, and whatever else GRUB's
      `INSTALL` lists for the checked-out commit.
-2. **use-frama-c tools.** The C skills need the root-level tools of a
-   `use-frama-c` checkout (`auto-wp.md` §4.2.1). Its remote is a private
-   GitHub repository reached over SSH
-   (`git@github.com:canonical/use-frama-c.git`). Forwarding an SSH key into
-   the container is not worth the exposure, so the script copies the files
-   from the host checkout (`USE_FRAMA_C`, default `~/git/use-frama-c`) with a
-   tar pipe into `/home/ubuntu/git/use-frama-c/`: the 20 `*.sh` scripts,
-   `frama-c-patches/`, `framac-src/`, `framac-gold/`, `macsl/` and
-   `no-ceiling.md`. It excludes `framac-src/_build/` (1.2 GB of the 1.3 GB,
-   built against the host's `/home/fabrice/.opam` and rebuilt in step 3
-   anyway) and `macsl/_build/`. It records the host checkout's commit in
-   `/home/ubuntu/git/use-frama-c/COMMIT`.
+2. **C tools layer.** The script copies `templates/c/tools/` (the same files
+   `auto-wp.py` copies into a project, `auto-wp.md` §4.2.1) into
+   `/home/ubuntu/toolchain/` with a tar pipe. No host checkout of
+   `use-frama-c` is used, and nothing is cloned over SSH.
 3. **Toolchain** (the `framac-coq8` switch, following `frama-c-launch`'s
    toolchain recipe). The host switch (3.6 GB, with `/home/fabrice/.opam`
    written into it) is not copied.
@@ -222,8 +215,9 @@ hours, mostly building the toolchain.
      realizations (`BuiltIn.vo` under `$(why3 --print-libdir)/coq/`) exist.
    - The OCaml dependencies of the source build
      (`yaml ppx_deriving_yaml ocamlgraph ppx_inline_test unionFind`).
-   - Build and install Frama-C 32.1 from `framac-src/` with
-     `frama-c-patches/` applied.
+   - `~/toolchain/bin/fetch-sources.sh`, which downloads Frama-C 32.1 with
+     its release archive (sha256 checked), applies `frama-c-patches/`, and clones `macsl/`; then
+     build and install Frama-C from `~/toolchain/framac-src/`.
    - Success check: `frama-c -version` is 32.1, `frama-c -wp-detect` lists
      Alt-Ergo, Z3 and Coq, and the installed binary is the patched build.
 4. **Claude Code** as in §3.3, **git** as in §3.4.
@@ -262,9 +256,8 @@ git clone https://gitlab.freedesktop.org/gnu-grub/grub.git
 
 ### 5.3 `smoke-test.sh` — level 3
 
-Copies `autowp-c-base/ready`, runs the level 2 steps in it, links the
-use-frama-c tools exactly as the README says
-(`UFC=~/git/use-frama-c; ln -s ...`), sets up `origin` (§3.4), moves the token
+Copies `autowp-c-base/ready`, runs the level 2 steps in it, runs
+`bin/fetch-sources.sh` in `~/foobar` as the README does, sets up `origin` (§3.4), moves the token
 in (§7), and starts the harness with `/time-loop grub 3` (§3.5).
 
 - **Budget: 3 hours.** The first cycle is a full `/rmf` (risk study,
@@ -503,8 +496,9 @@ So treat the token as exposed to whatever runs in the container:
 ### 7.4 Other credentials
 
 - **Git:** none. `grub` is cloned over public HTTPS; the time-loop pushes to
-  a local bare repository in the container (§3.4); the `use-frama-c` tools
-  are copied from the host, not cloned (§5.1). No SSH key or git credential
+  a local bare repository in the container (§3.4); the C tools ship in the
+  project, and `bin/fetch-sources.sh` downloads Frama-C and macsl from public
+  sources (§5.1). No SSH key or git credential
   is forwarded.
 - **Cross-provider judge:** `~/.local-llm-machine-ip.txt` is not a secret,
   but the container can reach that host only if the bridge allows it.
@@ -527,10 +521,10 @@ Found while writing these tests; they need a decision outside `tests.md`:
    (`auto-wp.md` §4.2.2); checked by C3.10 and C4.5.
 5. **Fractional budgets.** `time-loop.md` accepts "a positive number of
    hours", so `0.5` is allowed in principle; the tests no longer rely on it.
-6. **Tools through links.** Whether the use-frama-c tools work when reached
-   through the links of `auto-wp.md` §3.4: some resolve paths from
-   `$(dirname "$0")` or `$(pwd)`, and `.frama-c/` and `.lia.cache` live at the
-   `use-frama-c` root. C3.3–C3.6 are the first real test; K3 lists where they
+6. **Tools at the project root.** The use-frama-c tools now ship as regular
+   files at the project root (`auto-wp.md` §4.2.1), where they lived in
+   `use-frama-c`, so paths resolved from `$(dirname "$0")` or `$(pwd)` point
+   at the project. C3.3–C3.6 are the first real test; K3 lists where they
    write.
 7. **Not verified:** whether the server rotates refresh tokens; the
    `setup-token` lifetime and how to revoke it; whether print mode shows the

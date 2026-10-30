@@ -1,7 +1,7 @@
-# EBIOS report-format convention (PINNED) — the `ebios-lint.sh` contract
+# EBIOS report-format convention (PINNED) — the `bin/ebios-lint.sh` contract
 
 This is the **authoritative, fixed** format an `ebios-sl` report must follow. It is the contract the
-mechanical lower bound (`ebios-lint.sh`) parses and the scenario author writes to — one source of
+mechanical lower bound (`bin/ebios-lint.sh`) parses and the scenario author writes to — one source of
 truth, so the linter and the report cannot drift. It layers stable tags onto the EBIOS RM method
 content (the `ebios-risk-manager` skill); where that skill already fixes IDs (risk scenarios `R#`,
 stakeholders client `C#` / partner `P#` / provider `F#`), this convention keeps them.
@@ -94,7 +94,7 @@ Feared events:
 ```
 
 ## What the linter enforces today vs the full contract (honesty)
-`ebios-lint.sh` mechanically enforces **C1** (workshops), **C3/C3b** (severity/likelihood present),
+`bin/ebios-lint.sh` mechanically enforces **C1** (workshops), **C3/C3b** (severity/likelihood present),
 **C4/C4b** (SS→RO/TO, OS→SS/AP chaining), **C5** (high-severity coverage), **C7** (volume, warn),
 **C8** (endogeneity), and **C9** (STRIDE coverage ledger — SKIP-honest: SKIPs when the report carries
 no ledger table, else validates the §3.3 matrix structure: each S/T/R/I/D/E cell holds exactly one

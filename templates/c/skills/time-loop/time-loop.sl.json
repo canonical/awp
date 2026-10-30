@@ -93,7 +93,7 @@
     },
     {
       "id": "tl_rmf_lint",
-      "name": "rmf-lint.sh (exit 0) + the code-blindness check",
+      "name": "bin/rmf-lint.sh (exit 0) + the code-blindness check",
       "type": "executable_oracle",
       "provenance": "external_tool",
       "produced_by": null,
@@ -234,7 +234,7 @@
         ]
       },
       "lower_bound": {
-        "text": "rmf-lint.sh (exit 0) + the code-blindness check",
+        "text": "bin/rmf-lint.sh (exit 0) + the code-blindness check",
         "sources": [
           "tl_rmf_lint"
         ],

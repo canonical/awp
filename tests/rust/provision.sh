@@ -56,6 +56,10 @@ autowp_exec_root "$BASE" bash -c 'export DEBIAN_FRONTEND=noninteractive
     apt-get install -y -q git python3 tmux curl opam build-essential \
         libcairo2-dev libgtk-3-dev libgtksourceview-3.0-dev \
         pkg-config libgmp-dev zlib1g-dev unzip m4'
+# Ubuntu 24.04's AppArmor profile for opam denies network sockets inside an
+# LXD container (opam init: "Could not resolve host"); the README unloads it.
+autowp_exec_root "$BASE" sh -c 'ln -sf /etc/apparmor.d/opam /etc/apparmor.d/disable/ &&
+    apparmor_parser -R /etc/apparmor.d/opam'
 pass R-prov.1
 
 # --- 2. opam, rustup, Creusot ----------------------------------------------------

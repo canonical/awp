@@ -68,7 +68,7 @@ trusted stub) as a "fix". Future runs load this file at delegation time.
 - Heuristic: if WP fails to parse for want of a macro/type, the fix is a *preprocessing
   flag* (`-I`/`-D` in the unit's queue entry), NEVER an added `#include`/`#define` in the
   source — the faithfulness gate strips only ACSL comments, so any added C token counts as
-  altering executable code and `framac-monitor-check.sh` flags FABRICATED. A unit that
+  altering executable code and `bin/framac-monitor-check.sh` flags FABRICATED. A unit that
   cannot preprocess from its flags is a `gap` (fix the queue), not a proof failure.
 
 ### Sort-loop invariant needs the cross-boundary partition fact, not just prefix-sortedness

@@ -9,7 +9,7 @@ description: >-
   lifecycle Prepare/Categorize/Select/Implement/Assess/Authorize/Monitor, SP
   800-53 the control catalog) plus STRIDE as the threat-identification engine,
   plus the mission + threat intelligence; its lower bound L is a mechanical
-  structure+coverage+endogeneity linter (rmf-lint.sh) over the report PLUS a
+  structure+coverage+endogeneity linter (bin/rmf-lint.sh) over the report PLUS a
   human terminus (a disjoint completeness/realism reviewer and the Authorizing
   Official who accepts residual risk and grants the ATO). It is a soft-side,
   human-terminus SL: the dominant coherent-and-wrong it guards is a fluent,
@@ -57,7 +57,7 @@ assessment, run the NIST process directly. Reach for `rmf-sl` deliberately.
   step 7) is fed by `frama-c-monitoring`'s verdicts and re-adjudicated by the AO (see §8 loop-back).
 - **"Correct" means (checkable):** (a) **structurally** RMF-conformant — R1-R5 present for the goal,
   chaining well-formed, scales applied, coverage closed, all three threat origins present (mechanical,
-  `rmf-lint.sh`); **and** (b) the scenarios/impacts are a faithful reading of the **mission + threat
+  `bin/rmf-lint.sh`); **and** (b) the scenarios/impacts are a faithful reading of the **mission + threat
   model** that a *disjoint reviewer* does not refute and the *AO* signs (soft, human terminus).
 - **Terrain archetype: A + B.** **A** (transcription of an external standard) for the *method/
   structure* — NIST 800-30/37/53 doctrine is the published authority. **B** (authored authority) for
@@ -77,7 +77,7 @@ assessment, run the NIST process directly. Reach for `rmf-sl` deliberately.
   origins (the DNA difference from EBIOS). Strongest claim a deliverable may make: *"a reading of the
   NIST corpus + the mission/threat model do not refute."*
 - **Lower bound `L`:** two-layer, honestly partial.
-  - *Mechanical:* **`rmf-lint.sh`** — chaining well-formed (every threat event -> a threat source;
+  - *Mechanical:* **`bin/rmf-lint.sh`** — chaining well-formed (every threat event -> a threat source;
     every risk scenario -> a threat event + a vulnerability + a 800-53 control; every Hi-impact element
     -> ≥1 risk scenario with a selected control); impact on every categorized element, likelihood on
     every risk scenario; all three origin classes (ADV/ACC/ENV) present; scale/ID/volume sanity; and
@@ -116,7 +116,7 @@ the linter.
   structure kept; **agile volume** (≈5-10 information assets, 3-6 threat sources, 1-3 risk scenarios
   per high-impact element); **all three origin classes covered** (not adversarial-only). Amend/cut/
   sharpen, never rubber-stamp.
-- **Gate B — machine.** `rmf-lint.sh` passes (all §1 mechanical invariants) **including the
+- **Gate B — machine.** `bin/rmf-lint.sh` passes (all §1 mechanical invariants) **including the
   endogeneity tripwire** (no code artifacts in R1-R4). The RMF analogue of "all VCs discharged."
 - **Gate C — coverage / no-blend / coherent-and-wrong.** The reviewer's **independent enumeration**
   covers every high-impact element + plausible threat source across **all three origins** (the
@@ -134,7 +134,7 @@ the linter.
    iterate R3/R4 **≤ 2x**.
 3. **Reviewer** independently authors the completeness/realism critique from doctrine+STRIDE+mission
    (not the author's notes, not the code).
-4. **Gate B** (`rmf-lint.sh`) -> **Gate C** (reviewer coverage/realism + origin-coverage + endogeneity
+4. **Gate B** (`bin/rmf-lint.sh`) -> **Gate C** (reviewer coverage/realism + origin-coverage + endogeneity
    flag).
 5. **MACHINE-DONE** (structure+coverage) -> **Authorizing Official adjudicates** content/residual risk
    (human terminus, the 800-37 Authorize step) -> **DONE** (R5/Authorize PENDING until the AO signs).
@@ -178,13 +178,13 @@ provers; the same `sl-monitoring-sl` rule that the observed loop runs one delega
 
 **Endogeneity nuance — don't over-sanitize scope/control language.** A 800-53 control ID (`SI-7`,
 `AC-6`) or a build-config token (`CONFIG_PIPES`) is legitimate *scope/baseline/control* language in R1
-/R5, **not** a code artifact; the `rmf-lint.sh` endogeneity tripwire correctly passes it (C8 flags
+/R5, **not** a code artifact; the `bin/rmf-lint.sh` endogeneity tripwire correctly passes it (C8 flags
 `.c`/`.h`/`.cpp`/`.cc`/`.rs`/`#include`/`#define`/`0x...`/`::`/`->`, i.e. source artifacts, not control
 or config tokens; and R5 is not scanned at all). What stays banned in R1-R4: translation-unit names,
 function names, ACSL, WP goal counts. In R1-R4 prose use the unicode arrow `→` or "then", never `->`.
 
 ## 5. Executable oracle setup
-- **`rmf-lint.sh REPORT.md`** (repo root) — the mechanical `L`. Parses a report written to the
+- **`bin/rmf-lint.sh REPORT.md`** (repo root) — the mechanical `L`. Parses a report written to the
   **pinned format contract** (`references/report-format.md`) and checks the §1 invariants + the
   endogeneity tripwire; exit 0 = pass, 1 = violations, 2 = usage/format. **Content realism is *not* in
   scope — that is the human terminus.** The author writes to the same pinned contract, so the report
@@ -196,7 +196,7 @@ function names, ACSL, WP goal counts. In R1-R4 prose use the unicode arrow `→`
   `DEPENDENCY: human reviewer`, never faked.
 
 ## 6. Done criteria
-`rmf-lint.sh` green (Gate B) + reviewer completeness/realism PASS with no open carve-outs (Gate C) +
+`bin/rmf-lint.sh` green (Gate B) + reviewer completeness/realism PASS with no open carve-outs (Gate C) +
 endogeneity flag clear + all three origins covered + RMF steps appropriate to goal + agile volume
 respected + capitalized heuristics Gate-S'd, **and the Authorizing Official signs** (human terminus,
 the 800-37 Authorize step). **MACHINE-DONE** = linter+coverage; **DONE** = AO sign-off (R5/Authorize
@@ -217,7 +217,7 @@ PENDING until then). No self-report ends the study.
   requirement.
 
 ## 8. Execution order & topology
-- **Pilot** `rmf-lint.sh` on a known-good report first.
+- **Pilot** `bin/rmf-lint.sh` on a known-good report first.
 - Run `rmf-sl` as a **code-disjoint PEER that precedes `frama-c-launch`** — *not* a child of it.
   Orchestration: a thin top driver, **or** the `frama-c-launch` *coordinator* (itself code-barriered)
   spawns it with a **threat-model-only context** — never the architect, never the source.
@@ -275,7 +275,7 @@ PENDING until then). No self-report ends the study.
   This loop is the *squeeze* around them, the way `ebios-sl` defers method to `ebios-risk-manager`.
 - `references/report-format.md` — the **pinned** report-format tag convention (the linter's contract +
   the author's spec; one source of truth).
-- `rmf-lint.sh` (repo root) — the mechanical `L` (structure + coverage + endogeneity linter), parses
+- `bin/rmf-lint.sh` (repo root) — the mechanical `L` (structure + coverage + endogeneity linter), parses
   the pinned format.
 - Downstream consumer: `../frama-c-launch/SKILL.md` + `../frama-c-launch/templates/rmf-crosswalk.md`
   (the report becomes the ranking `U`) and `../frama-c-launch/references/rmf-feedback.md` (verdicts ->

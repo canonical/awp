@@ -69,7 +69,7 @@ inspect what exists for `PREFIX` and decide the minimum work:
      `COQ-NEEDED` residue). Use for a faster spec-only pass.
    - *(default, no flag)* -> **converge AND discharge with Coq**: reuse what's converged, finish what
      isn't by spec-authoring, then escalate the probe-confirmed true-but-hard residue to Coq (below).
- - `PREFIX-rmf-report.md` exists and passes `rmf-lint.sh` (exit 0) -> **reuse it; skip Phase 1.**
+ - `PREFIX-rmf-report.md` exists and passes `bin/rmf-lint.sh` (exit 0) -> **reuse it; skip Phase 1.**
    If it is missing or lint-dirty -> run Phase 1.
  - `PREFIX-acsl/` overlay + its verdicts/patches exist -> **reuse them; do NOT re-verify converged
    units from scratch — but "exists" != "converged".** Identify every **not-yet-converged (AMBER)**
@@ -97,7 +97,7 @@ Spawn an agent to run the `rmf-sl` loop on `DIR/` and generate `PREFIX-rmf-repor
 (R1-R5; R5/Authorize left PENDING — the AO signs). It MUST NOT read any implementation source
 under `DIR/` (mission/threat-model/public docs + the NIST corpus only) — that exogeneity is what
 makes the report a valid bound. R2 MUST cover all three threat origins (adversarial, accidental,
-environmental — the 800-30 DNA difference). It must pass `rmf-lint.sh` (exit 0, endogeneity tripwire
+environmental — the 800-30 DNA difference). It must pass `bin/rmf-lint.sh` (exit 0, endogeneity tripwire
 clear, all-origin check satisfied).
 
 PHASE 2 — VERIFICATION, CODE-AWARE (a SEPARATE agent consuming PREFIX-rmf-report.md).

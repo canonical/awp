@@ -6,28 +6,49 @@ crate into it, start Claude Code in it, and make one request.
 ## Quick start
 
 The loops run for hours without asking for permission, so run Claude Code in
-an LXD container. The agent can then change only the container: not your
-files, not your SSH keys, not your Claude login. You need LXD on the host
+an LXD container. The agent can then change only the container and `{{DIR}}`,
+which LXD mounts into it: not your other files, not your SSH keys, not your
+Claude login. You need LXD on the host
 (`lxc list` works as your user).
 
 **1. On the host**, from the directory that contains `{{DIR}}`, create the
-container and copy `{{DIR}}` into it:
+container and mount `{{DIR}}` into it:
 
 ```
 CT=wp-{{DIR}}
-lxc launch ubuntu:24.04 "$CT"
-tar -cf - {{DIR}} | lxc exec "$CT" -- sudo -u ubuntu tar -C /home/ubuntu -xf -
+NET=lxdbr0
+lxc network show "$NET" >/dev/null 2>&1 || lxc network create "$NET"
+lxc launch ubuntu:24.04 "$CT" --network "$NET"
+lxc exec "$CT" -- cloud-init status --wait
+lxc config device add "$CT" {{DIR}} disk source="$PWD/{{DIR}}" \
+    path=/home/ubuntu/{{DIR}} shift=true
 lxc exec "$CT" --env DEBIAN_FRONTEND=noninteractive -- sh -c 'apt-get update &&
     apt-get install -y git python3 tmux curl opam build-essential pkg-config \
     libcairo2-dev libgtk-3-dev libgtksourceview-3.0-dev libgmp-dev \
     zlib1g-dev unzip m4'
+lxc exec "$CT" -- sh -c 'ln -s /etc/apparmor.d/opam /etc/apparmor.d/disable/ &&
+    apparmor_parser -R /etc/apparmor.d/opam'
 lxc exec "$CT" -- sudo -iu ubuntu
 ```
 
-If `apt-get` cannot reach the network, the container has no network
-interface (the `default` profile of some LXD installs has none). Add one with
-`lxc config device add "$CT" eth0 nic network=lxdbr0 name=eth0`, using the
-name of a managed bridge from `lxc network list`, and run `apt-get` again.
+`NET` is the LXD bridge that gives the container its network access. The
+second line creates the bridge `lxdbr0` if it does not exist yet; to use a
+bridge you already have, set `NET` to a name whose `MANAGED` column is `YES`
+in `lxc network list`. Without `--network`, the container gets its network
+from the `default` profile, and on some LXD installs that profile has none:
+`apt-get update` then fails.
+
+The `lxc config device add` line mounts `{{DIR}}` at `/home/ubuntu/{{DIR}}`
+in the container. `shift=true` makes your files appear there as owned by the
+user `ubuntu`, and the files the agent creates belong to you on the host.
+Everything the run writes is in `{{DIR}}` on the host as soon as it is
+written. `cloud-init status --wait` waits until the container has created
+`/home/ubuntu`, so that the mount does not create it first.
+
+The `apparmor_parser` line unloads the AppArmor profile that Ubuntu 24.04
+ships for opam. Inside an LXD container that profile stops opam's downloads
+from opening network sockets, so `opam init` fails with "Could not resolve
+host". The link keeps the profile unloaded after a restart of the container.
 
 The last command opens a shell as the user `ubuntu` in the container.
 
@@ -75,24 +96,19 @@ lxc exec wp-{{DIR}} -- sudo -iu ubuntu tmux attach -t wp
 - The crate `mycrate/` is kept untouched. The annotated copy lives in an
   overlay next to it, `mycrate-creusot/`, and every other result is written in
   `{{DIR}}`.
-- Commits are pushed to `~/{{DIR}}.git`, a bare repository in the container,
-  so the container needs no credentials. To get the results on the host, copy
-  that repository out and clone it:
-
-  ```
-  lxc file pull -r wp-{{DIR}}/home/ubuntu/{{DIR}}.git .
-  git clone {{DIR}}.git {{DIR}}-results
-  ```
-
-  Do not share a host directory with the container instead: the agent could
-  then leave git hooks or scripts there that would later run on the host.
+- Commits are made in `{{DIR}}/.git`, so the history is on the host too. They
+  are pushed to `~/{{DIR}}.git`, a bare repository in the container, so the
+  container needs no credentials.
+- The agent can write anything in `{{DIR}}`, including `.git/hooks/`. Before
+  you run git or a script in `{{DIR}}` on the host, check that `.git/hooks/`
+  holds only `*.sample` files: a hook left there would run with your rights.
 - `mycrate/` is a separate git repository. Git does not track it inside
   `{{DIR}}` unless you add it as a submodule.
 - Do not create `{{DIR}}` inside a Cargo project, and keep the crate next to
   its overlay, not under it: `cargo creusot new` writes `why3find.json` next
   to the nearest parent `Cargo.toml`, which would put it in the wrong place.
-- When you are done, `lxc delete --force wp-{{DIR}}` removes the container,
-  its copy of the code and the Claude login.
+- When you are done, `lxc delete --force wp-{{DIR}}` removes the container
+  and the Claude login. `{{DIR}}` and its results stay on the host.
 - The container name `wp-{{DIR}}` must contain only letters, digits and
   hyphens. Pick another name if `{{DIR}}` has other characters.
 

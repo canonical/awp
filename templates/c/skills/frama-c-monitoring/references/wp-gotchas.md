@@ -87,7 +87,7 @@ the two confirmed WP defects are in `getting-better/`.
   `\forall x; g(x)==1` does **not** prove a bare `\false` (verified). The probe lemma must
   **reference the axiom symbols at a concrete point** — e.g. `lemma p: gcd(a,0)==a+1;` or a
   self-contradiction `f(0,..) != f(0,..)` — so the axioms instantiate. Enforced by
-  `framac-consistency-probe.sh`.
+  `bin/framac-consistency-probe.sh`.
 
 ## Cross-unit contracts (the leaf-first propagation, WP form)
 - A caller binds a callee's contract from the **declaration it sees** (the header), not the

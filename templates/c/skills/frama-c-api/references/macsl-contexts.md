@@ -9,11 +9,11 @@
 > ```
 > frama-c -load-module $MACSL_CMXS -macsl-list-contexts
 > ```
-> (`MACSL_CMXS=$HOME/git/use-frama-c/macsl/_build/default/src/macsl.cmxs`). The canary
+> (`MACSL_CMXS=macsl/_build/default/src/macsl.cmxs`, under the project root). The canary
 > `config/skills/frama-c-monitoring/canaries/macsl-contexts-sync.sh` diffs this table against that
 > output and FAILS on mismatch — when the tool gains/renames a context, this file must be updated in
-> the same change. Source: `use-frama-c/macsl/src/macsl.ml` (the `context` type + `run_policy`
-> dispatch + `contexts_doc`); syntax in `use-frama-c/macsl/docs/usage.md`.
+> the same change. Source: `macsl/src/macsl.ml` (the `context` type + `run_policy`
+> dispatch + `contexts_doc`); syntax in `macsl/docs/usage.md`.
 
 ## Soundness invariant (applies to EVERY context — never weaken it)
 Every macsl obligation predicate is **UNINTERPRETED** (`\held`, `\stable`, `authorized`, `\hash`,

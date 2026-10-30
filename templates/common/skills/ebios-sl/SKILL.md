@@ -7,7 +7,7 @@ description: >-
   EBIOS RM doctrine itself (the published ANSSI standard: the five workshops, the
   severity/likelihood/acceptability scales, the chaining rules, the vocabulary)
   plus the mission + threat intelligence; its lower bound L is a mechanical
-  structure+coverage+endogeneity linter (ebios-lint.sh) over the report PLUS a
+  structure+coverage+endogeneity linter (bin/ebios-lint.sh) over the report PLUS a
   human terminus (a disjoint completeness/realism reviewer and the risk owner who
   accepts residual risk). It is a soft-side, human-terminus SL: the dominant
   coherent-and-wrong it guards is a fluent, well-chained but threat-wrong report —
@@ -45,7 +45,7 @@ low-stakes assessment, run the `ebios-risk-manager` skill directly. Reach for `e
   authored here** — it is fed downstream by `frama-c-monitoring`'s verdicts (its §8e feedback) and
   adjudicated by the risk owner.
 - **"Correct" means (checkable):** (a) **structurally** EBIOS-conformant — workshops present for the
-  goal, chaining well-formed, scales applied, coverage closed (mechanical, `ebios-lint.sh`); **and**
+  goal, chaining well-formed, scales applied, coverage closed (mechanical, `bin/ebios-lint.sh`); **and**
   (b) the scenarios/severities are a faithful reading of the **mission + threat model** that a
   *disjoint reviewer* does not refute and the *risk owner* signs (soft, human terminus).
 - **Terrain archetype: A + B.** **A** (transcription of an external standard) for the *method/
@@ -62,7 +62,7 @@ low-stakes assessment, run the `ebios-risk-manager` skill directly. Reach for `e
   stakeholder/ecosystem context**. Strongest claim a deliverable may make: *"a reading EBIOS doctrine
   + the mission/threat model do not refute."*
 - **Lower bound `L`:** two-layer, honestly partial.
-  - *Mechanical:* **`ebios-lint.sh`** — chaining well-formed (every strategic scenario → an RO/TO;
+  - *Mechanical:* **`bin/ebios-lint.sh`** — chaining well-formed (every strategic scenario → an RO/TO;
     every operational scenario → an attack path); severity on every feared event, likelihood on every
     operational scenario; **every high-severity feared event → ≥1 risk scenario**; scale/ID/volume
     sanity; and the **endogeneity tripwire** (no code artifacts in W1–W3).
@@ -97,7 +97,7 @@ mis-framed scope → Gate A vs the adaptation table; malformed chain / coverage 
   workshops for the goal (adaptation table); object/scope correct; scales adapted but **4/4/3**
   structure kept; **agile volume** (≈5–10 business assets, 3–6 RO/TO, 1–3 attack paths each);
   accidental/environmental risk → the baseline, not scenarios. Amend/cut/sharpen, never rubber-stamp.
-- **Gate B — machine.** `ebios-lint.sh` passes (all §1 mechanical invariants) **including the
+- **Gate B — machine.** `bin/ebios-lint.sh` passes (all §1 mechanical invariants) **including the
   endogeneity tripwire** (no code artifacts in W1–W3). The EBIOS analogue of "all VCs discharged."
 - **Gate C — coverage / no-blend / coherent-and-wrong.** The reviewer's **independent enumeration**
   covers every high-value asset + plausible RO (the completeness critic); the report is the
@@ -113,7 +113,7 @@ mis-framed scope → Gate A vs the adaptation table; malformed chain / coverage 
    W3 (severity flows from W1) → W4 (likelihood), chained; iterate W3/W4 **≤ 2×**.
 3. **Reviewer** independently authors the completeness/realism critique from doctrine+mission (not the
    author's notes, not the code).
-4. **Gate B** (`ebios-lint.sh`) → **Gate C** (reviewer coverage/realism + endogeneity flag).
+4. **Gate B** (`bin/ebios-lint.sh`) → **Gate C** (reviewer coverage/realism + endogeneity flag).
 5. **MACHINE-DONE** (structure+coverage) → **risk owner adjudicates** content/acceptance (human
    terminus) → **DONE**.
 6. Divergence (coverage gap, malformed chain, endogeneity detected, scenario mirrors code) → `gap-N`
@@ -143,13 +143,13 @@ PUBLIC API/docs, the existing (code-blind) report to extend, and the method/form
 delegation boundary IS the physical barrier** (the same principle `frama-c-launch` uses for its provers).
 
 **Endogeneity nuance — don't over-sanitize scope language.** A build-config flag NAME in W1
-(`CONFIG_PIPES`) is legitimate *scope/baseline* language, **not** a code artifact; the `ebios-lint.sh`
+(`CONFIG_PIPES`) is legitimate *scope/baseline* language, **not** a code artifact; the `bin/ebios-lint.sh`
 endogeneity tripwire correctly passes it (C8 flags `.c`/`.h`/`.cpp`/`.cc`/`.rs`/`#include`/`#define`/`0x…`/`::`/`->`,
 i.e. source artifacts, not config flags). What stays banned in W1–W3: translation-unit names, function
 names, ACSL, goal counts.
 
 ## 5. Executable oracle setup
-- **`ebios-lint.sh REPORT.md`** (repo root) — the mechanical `L`. Parses a report written to the
+- **`bin/ebios-lint.sh REPORT.md`** (repo root) — the mechanical `L`. Parses a report written to the
   **pinned format contract** (`references/report-format.md`) and checks the §1 invariants + the
   endogeneity tripwire; exit 0 = pass, 1 = violations, 2 = usage/format. **Content realism is *not* in
   scope — that is the human terminus.** The author writes to the same pinned contract, so the report
@@ -161,7 +161,7 @@ names, ACSL, goal counts.
   declared `DEPENDENCY: human reviewer`, never faked (the `sl-monitoring-sl` honesty rule).
 
 ## 6. Done criteria
-`ebios-lint.sh` green (Gate B) + reviewer completeness/realism PASS with no open carve-outs (Gate C)
+`bin/ebios-lint.sh` green (Gate B) + reviewer completeness/realism PASS with no open carve-outs (Gate C)
 + endogeneity flag clear + workshops appropriate to goal + agile volume respected + capitalized
 heuristics Gate-S'd, **and the risk owner signs** (human terminus). **MACHINE-DONE** = linter+coverage;
 **DONE** = risk-owner sign-off. No self-report ends the study.
@@ -179,7 +179,7 @@ heuristics Gate-S'd, **and the risk owner signs** (human terminus). **MACHINE-DO
 - **No-blend** → structure (linter) vs realism (reviewer) vs acceptance (risk owner) never substitute.
 
 ## 8. Execution order & topology
-- **Pilot** `ebios-lint.sh` on a known-good report first.
+- **Pilot** `bin/ebios-lint.sh` on a known-good report first.
 - Run `ebios-sl` as a **code-disjoint PEER that precedes `frama-c-launch`** — *not* a child of it.
   Orchestration: a thin top driver, **or** the `frama-c-launch` *coordinator* (itself code-barriered)
   spawns it with a **threat-model-only context** — never the architect, never the source.
@@ -222,7 +222,7 @@ heuristics Gate-S'd, **and the risk owner signs** (human terminus). **MACHINE-DO
   adaptation table); this loop is the *squeeze* around it. Invocable via the Skill tool.
 - `references/report-format.md` — the **pinned** report-format tag convention (the linter's contract
   + the author's spec; one source of truth).
-- `ebios-lint.sh` (repo root) — the mechanical `L` (structure + coverage + endogeneity linter), parses
+- `bin/ebios-lint.sh` (repo root) — the mechanical `L` (structure + coverage + endogeneity linter), parses
   the pinned format.
 - Downstream consumer: `../frama-c-launch/SKILL.md` + `../frama-c-launch/templates/ebios-crosswalk.md`
   (the report becomes the ranking `U`) and `../frama-c-launch/references/ebios-feedback.md` (verdicts

@@ -134,8 +134,9 @@ harness_stop() {
 
 # --- common campaign steps and checks (tests.md 3.4, 4) ---------------------
 
-# campaign_setup_c <container>: the level 2 steps, the use-frama-c links
-# exactly as the README shows them, and a local bare origin (tests.md 3.4).
+# campaign_setup_c <container>: the level 2 steps, bin/fetch-sources.sh as the
+# README runs it, and a local bare origin (tests.md 3.4). opam is already
+# initialised in the base (provision.sh step 3).
 campaign_setup_c() {
     local c=$1
     autowp_exec_user "$c" 'set -e; touch ~/.autowp-t0; sleep 1
@@ -143,9 +144,7 @@ campaign_setup_c() {
         python3 auto-wp/auto-wp.py --c foobar
         cd foobar
         git clone -q https://gitlab.freedesktop.org/gnu-grub/grub.git
-        UFC=~/git/use-frama-c
-        ln -s "$UFC"/*.sh "$UFC"/frama-c-patches "$UFC"/framac-src \
-              "$UFC"/framac-gold "$UFC"/macsl "$UFC"/no-ceiling.md .
+        bin/fetch-sources.sh
         git init -q --bare ~/remote.git
         git remote add origin ~/remote.git
         git -C grub rev-parse HEAD > ~/.autowp-grub-commit'
@@ -166,10 +165,10 @@ k1() {
 k3() {
     local c=$1 id=$2 out
     out=$(autowp_exec_user "$c" 'find ~ /tmp -xdev -newer ~/.autowp-t0 -type f 2>/dev/null \
-        | grep -vE "^/home/ubuntu/(foobar|git/use-frama-c|\.claude|\.claude\.json|\.cache|\.opam|\.local/share/claude|\.config|\.bash_history|\.gitconfig|remote\.git|\.autowp-)|^/tmp/" \
+        | grep -vE "^/home/ubuntu/(foobar|toolchain|\.claude|\.claude\.json|\.cache|\.opam|\.local/share/claude|\.config|\.bash_history|\.gitconfig|remote\.git|\.autowp-)|^/tmp/" \
         | head -30' || true)
     info "$id" "outside the allowlist: ${out:-nothing}" 
-    info "$id" "writes into ~/git/use-frama-c: $(autowp_exec_user "$c" 'find ~/git/use-frama-c -xdev -newer ~/.autowp-t0 -type f 2>/dev/null | head -10 | tr "\n" " "')"
+    info "$id" "writes into ~/toolchain: $(autowp_exec_user "$c" 'find ~/toolchain -xdev -newer ~/.autowp-t0 -type f 2>/dev/null | head -10 | tr "\n" " "')"
 }
 
 # state_json <container> <state-file>: best-effort parse of time-loop.state

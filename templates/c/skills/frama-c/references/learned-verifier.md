@@ -103,8 +103,8 @@ An entry that would leak the implementation is a barrier breach → REJECT.
 ### Gate C mutation probe is the consistency/non-vacuity backstop — but generic mutations miss some shapes
 - Kind: defer-to-oracle
 - Gate S: PASS
-- Arose from: framac-mutation-probe.sh over the small batch (clamp/swap)
-- Heuristic: `framac-mutation-probe.sh` confirms a proof has teeth (a mutated body must break
+- Arose from: bin/framac-mutation-probe.sh over the small batch (clamp/swap)
+- Heuristic: `bin/framac-mutation-probe.sh` confirms a proof has teeth (a mutated body must break
   a goal) and thereby that any axiomatic is consistent. Limitation observed: its GENERIC
   mutations (`+`↔`-`, `++`→`--`, `<`→`<=`, `==`→`!=`) can be **behavior-preserving** (clamp's
   `<`→`<=` at the boundary → false `VACUOUS`) or **not apply at all** to a pure/store-only

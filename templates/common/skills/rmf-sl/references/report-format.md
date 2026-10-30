@@ -1,7 +1,7 @@
-# RMF report-format convention (PINNED) — the `rmf-lint.sh` contract
+# RMF report-format convention (PINNED) — the `bin/rmf-lint.sh` contract
 
 This is the **authoritative, fixed** format an `rmf-sl` report must follow. It is the contract the
-mechanical lower bound (`rmf-lint.sh`) parses and the assessment author writes to — one source of
+mechanical lower bound (`bin/rmf-lint.sh`) parses and the assessment author writes to — one source of
 truth, so the linter and the report cannot drift. It layers stable tags onto the NIST RMF method
 content (the `nist/` corpus: SP 800-30 assessment mechanics, SP 800-37 the 7-step lifecycle, SP
 800-53 the control catalog) with **STRIDE** as the threat-identification engine
@@ -20,7 +20,7 @@ Locality is the price of a dependency-free linter; keep it.
 — e.g. an R5 control line `- CTL2 SC-8 … (treats RS2)` that names `RS2` next to `CTL2` — can *satisfy*
 C4c even if the R4 `RS2` line itself forgot its control. Write each `RS` line with its full inline
 chain (`TE … VU … CTL …`) per Rule 0, and **do not** rely on an R5 back-reference to carry it; a
-back-referenced id can mask a genuinely-dropped link. (Same property as `ebios-lint.sh`; not an
+back-referenced id can mask a genuinely-dropped link. (Same property as `bin/ebios-lint.sh`; not an
 `rmf`-specific weakness.)
 
 ## Rule 1 — RMF sections (R1-R5)
@@ -136,7 +136,7 @@ System elements + categorization:
 ~~~
 
 ## What the linter enforces today vs the full contract (honesty)
-`rmf-lint.sh` mechanically enforces **C1** (R1-R5 sections), **C3/C3b** (impact/likelihood present),
+`bin/rmf-lint.sh` mechanically enforces **C1** (R1-R5 sections), **C3/C3b** (impact/likelihood present),
 **C4** (TE->TS), **C4b** (RS->TE + VU), **C4c** (RS->CTL), **C5** (Hi-impact coverage -> RS + CTL),
 **C6** (all three origin classes ADV/ACC/ENV present — the 800-30 DNA check, WARN), **C7** (volume,
 WARN), **C8** (endogeneity), and **C9** (STRIDE coverage ledger — SKIP-honest: SKIPs when the report

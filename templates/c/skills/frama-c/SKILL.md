@@ -39,7 +39,7 @@ ACSL is confined to comments and never changes executable C:
 - **Line annotations:** `//@ assert ...;`
 - **Ghost code:** `/*@ ghost ... */` (logical-only statements).
 
-The base-SL faithfulness gate (`framac-monitor-check.sh`) strips exactly these and
+The base-SL faithfulness gate (`bin/framac-monitor-check.sh`) strips exactly these and
 requires the remaining C to be byte-identical to the original. So: only ever **add**
 ACSL; never edit a statement, `#define`, or `#include` to make a goal pass — that is
 the FABRICATED failure.

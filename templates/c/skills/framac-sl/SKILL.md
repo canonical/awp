@@ -145,7 +145,7 @@ alone.
   ensures `Sorted(a,n)` but not permutation, or a search that ensures only a result-bound,
   passes faithful+B+C yet is under-specified (a zero-fill / return-`n` body satisfies it). So
   where an intended-property reference exists — the requirement, or the human **gold** spec —
-  compare the loop's `ensures` against it (`framac-completeness.sh` gives a hint; an *editorial*
+  compare the loop's `ensures` against it (`bin/framac-completeness.sh` gives a hint; an *editorial*
   judge, disjoint from the implementer, decides, since an inlined `\forall` may cover a gold
   predicate under a different name). A unit is PROVED only if its contract ensures every intended
   property; one that omits one is **PARTIAL**, not PROVED. No external reference ⇒ this reduces to
@@ -231,7 +231,7 @@ smallest function end-to-end before any sweep (§12).
 Per item: contracts approved at Gate A against the requirement; spec authored blind to the
 body; **all WP goals `Valid`** (incl. `-wp-rte`) with no `Admitted`/axiom/vacuous-stub
 shortcut on the target; tests green; the mutation probe breaks the proof; determinism
-re-run agrees; the **faithfulness gate** (`framac-monitor-check.sh`) returns ACCEPT (the C
+re-run agrees; the **faithfulness gate** (`bin/framac-monitor-check.sh`) returns ACCEPT (the C
 was only annotated, never altered); any consolidated skill passed Gate S. **No actor's
 self-report ends an item — only the gates.**
 
@@ -341,7 +341,7 @@ the last discharged by the `x > INT_MIN` precondition).
 (`requires \true`) and re-run — the `-x` overflow goal must turn **`Unknown`/RED**. If it
 stays green, the proof had no teeth → gap doc.
 
-**Faithfulness gate:** `./framac-monitor-check.sh pilot/abs.c` must print `ACCEPT`
+**Faithfulness gate:** `bin/framac-monitor-check.sh pilot/abs.c` must print `ACCEPT`
 (stripping the `/*@ ... */` leaves the body byte-identical to `framac-orig/pilot/abs.c`).
 
 Only once this pilot is green-and-has-teeth does the outer loop start the sweep.

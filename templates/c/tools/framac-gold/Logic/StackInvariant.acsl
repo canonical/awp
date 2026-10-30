@@ -1,0 +1,18 @@
+
+#ifndef STACKINVARIANT_ACSL_INCLUDED
+#define STACKINVARIANT_ACSL_INCLUDED
+
+#include "Stack.acsl"
+
+/*@
+  predicate StackInvariant{L}(Stack* s) =
+    0 < StackCapacity(s)                           &&
+    0 <= StackSize(s) <= StackCapacity(s)          &&
+    \valid(StackData(s) + (0..StackCapacity(s)-1)) &&
+    \separated(s, StackData(s) + (0..StackCapacity(s)-1));
+
+  predicate StackValid{L}(Stack* s) = \valid(s) && StackInvariant(s);
+*/
+
+#endif /* STACKINVARIANT_ACSL_INCLUDED */
+

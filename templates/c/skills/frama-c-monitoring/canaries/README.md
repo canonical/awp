@@ -1,6 +1,6 @@
 # Seeded coherent-and-wrong canaries
 
-Run once per campaign by `framac-canary.sh` (repo root). These are *consistency checks that the
+Run once per campaign by `bin/framac-canary.sh` (repo root). These are *consistency checks that the
 wiring fires* (paper §synthesis: catchability made measurable via seeded falsifications —
 mutation-testing the verifier itself), **not** efficacy measurements. They institutionalize the
 natural `ssl_ticket_parse` catch as a repeatable, self-contained check that does not depend on the

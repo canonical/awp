@@ -1,0 +1,16 @@
+
+#ifndef STACK_ACSL_INCLUDED
+#define STACK_ACSL_INCLUDED
+
+#include "Stack.h"
+
+/*@
+  logic value_type* StackData{S}(Stack* s)     = s->data;
+
+  logic integer     StackCapacity{S}(Stack* s) = s->cap;
+
+  logic integer     StackSize{S}(Stack* s)     = s->sz;
+*/
+
+#endif /* STACK_ACSL_INCLUDED */
+

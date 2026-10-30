@@ -215,6 +215,25 @@ class TestTemplates(unittest.TestCase):
                          f"{name}: does not say the stored deadline is reused")
         self.assertIn("--fresh", text, f"{name}: no --fresh for a new budget")
 
+    # T7 (auto-wp.md 4.2.1): the root scripts live in bin/ and are called there.
+    def test_T7_scripts_in_bin(self):
+        tools = TEMPLATES / "c/tools"
+        names = sorted(p.name for p in (tools / "bin").glob("*.sh"))
+        self.assertEqual(len(names), 21)
+        self.assertEqual(sorted(p.name for p in tools.glob("*.sh")), [])
+        pat = re.compile(r"(?<![\w/.-])(?:\./)?(" + "|".join(map(re.escape, names)) + r")")
+        bad = []
+        for p in TEMPLATES.rglob("*"):
+            if not p.is_file() or tools in p.parents:
+                continue
+            try:
+                text = p.read_text()
+            except UnicodeDecodeError:
+                continue
+            for m in pat.finditer(text):
+                bad.append(f"{p.relative_to(TEMPLATES)}: {m.group(0)}")
+        self.assertEqual(bad, [], "script referenced without its bin/ prefix")
+
 
 if __name__ == "__main__":
     unittest.main()

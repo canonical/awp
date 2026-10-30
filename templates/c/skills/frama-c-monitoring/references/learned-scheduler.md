@@ -31,7 +31,7 @@ delegation time.
 - Heuristic: unlike a Rust crate (one `cargo metadata`), each C translation unit needs its
   own `-I`/`-D`/`-machdep` to even parse. Get them from `compile_commands.json` (`bear -- make`
   or CMake `-DCMAKE_EXPORT_COMPILE_COMMANDS=ON`) and carry them in the `{file, flags}` queue
-  (`framac-queue.sh`). Two recurring traps: (1) a bare `-I` is rejected by frama-c — wrap
+  (`bin/framac-queue.sh`). Two recurring traps: (1) a bare `-I` is rejected by frama-c — wrap
   includes in `-cpp-extra-args="..."`; (2) when the corpus prep stripped `.acsl`/typedef
   include chains, the unit no longer sees types it needs — supply them with **force-includes**
   (`-cpp-extra-args="-include typedefs.h -include ..."`). A unit that won't parse is a

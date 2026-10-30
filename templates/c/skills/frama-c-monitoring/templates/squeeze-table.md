@@ -2,7 +2,7 @@
 
 The coordinator fills this **before any delegation** (paper §disjoint: the (U,L) table written
 up front and pasted row-by-row into each sub-agent prompt). It is a required Phase-0 artifact of
-`frama-c-monitoring`. `framac-squeeze-audit.sh` checks it for compliance (C1 distinctness; C3 —
+`frama-c-monitoring`. `bin/framac-squeeze-audit.sh` checks it for compliance (C1 distinctness; C3 —
 the implementation/annotation absent from every judge's context).
 
 Columns:
@@ -32,7 +32,7 @@ The audit requires: pairwise-distinct (U,L) pairs (C1); and every **judge** role
 |---|---|---|---|---|
 | Coordinator | "RTE-robustness of untrusted-input parsers; crypto/state-machine out of scope" | WP verdicts on `library/`+`tf-psa-crypto/utilities/` | sub-agent rationales | opus |
 | Property-author | the parser's documented robustness claim (no OOB/overflow for any input) | each clause → a `-wp-rte` goal | the `.c` body, the ACSL | (within-family — flag) |
-| Annotator (`framac-sl`) | "no RTE under a sound, non-vacuous precondition" | `-wp-rte` Valid + `framac-monitor-check.sh` ACCEPT | — | opus |
+| Annotator (`framac-sl`) | "no RTE under a sound, non-vacuous precondition" | `-wp-rte` Valid + `bin/framac-monitor-check.sh` ACCEPT | — | opus |
 | Verifier | the documented `(buf,end)` surface | WP `Proved goals N/N` | the body, the diff | opus |
 | Completeness oracle | (for functional units) `framac-gold` `ensures` | trivial-witness probe | body, scaffolding | **owed cross-provider** |
 | Monitor | mission guidance | re-run WP on merged tree + faithfulness diff | base notes | opus |

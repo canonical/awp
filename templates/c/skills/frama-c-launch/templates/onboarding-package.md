@@ -14,7 +14,7 @@ GUIDANCE:         <verification target the downstream loop pursues, e.g. RTE-rob
 ```
 
 ## 1. Preprocess context  (prober — Gate B_launch: parse oracle)
-- compile_commands.json: <path | hand-built>     (`framac-onboard.sh` / `bear -- make`)
+- compile_commands.json: <path | hand-built>     (`bin/framac-onboard.sh` / `bear -- make`)
 - -machdep: <e.g. gcc_x86_64>
 - Flag sets (wrap every `-I`/`-D` in `-cpp-extra-args="…"`):
   - PARSER (leaf): `<-I … -D…>`
@@ -66,6 +66,6 @@ GUIDANCE:         <verification target the downstream loop pursues, e.g. RTE-rob
 - [ ] Gate A_launch (profile + scope + baseline plan judged)
 - [ ] Gate B_launch (all oracles green)
 - [ ] Gate C_launch (profile-match + scope-coverage + baseline-correct + endogenous flagged)
-- [ ] squeeze-audit (C1/C3 of the launch cast: `framac-squeeze-audit.sh`)
+- [ ] squeeze-audit (C1/C3 of the launch cast: `bin/framac-squeeze-audit.sh`)
 READY FOR frama-c-monitoring: <yes | blocked on: …>
 ```

@@ -56,7 +56,7 @@ inspect what exists for `PREFIX` and decide the minimum work:
      `COQ-NEEDED` residue). Use for a faster spec-only pass.
    - *(default, no flag)* → **converge AND discharge with Coq**: reuse what's converged, finish what
      isn't by spec-authoring, then escalate the probe-confirmed true-but-hard residue to Coq (below).
- - `PREFIX-ebios-report.md` exists and passes `ebios-lint.sh` (exit 0) → **reuse it; skip Phase 1.**
+ - `PREFIX-ebios-report.md` exists and passes `bin/ebios-lint.sh` (exit 0) → **reuse it; skip Phase 1.**
    If it is missing or lint-dirty → run Phase 1.
  - `PREFIX-acsl/` overlay + its verdicts/patches exist → **reuse them; do NOT re-verify converged
    units from scratch — but "exists" ≠ "converged".** Identify every **not-yet-converged (AMBER)**
@@ -82,7 +82,7 @@ PHASE 1 — EBIOS, CODE-BLIND (separate agent; this barrier is load-bearing).
 Spawn an agent to run the `ebios-sl` loop on `DIR/` and generate `PREFIX-ebios-report.md`
 (W1–W4; W5 left PENDING). It MUST NOT read any implementation source under `DIR/`
 (mission/threat-model/public docs only) — that exogeneity is what makes the report a
-valid bound. It must pass `ebios-lint.sh` (exit 0, endogeneity tripwire clear).
+valid bound. It must pass `bin/ebios-lint.sh` (exit 0, endogeneity tripwire clear).
 
 PHASE 2 — VERIFICATION, CODE-AWARE (a SEPARATE agent consuming PREFIX-ebios-report.md).
 Run the `frama-c-launch` loop and its downstream `frama-c-monitoring`. Run unsupervised

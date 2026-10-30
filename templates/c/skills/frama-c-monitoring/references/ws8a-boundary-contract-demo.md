@@ -70,5 +70,5 @@ This is the **leaf-first** schedule the monitor already runs (SKILL.md §schedul
 
 So in the crosswalk STRIDE ledger, the boundary's cell moves `TRUSTED → PROVED` exactly when the peer
 unit's `ensures` is proven — never by assumption. A boundary still unimplemented stays `TRUSTED-PENDING`
-(a named, owed residual), which is what the ratchet (`ledger-ratchet.sh`) tracks. **No-blend holds:** the
+(a named, owed residual), which is what the ratchet (`bin/ledger-ratchet.sh`) tracks. **No-blend holds:** the
 green is the *ordering / totality / binding* property named in the contract, nothing more.

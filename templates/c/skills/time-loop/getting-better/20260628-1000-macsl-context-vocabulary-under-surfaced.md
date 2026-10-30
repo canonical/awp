@@ -1,7 +1,7 @@
 # macsl context vocabulary under-surfaced — the move-set was a fraction of the tool's
 
 - **Trigger:** after the `/time-loop kernel/bpf` campaign (2026-06-27/28), a user asked "how could
-  macsl enlarge the HAPPY properties it covers?" Reading `use-frama-c/macsl/src/macsl.ml` showed the
+  macsl enlarge the HAPPY properties it covers?" Reading `macsl/src/macsl.ml` showed the
   `context` type + `run_policy` dispatch already **implement ~13 contexts** — `\authorized` (EoP),
   `\noninterference`/`\reading` (confidentiality), `\fuel` (bounded-work), `\guarded_by`/`\stable_check`
   (concurrency), `\tamper_evident`, `\flow`, `\ni_cost` — each wired parser→dispatch→visitor/emit,

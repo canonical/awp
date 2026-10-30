@@ -1,6 +1,6 @@
-# Native crosswalk generation (`crosswalk-gen.sh`) — Move 5
+# Native crosswalk generation (`bin/crosswalk-gen.sh`) — Move 5
 
-The threat↔verification crosswalk is **generated**, not hand-written. `crosswalk-gen.sh PREFIX`
+The threat↔verification crosswalk is **generated**, not hand-written. `bin/crosswalk-gen.sh PREFIX`
 emits `PREFIX-crosswalk.md` (conforming to `templates/crosswalk-template.md`) by joining a campaign's
 existing artifacts. A hand-built join drifts from the verdicts it summarizes; a generated one cannot.
 
@@ -48,9 +48,9 @@ generator. A `Valid`/`PROVED`/`GREEN` verdict marks its SA provable (backs §3 P
 ## Usage
 
 ```sh
-./crosswalk-gen.sh s2n-tls-analysis                    # emit (auto-detect rmf/ebios)
-./crosswalk-gen.sh wolfssl --kind ebios                # force the EBIOS variant
-./crosswalk-gen.sh s2n-tls-analysis --check            # CI drift gate: fail if out of sync
+bin/crosswalk-gen.sh s2n-tls-analysis                    # emit (auto-detect rmf/ebios)
+bin/crosswalk-gen.sh wolfssl --kind ebios                # force the EBIOS variant
+bin/crosswalk-gen.sh s2n-tls-analysis --check            # CI drift gate: fail if out of sync
 ```
 
 `--check` regenerates to a temp file and diffs against the committed crosswalk — exit 1 on drift.
@@ -60,6 +60,6 @@ fall out of sync with its report/verdicts, and a fabricated `PROVED` can never b
 ## In the `/rmf` and `/ebios` campaigns
 
 After Phase 2 produces `PREFIX-acsl/verdicts.tsv` and the architect fills
-`PREFIX-acsl/stride-ledger.tsv`, run `./crosswalk-gen.sh PREFIX` to emit `PREFIX-crosswalk.md` as a
+`PREFIX-acsl/stride-ledger.tsv`, run `bin/crosswalk-gen.sh PREFIX` to emit `PREFIX-crosswalk.md` as a
 first-class campaign deliverable (alongside the report, found-issues, gaps, and the monitor packet).
-The first run also bootstraps the `ledger-ratchet.sh` baseline; subsequent runs keep it forward-only.
+The first run also bootstraps the `bin/ledger-ratchet.sh` baseline; subsequent runs keep it forward-only.

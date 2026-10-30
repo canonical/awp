@@ -1,0 +1,24 @@
+#ifndef SHIFTLEMMAS_ACSL_INCLUDED
+#define SHIFTLEMMAS_ACSL_INCLUDED
+
+#include "ArrayBounds.acsl"
+
+/*@
+  lemma LowerBound_Shift{L}:
+    \forall value_type *a, v, integer b, c, d;
+      LowerBound{L}(a+b, c, d, v)  ==>  LowerBound{L}(a, c+b, d+b, v);
+
+  lemma StrictLowerBound_Shift{L}:
+    \forall value_type *a, v, integer b, c, d;
+      StrictLowerBound{L}(a+b, c, d, v)  ==> StrictLowerBound{L}(a, c+b, d+b, v);
+
+  lemma UpperBound_Shift{L}:
+    \forall value_type *a, v, integer b, c;
+      UpperBound{L}(a+b, 0, c-b, v)  ==>  UpperBound{L}(a, b, c, v);
+
+  lemma StrictUpperBound_Shift{L}:
+    \forall value_type *a, v, integer b, c;
+      StrictUpperBound{L}(a+b, 0, c-b, v)  ==> StrictUpperBound{L}(a, b, c, v);
+*/
+
+#endif /* SHIFTLEMMAS_ACSL_INCLUDED */

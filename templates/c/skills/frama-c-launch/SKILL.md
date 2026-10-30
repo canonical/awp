@@ -53,7 +53,7 @@ surface, or rest every faithfulness check on the wrong baseline). That payoff is
 plausibly-but-wrongly set up — the user's stated case); (b) the target's feature configuration
 is non-trivial (`#ifdef`/`configure`/`user_settings.h` mazes, submodules, callback conventions);
 and (c) the verification must be trusted without re-auditing the setup by hand. **For a single,
-well-understood target with an obvious build, a plain onboarding *script* (`framac-onboard.sh`)
+well-understood target with an obvious build, a plain onboarding *script* (`bin/framac-onboard.sh`)
 is the right call — skip the squeeze.** Reach for the full loop deliberately.
 
 ## 0. Mission & deliverable
@@ -430,7 +430,7 @@ The mbedtls campaign's setup, recast as a `frama-c-launch` run, shows each role 
 
 ## 7. Executable oracle setup (the L tooling — built & tested)
 `frama-c-launch`'s lower bound rests on these scripts (all at repo root, runnable today):
-- **`framac-onboard.sh <target-dir> [--build] [--switch NAME] [--sample N] [--cpp "FLAGS"]`** — the
+- **`bin/framac-onboard.sh <target-dir> [--build] [--switch NAME] [--sample N] [--cpp "FLAGS"]`** — the
   prober's primary oracle. Checks the toolchain (`-wp-detect` provers + the `framac-coq8` switch),
   inits submodules, finds/derives `compile_commands.json` (`--build` attempts `bear -- make` /
   `cmake -DCMAKE_EXPORT_COMPILE_COMMANDS=ON`), and runs the **parse oracle** on a sample of units
@@ -438,17 +438,17 @@ The mbedtls campaign's setup, recast as a `frama-c-launch` run, shows each role 
   rows with `PASS`/`DEPENDENCY-UNMET`; exit 0 only if toolchain + parse are green. Never fakes a PASS.
   (A `DEPENDENCY-UNMET` on the **Frama-C toolchain itself** — no `frama-c`/switch, WP won't load, provers
   absent — is not a terminal stop: run the §0 install/build-the-toolchain recipe first, then re-gate.)
-- **`framac-monitor-check.sh --git <file>`** — the real-codebase faithfulness oracle: strip-ACSL ==
+- **`bin/framac-monitor-check.sh --git <file>`** — the real-codebase faithfulness oracle: strip-ACSL ==
   `git show HEAD:<file>` in the file's **owning repo**, resolved per file so a submodule file is
   diffed against the **submodule's** HEAD (the trap a single-repo diff falsely passes). Prints
   `ACCEPT | FABRICATED | NOORIG | MISSING`. (The original `framac/`+`framac-orig/` mirror mode is
   still the default first-arg form, for corpora that use a pristine mirror.)
-- **`framac-smoke.sh [--fct …] [--model +cast] [--prover …] [--switch framac-coq8] [--cpp "FLAGS"] FILE`**
+- **`bin/framac-smoke.sh [--fct …] [--model +cast] [--prover …] [--switch framac-coq8] [--cpp "FLAGS"] FILE`**
   — the feasibility gate: runs one leaf unit through WP (`-wp -wp-rte`) and asserts every goal Valid;
   prints `SMOKE-PASS N/N` (exit 0) | `SMOKE-FAIL N/M` | `SMOKE-ERROR …`. Parse-green ≠ proof-green, so
   the handoff requires this, not merely a unit that parses (no-blend).
-- Reused as-is: `framac-queue.sh` (queue from `compile_commands.json`), `framac-squeeze-audit.sh`
-  (C1/C3 of the launch cast), `framac-gen-report.sh --lint` (the onboarding report), and the
+- Reused as-is: `bin/framac-queue.sh` (queue from `compile_commands.json`), `bin/framac-squeeze-audit.sh`
+  (C1/C3 of the launch cast), `bin/framac-gen-report.sh --lint` (the onboarding report), and the
   `mbedtls-acsl/` layout as the scaffold template.
 If an oracle's dependency is genuinely absent (no Bear/CMake → no `compile_commands.json`; no
 `framac-coq8`), the scripts report `DEPENDENCY-UNMET` / `ONBOARD-BLOCKED` and the package records it —
@@ -502,7 +502,7 @@ Implementation is the canonical preset **`linux/linux-acsl/onboard-linux.sh <ana
 ## 9. Compliance & execution order
 - **C1 Disjointness:** ✓ prober / architect / scaffolder / monitor / coordinator hold distinct
   `(U,L)` bases; the monitor's base (shipped profile + attack surface + oracles) is disjoint from the
-  producers'. Run `framac-squeeze-audit.sh` on the launch cast at Gate A_launch.
+  producers'. Run `bin/framac-squeeze-audit.sh` on the launch cast at Gate A_launch.
 - **C2 Catchability:** ✓ wrong-but-parsing config → monitor trigger test; scope miss → completeness
   critic; wrong baseline → per-submodule round-trip; endogenous scope → the endogenous-`U` flag; no
   smoke → Gate B_launch.

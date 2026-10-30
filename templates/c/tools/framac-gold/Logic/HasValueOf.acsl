@@ -1,0 +1,13 @@
+
+#ifndef HASVALUEOF_ACSL_INCLUDED
+#define HASVALUEOF_ACSL_INCLUDED
+
+#include "SomeNone.acsl"
+
+/*@
+  predicate HasValueOf{A}(value_type* a, integer m, value_type* b, integer n) =
+    \exists integer i; 0 <= i < m && SomeEqual{A}(b, n, a[i]);
+*/
+
+#endif /* HASVALUEOF_ACSL_INCLUDED */
+

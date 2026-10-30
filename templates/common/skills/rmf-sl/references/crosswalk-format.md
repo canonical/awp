@@ -43,11 +43,11 @@ The crosswalk references the report's pinned tags (see
   the AO lowers a risk level, downstream, at the Authorize step.
 - **Ratchet** — the §3.2 baseline only moves forward; an `UNMODELED` cell on a high-value asset is a
   ratcheted `WARN`, never a silent green. (The cross-run ratchet is `frama-c-monitoring`'s CI gate;
-  `rmf-lint.sh`'s `C9` only does single-file structural validation of the ledger.)
+  `bin/rmf-lint.sh`'s `C9` only does single-file structural validation of the ledger.)
 
 ## Native generation (Move 5)
 
-The crosswalk is **generated**, not hand-written: `./crosswalk-gen.sh PREFIX` emits
+The crosswalk is **generated**, not hand-written: `bin/crosswalk-gen.sh PREFIX` emits
 `PREFIX-crosswalk.md` from this loop's code-blind report (§1 assets, §2 scenarios, §5 residuals) joined
 with the code-aware `PREFIX-acsl/verdicts.tsv` (§4) and `stride-ledger.tsv` (§3). The generator
 machine-checks that every `PROVED` ledger cell is backed by a real verdict (a fabricated PROVED fails

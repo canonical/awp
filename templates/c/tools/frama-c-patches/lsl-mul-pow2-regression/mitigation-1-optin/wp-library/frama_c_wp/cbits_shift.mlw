@@ -1,0 +1,28 @@
+(**************************************************************************)
+(*  Opt-in SHIFT lemma theory for WP (mitigation-1 for the lsl_mul_pow2   *)
+(*  global-axiom regression).  See ../README.md.                          *)
+(*                                                                        *)
+(*  This theory is NOT auto-loaded by WP.  It is pulled in ONLY for units *)
+(*  that pass the companion driver `shift_lemmas.driver` (which appends    *)
+(*  `use frama_c_wp.cbits_shift.CbitsShift` to the always-loaded `cbits`   *)
+(*  library).  Shift-free units never see this axiom, so it cannot enlarge *)
+(*  Alt-Ergo's search space for unrelated goals.                          *)
+(*                                                                        *)
+(*  SOUNDNESS: `lsl_mul_pow2` is identical to the axiom documented in      *)
+(*  ../../wp-cbits-bound-lemmas/ and is realizable admit-free in           *)
+(*  coqwp/Cbits.v from Zbits.lsl_pos + Zbits.lsl_arithmetic_shift          *)
+(*  (0<=n -> lsl x n = x * two_power_nat n).  It is NOT a bare axiom.      *)
+(**************************************************************************)
+
+theory CbitsShift
+  use int.Int
+  use int.Power
+  use frama_c_wp.cbits.Cbits
+
+  (* lsl as multiplication by a power of two -> closes the byte<<k signed
+     overflow class (crc16 c^=*p<<8, xmodem pkt[0]<<8, packet assembly).
+     `lsl` is Cbits.lsl brought in by the `use` above, so this axiom's
+     trigger [lsl x n] E-matches the very same term WP's RTE goals build. *)
+  axiom lsl_mul_pow2: forall x n:int [lsl x n].
+    0 <= n -> lsl x n = x * (power 2 n)
+end

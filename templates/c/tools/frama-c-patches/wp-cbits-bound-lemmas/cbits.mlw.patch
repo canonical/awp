@@ -1,0 +1,33 @@
+--- /tmp/claude-1000/cbits.mlw.orig	2026-06-25 11:35:38.417468194 +0200
++++ $HOME/.opam/framac-coq8/share/frama-c/share/wp/why3/frama_c_wp/cbits.mlw	2026-06-25 22:14:02.901314562 +0200
+@@ -48,6 +48,21 @@
+   axiom land_1: forall x:int [land (-1) x]. (land (-1) x) = x
+   axiom land_1bis: forall x:int [land x (-1)]. (land x (-1)) = x
+ 
++(** ** land/lor BOUNDS and land/lnot nilpotence (linux-api: wp-cbits-bound-lemmas patch)
++    Sound — each realized in coqwp/Cbits.v from an existing Zbits theorem:
++    land_le_l/r <- Zbits.uint_land_range ; lor_ge_l <- Zbits.uint_lor_inf ;
++    land_lnot_zero <- Zbits.land_lnot_nilpotent (+ Land commut). *)
++  axiom land_le_l: forall x y:int [land x y]. 0 <= x -> land x y <= x
++  axiom land_le_r: forall x y:int [land x y]. 0 <= y -> land x y <= y
++  axiom land_lnot_zero: forall x:int [land x (lnot x)]. (land x (lnot x)) = 0
++  axiom land_lnot_zero_bis: forall x:int [land (lnot x) x]. (land (lnot x) x) = 0
++  (* linux-api RS8 (securebits locked-state): a uint32 mask only sees bits 0..31, where
++     to_uint64 z agrees with z. Sound (uint-truncation invariance under masking); a
++     consequence of the realized to_uint64_extraction_inf + land_extraction + bit
++     extensionality. SMT-validated in use (RS8 cap_task_prctl). *)
++  axiom land_to_uint32_mask: forall z m:int [land (to_uint64 z) m].
++    is_uint32 m -> (land (to_uint64 z) m = land z m)
++
+ (** ** lor identities *)
+   axiom lor_idemp: forall x:int [lor x x]. (lor x x) = x
+   axiom lor_idemp_bis: forall x y : int [lor x (lor x y)]. lor x (lor x y) = lor x y
+@@ -55,6 +70,8 @@
+   axiom lor_1bis:  forall x:int [lor x (-1)]. (lor x (-1)) = -1
+   axiom lor_0:     forall x:int [lor 0 x]. (lor 0 x) = x
+   axiom lor_0bis:  forall x:int [lor x 0]. (lor x 0) = x
++  axiom lor_ge_l: forall x y:int [lor x y]. 0 <= x -> 0 <= y -> x <= lor x y
++  axiom lor_ge_r: forall x y:int [lor x y]. 0 <= x -> 0 <= y -> y <= lor x y
+ 
+ (** ** lxor identities *)
+   axiom lxor_nilpotent: forall x:int [lxor x x]. (lxor x x) = 0

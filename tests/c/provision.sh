@@ -5,7 +5,6 @@
 #   tests/c/provision.sh
 #
 # Environment:
-#   USE_FRAMA_C=<dir>   host use-frama-c checkout (default ~/git/use-frama-c)
 #   SKIP_TOOLCHAIN=1    skip step 3; /time-loop must then build the toolchain
 #                       itself through frama-c-launch
 #   FORCE=1             delete an existing autowp-c-base first
@@ -16,10 +15,12 @@ HERE=$(cd "$(dirname "$0")" && pwd)
 . "$HERE/../lib/lxc.sh"
 
 BASE=autowp-c-base
-USE_FRAMA_C=${USE_FRAMA_C:-$HOME/git/use-frama-c}
-UFC_DST=/home/ubuntu/git/use-frama-c
+# The toolchain is built from the same tools and sources a project gets:
+# templates/c/tools/ and its bin/fetch-sources.sh. No host checkout is used.
+TOOLS=$AUTOWP_REPO/templates/c/tools
+TC_DST=/home/ubuntu/toolchain
 
-[ -d "$USE_FRAMA_C/framac-src" ] || die "$USE_FRAMA_C is not a use-frama-c checkout (no framac-src/)"
+[ -x "$TOOLS/bin/fetch-sources.sh" ] || die "$TOOLS/bin/fetch-sources.sh missing"
 command -v claude >/dev/null || die "claude not found on the host PATH (tests.md 3.3)"
 autowp_require_lxc
 autowp_ensure_pool
@@ -66,19 +67,16 @@ autowp_exec_root "$BASE" bash -c 'export DEBIAN_FRONTEND=noninteractive
         autoconf automake autopoint gettext bison flex libtool \
         libdevmapper-dev libfreetype-dev libfuse3-dev liblzma-dev fonts-unifont \
         unzip rsync m4 libgmp-dev zlib1g-dev'
+# Ubuntu 24.04's AppArmor profile for opam denies network sockets inside an
+# LXD container (opam init: "Could not resolve host"); the README unloads it.
+autowp_exec_root "$BASE" sh -c 'ln -sf /etc/apparmor.d/opam /etc/apparmor.d/disable/ &&
+    apparmor_parser -R /etc/apparmor.d/opam'
 pass C-prov.1
 
-# --- 2. use-frama-c tools (copied from the host, never cloned) ---------------
-note "step 2: use-frama-c tools from $USE_FRAMA_C"
-mapfile -t sh_tools < <(cd "$USE_FRAMA_C" && ls -- *.sh)
-[ "${#sh_tools[@]}" -eq 20 ] || info C-prov.2 "expected 20 *.sh tools, found ${#sh_tools[@]}"
-autowp_push "$BASE" "$USE_FRAMA_C" "$UFC_DST" \
-    --exclude=framac-src/_build --exclude=macsl/_build --exclude='*~' \
-    "${sh_tools[@]}" frama-c-patches framac-src framac-gold macsl no-ceiling.md
-commit=$(git -C "$USE_FRAMA_C" rev-parse HEAD)
-autowp_exec_user "$BASE" "echo $commit > $UFC_DST/COMMIT"
+# --- 2. C tools layer (as auto-wp.py copies it into a project) ---------------
+note "step 2: templates/c/tools into $TC_DST"
+autowp_push "$BASE" "$TOOLS" "$TC_DST" --exclude='*~' .
 pass C-prov.2
-info C-prov.2 "use-frama-c commit $commit"
 
 # --- 3. toolchain --------------------------------------------------------------
 if [ "${SKIP_TOOLCHAIN:-0}" = 1 ]; then
@@ -97,15 +95,8 @@ else
         opam install -y yaml ppx_deriving_yaml ocamlgraph ppx_inline_test unionFind dune
         # opam frama-c only for the dependency base; the binary run is the patched build
         opam install -y --deps-only frama-c.32.1
-        cd ~/git/use-frama-c/framac-src
-        for p in ../frama-c-patches/0*.patch; do
-            if git apply --reverse --check "$p" 2>/dev/null || patch -p1 -R --dry-run -s < "$p" >/dev/null 2>&1; then
-                echo "patch $(basename "$p"): already applied"
-            else
-                git apply "$p" 2>/dev/null || patch -p1 < "$p"
-                echo "patch $(basename "$p"): applied"
-            fi
-        done
+        ~/toolchain/bin/fetch-sources.sh # framac-src/ with frama-c-patches/ applied, macsl/
+        cd ~/toolchain/framac-src
         dune build @install
         dune install --prefix "$(opam var prefix)" frama-c frama-c-wp frama-c-rtegen \
             frama-c-region frama-c-server qed'

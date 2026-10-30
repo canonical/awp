@@ -8,7 +8,7 @@ exogenous.
 
 This template is consumed by:
 - `rmf-sl` / `ebios-sl` — produce the per-campaign crosswalk (`rmf-crosswalk.md` / `ebios-crosswalk.md`);
-- `rmf-lint.sh` / `ebios-lint.sh` — emit + structurally check the STRIDE coverage ledger (§3);
+- `bin/rmf-lint.sh` / `bin/ebios-lint.sh` — emit + structurally check the STRIDE coverage ledger (§3);
 - `frama-c-monitoring` — the join (§2/§4) and the **ratchet CI gate** (§3) over the ledger.
 
 > **Plane / no-blend rule (load-bearing).** A WP `PROVED` is a **hard** truth that retires exactly

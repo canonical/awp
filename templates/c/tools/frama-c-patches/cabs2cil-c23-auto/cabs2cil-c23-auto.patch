@@ -1,0 +1,96 @@
+--- src/kernel_internals/typing/cabs2cil.ml	2026-06-25 15:49:54.940359170 +0200
++++ src/kernel_internals/typing/cabs2cil.ml	2026-06-25 16:27:43.372366461 +0200
+@@ -4070,6 +4070,7 @@
+   : typ * storage * exp list * bool * Cabs.attribute list =
+   (* Do one element and collect the type specifiers *)
+   let isinline = ref false in (* If inline appears *)
++  let is_auto = ref false in (* C23 'auto' type-deduction storage *)
+   let alignas = ref [] in
+   (* The storage is placed here *)
+   let storage : storage ref = ref NoStorage in
+@@ -4099,7 +4100,7 @@
+       let sto' =
+         match st with
+         | Cabs.NO_STORAGE -> NoStorage
+-        | Cabs.AUTO -> NoStorage
++        | Cabs.AUTO -> is_auto := true; NoStorage
+         | Cabs.REGISTER -> Register
+         | Cabs.STATIC -> Static
+         | Cabs.EXTERN -> Extern
+@@ -4191,10 +4192,15 @@
+     | [Cabs.Tunsigned; Cabs.Tshort; Cabs.Tint] -> ushortType
+ 
+     | [] ->
+-      Kernel.warning ~current:true ~wkey:Kernel.wkey_implicit_int
+-        "type specifier missing, defaults to 'int'; ISO C99 and later do not \
+-         support implicit int";
+-      intType
++      if !is_auto then
++        (* C23 'auto': base type deduced from the initializer (see doInitializer) *)
++        { intType with tattr = ["__fc_autotype",[]] }  (* complete sentinel; deduced in doInitializer *)
++      else begin
++        Kernel.warning ~current:true ~wkey:Kernel.wkey_implicit_int
++          "type specifier missing, defaults to 'int'; ISO C99 and later do not \
++           support implicit int";
++        intType
++      end
+     | [Cabs.Tint]
+     | [Cabs.Tsigned]
+     | [Cabs.Tsigned; Cabs.Tint] -> intType
+@@ -6972,7 +6978,17 @@
+                        Kernel.error ~current:true "Using offset of bitfield";
+                      let kind = Machine.sizeof_kind () in
+                      pres := Cil.kinteger ~loc:e.eloc kind (start / 8);
+-                   with SizeOfError (s, _) ->
++                   with
++                   | SizeOfError ("Index is not constant", _) ->
++                     (* container_of(ptr, type, arr[i]) with a runtime index i:
++                        the member offset is genuinely runtime (base + i*elemsize).
++                        offsetof equals the address of the member taken against a
++                        null base, and e already IS that address expression, so use
++                        it directly as the runtime offset value. *)
++                     let szt = Machine.sizeof_type () in
++                     pres := Cil.mkCast ~newt:szt e;
++                     prestype := szt
++                   | SizeOfError (s, _) ->
+                      pres := e;
+                      Kernel.error ~once:true ~current:true
+                        "Unable to compute offset %a in type %a: %s"
+@@ -7962,6 +7978,21 @@
+   *)
+   : chunk * init_or_str * typ * Cil_datatype.Lval.Set.t =
+   let open Current_loc.Operators in
++  (* C23 'auto': deduce vi's type from its single initializer's type. *)
++  let () =
++    if List.mem_assoc "__fc_autotype" vi.vtype.tattr then
++      match inite with
++      | SINGLE_INIT e ->
++        let (_, _, _, ityp) = doExp local_env CNoConst e (AExp None) in
++        let quals =
++          List.filter (fun (n,_) -> n <> "__fc_autotype") vi.vtype.tattr
++        in
++        vi.vtype <- { ityp with tattr = ityp.tattr @ quals }
++      | _ ->
++        Kernel.error ~current:true ~once:true
++          "C23 'auto' requires a single initializer expression";
++        vi.vtype <- intType
++  in
+   let normal_init vi inite =
+     let acc, preinit, restl =
+       let so = makeSubobj vi vi.vtype NoOffset in
+@@ -10173,8 +10204,13 @@
+     let loc' = convLoc loc in
+     (* Sometimes we return the result of a void function call *)
+     if Ast_types.is_void !currentReturnType then begin
+-      Kernel.error ~current:true
+-        "Return statement with a value in function returning void";
++      (* C11 6.8.6.4: 'return e;' in a void function is legal iff e has type void
++         (e.g. 'return void_call();'). Get e's true type via AType (ADrop reports a
++         placeholder int for void calls), then evaluate for side effects via ADrop. *)
++      let (_, _, _, et) = doExp local_env CNoConst e AType in
++      if not (Ast_types.is_void et) then
++        Kernel.error ~current:true
++          "Return statement with a value in function returning void";
+       let (se, _, _) = doFullExp local_env CNoConst e ADrop in
+       se @@@ (returnChunk ~ghost None loc', ghost)
+     end else begin

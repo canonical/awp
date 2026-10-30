@@ -40,7 +40,7 @@ checks, and when a surprise is a real tooling gap (→ `getting-better/`) vs a b
 - Kind: defer-to-oracle
 - Gate S: PASS
 - Arose from: Nonmutating/search.c, clamp/swap probes (StandardAlgorithms batches)
-- Heuristic: `framac-mutation-probe.sh` confirms teeth (a mutated body must break a goal),
+- Heuristic: `bin/framac-mutation-probe.sh` confirms teeth (a mutated body must break a goal),
   but two refinements are load-bearing. (a) Units put loop invariants/asserts right BEFORE
   the code, so a "first occurrence in file" mutation can hit the SPEC → false VACUOUS;
   mutate only OUTSIDE ACSL spans. (b) Generic mutations (`+`↔`-`, `<`→`<=`, `==`→`!=`) can be
@@ -57,7 +57,7 @@ checks, and when a surprise is a real tooling gap (→ `getting-better/`) vs a b
   intended property. A sort whose only postcondition is `ensures Sorted(a,0,n)` passes every
   machine gate, yet a **zero-fill body satisfies it** (sortedness ≠ permutation). The probe
   shows teeth on the *sortedness* goal but cannot see the missing permutation clause.
-  Completeness is the **gold-comparison** check (Gate C′, `framac-compare.sh` vs
+  Completeness is the **gold-comparison** check (Gate C′, `bin/framac-compare.sh` vs
   `framac-gold/`) — no code mutation supplies it. A unit that machine-passes but omits the
   intended property is **PARTIAL** ("RTE+X proved; intended Y unspecified"), never PROVED.
   Watch any rearrangement/aggregate where a trivial output (constant/zero/identity) could
@@ -136,7 +136,7 @@ checks, and when a surprise is a real tooling gap (→ `getting-better/`) vs a b
   "no safety VC ⇒ done" is too broad — when the gold (or the file's own defined-but-unused
   `predicate`) signals a functional obligation, route the unit for a *functional* spec and
   record PARTIAL until it relates `\result`/state to the defined property. Ground-truth
-  comparison (`framac-compare.sh`) is the calibration that catches an over-broad triage;
+  comparison (`bin/framac-compare.sh`) is the calibration that catches an over-broad triage;
   without it, a fast-path that silently drops a category *looks like clean progress*.
 - Provenance: the per-unit verdict log (`framac/.verdicts.tsv`) and the gold diff.
 

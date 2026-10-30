@@ -15,7 +15,7 @@ prover-escalation `Print Assumptions` audit) first — the vocabulary below is t
 > Plus the **prover-ladder audit**: an SMT→Coq escalation counts only as a *cache-clean, zero-admit*
 > replay whose `Print Assumptions` is ⊆ the intended definitional set.
 
-The **ledger ratchet** these gates feed is `ledger-ratchet.sh` (repo root): the cross-run CI gate over
+The **ledger ratchet** these gates feed is `bin/ledger-ratchet.sh` (repo root): the cross-run CI gate over
 the STRIDE coverage ledger (crosswalk-template §3). It is **regression-only** — a PROVED/TRUSTED cell
 backsliding to UNMODELED, or a high-value asset row vanishing, FAILs; an incomplete matrix only WARNs
 (Issue 2 — a too-strict gate gets disabled). The WS1 stage-1 rule (N-1) is *enforced* there; this file
@@ -26,7 +26,7 @@ explains *why*.
 ## N-1 — lock-order gate [WS1]
 
 **Reuses:** the leaf-first schedule + the cross-unit `ensures→requires` propagation (§5 step 4) +
-Gate B (no smuggled behavioural axiom) + the ledger ratchet (`ledger-ratchet.sh`, the stage rule).
+Gate B (no smuggled behavioural axiom) + the ledger ratchet (`bin/ledger-ratchet.sh`, the stage rule).
 
 **Adds three obligations:**
 1. **Held-lock propagation across the leaf-first schedule.** A `\guarded_by(lock)` (or the
@@ -37,13 +37,13 @@ Gate B (no smuggled behavioural axiom) + the ledger ratchet (`ledger-ratchet.sh`
    unit A taking L1-then-L2 and unit B taking L2-then-L1 is a deadlock the leaf-first stub-implication
    check surfaces (the two stubs cannot both be satisfied by one order). This is the lock analogue of
    the cross-unit stub-over-promise check (§8d).
-3. **The stage rule (Issue 3) — encoded in `ledger-ratchet.sh`, justified here.** A syntactic
+3. **The stage rule (Issue 3) — encoded in `bin/ledger-ratchet.sh`, justified here.** A syntactic
    `\guarded_by` proof establishes *lock-held-at-access*, **not** check-then-act atomicity: it cannot
    rule out a TOCTOU window where the lock is held at *each* of two accesses but released between
    them. While only **WS1 stage-1** (the held-lock syntactic check) ships, the race/concurrency-family
    ledger cell therefore **stays `TRUSTED`, never `PROVED`** — a held-lock green is real but does not
    retire the race family's amenable core, which needs the **rely-guarantee** lane (WS1 stage-2).
-   `ledger-ratchet.sh` reads `# ws1-stage: N` (default 1) and **FAILs** any race-family cell marked
+   `bin/ledger-ratchet.sh` reads `# ws1-stage: N` (default 1) and **FAILs** any race-family cell marked
    `PROVED` while stage < 2. Promote the cell to `PROVED` only when stage-2 lands — and then it is a
    *new prover lane*, so it also re-triggers the sl-auditor C1–C4 re-audit (N-8).
 
@@ -180,7 +180,7 @@ trustworthy-by-construction because the program it proves about is provably the 
 
 | Gate | Plane it touches | Ledger effect | Enforced by |
 |---|---|---|---|
-| N-1 | race / interleaving | race cell `TRUSTED` until stage-2; `PROVED@stage1` ⇒ FAIL | `ledger-ratchet.sh` (`# ws1-stage`) |
+| N-1 | race / interleaving | race cell `TRUSTED` until stage-2; `PROVED@stage1` ⇒ FAIL | `bin/ledger-ratchet.sh` (`# ws1-stage`) |
 | N-4 | boundary contracts | stub-owed `ensures` ⇒ peer `requires`; else §5 residual | leaf-first stub-over-promise (§8d) |
 | N-5 | new TCB lemmas | `H`/cost lemmas admit-free or `AUDIT.md` residual | `Print Assumptions` audit + Gate B |
 | N-6 | ATT&CK traceability | technique with no PROVED/TRUSTED cell ⇒ surfaced gap | crosswalk §4 join (report view) |

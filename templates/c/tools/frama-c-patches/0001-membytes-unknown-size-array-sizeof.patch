@@ -1,0 +1,59 @@
+From: use-frama-c cast/region investigation
+Subject: [PATCH] wp/MemBytes: degrade gracefully on unknown-size arrays in protected_sizeof_object
+
+Frama-C: 32.1 (Germanium)
+File:    src/plugins/wp/MemBytes.ml
+Target:  function protected_sizeof_object (the -wp-model bytes size machinery)
+
+Problem
+-------
+Under -wp-model bytes, any function that needs the size of an unknown-size array
+(extern `T a[]`, flexible array member, or a linker-section array such as Zephyr's
+STRUCT_SECTION_FOREACH) aborts WP with a fatal internal error:
+
+    Failure: Sizeof unknown-size array
+    Plug-in wp aborted: internal error.
+
+protected_sizeof_object guards only the opaque-struct case (C_comp {cfields=None});
+its `obj` fallthrough calls Ctypes.sizeof_object, which raises Failure on a C_array
+with no flat size. The Failure is not caught by BASE.sizeof's Warning.handle wrapper
+(which catches Warning.error, not arbitrary Failure) and escapes as a kernel fatal.
+
+The default Typed model handles the same input gracefully: MemTyped.length_of_object
+returns max_int under -wp-extern-arrays, else raises a recoverable Warning.error that
+hides the sub-term -- never a hard Failure.
+
+Fix
+---
+Mirror MemTyped: guard the unknown-size C_array case (arr_flat = None) and degrade the
+same way (max_int / recoverable Warning.error). Compilation-only; adds no Why3/Coq axiom
+(does not touch the WP TCB).
+
+Verified
+--------
+- Minimal repro `extern int tbl[]; int *g(void){ return &tbl[0]; }` and the section-loop
+  idiom no longer abort under -wp-model bytes (graceful "Undefined array-size" warning).
+- Real unit zephyr/kernel/mem_slab.c: FATAL -> 44/80 (vs Typed 43/80).
+- Corpus-wide (35 Zephyr kernel units): no unit aborts; bytes >= Typed everywhere.
+
+See ../bugs-to-report/wp-cast-region-soundness/REPORT-membytes-sizeof.md for full detail.
+---
+--- a/src/plugins/wp/MemBytes.ml	2026-06-23 11:38:23.651061371 +0200
++++ b/src/plugins/wp/MemBytes.ml	2026-06-23 11:38:23.651851402 +0200
+@@ -201,6 +201,16 @@
+ let protected_sizeof_object = function
+   | C_comp ({ cfields = None } as c) ->
+     e_fun (OPAQUE_COMP_LENGTH.get c) []
++  | C_array { arr_flat = None } as obj ->
++    (* Unknown-size array (extern/flexible/linker-section): Ctypes.sizeof_object
++       raises Failure here, which escapes as a plugin fatal. Degrade like MemTyped:
++       max_int under -wp-extern-arrays, else a recoverable Warning.error that hides
++       the term (caught by BASE.sizeof's Warning.handle / the per-goal Warning.catch). *)
++    if Wp_parameters.ExternArrays.get () then
++      e_int max_int
++    else
++      Warning.error ~source:"Bytes Model"
++        "Undefined array-size (%a)" Ctypes.pretty obj
+   | obj -> e_int @@ Ctypes.sizeof_object obj
+ 
+ (* ********************************************************************** *)

@@ -27,7 +27,7 @@ The sub-agents don't change; the *coordinator* stops competing for my window.
 
 ```
 Workflow script (JS coordinator — not an LLM)
-  queue = [{file, flags}, ...]   (from framac-queue.sh — flags carry -I/-D per unit)
+  queue = [{file, flags}, ...]   (from bin/framac-queue.sh — flags carry -I/-D per unit)
   chunk the queue into batches of N:
      for each batch (sequential, so commits are ordered):
         pipeline over its N units (concurrent, capped ~min(16, cores-2)):
@@ -44,7 +44,7 @@ Workflow script (JS coordinator — not an LLM)
 ## Preparing the queue (passed as `args`)
 
 Unlike the Creusot port, each item must carry its **preprocessing flags**. Build a
-compilation database, then compute the remaining-units queue with `framac-queue.sh`:
+compilation database, then compute the remaining-units queue with `bin/framac-queue.sh`:
 
 ```sh
 # 1. produce a compile_commands.json (pick one):
@@ -54,7 +54,7 @@ bear -- make                                   # Bear intercepts the build
 rsync -a --include='*/' --include='*.c' --include='*.h' --exclude='*' src/ framac-orig/
 rsync -a framac-orig/ framac/
 # 3. emit the {file, flags} queue, skipping units already in the verdict log:
-./framac-queue.sh compile_commands.json framac/.verdicts.tsv > /tmp/framac-queue.json
+bin/framac-queue.sh compile_commands.json framac/.verdicts.tsv > /tmp/framac-queue.json
 ```
 
 Then invoke the Workflow tool with:
@@ -62,7 +62,7 @@ Then invoke the Workflow tool with:
 ```json
 {
   "script": "<the script below>",
-  "args": { "repo": "$HOME/git/use-frama-c",
+  "args": { "repo": "<project root, the directory that holds config/>",
             "batch": 8,
             "machdep": "gcc_x86_64",
             "units": [ { "file": "src/peimage.c", "flags": ["-Iinclude", "-DLACE"] },
@@ -70,7 +70,7 @@ Then invoke the Workflow tool with:
 }
 ```
 
-`args.units` is the verbatim queue (from `framac-queue.sh`); `args.batch` is the batch size.
+`args.units` is the verbatim queue (from `bin/framac-queue.sh`); `args.batch` is the batch size.
 
 ## The workflow script
 
@@ -86,7 +86,7 @@ export const meta = {
   ],
 }
 
-const REPO     = (args && args.repo)     || '$HOME/git/use-frama-c'
+const REPO     = (args && args.repo)     || '.'
 const BATCH    = (args && args.batch)    || 8
 const MACHDEP  = (args && args.machdep)  || 'gcc_x86_64'
 const UNITS    = (args && args.units)    || []
@@ -162,7 +162,7 @@ function gatePrompt(u, v) {
   return `You are the framac-monitoring base-SL monitor. Verify unit ${r} (framac-sl said: ${JSON.stringify(v)}).
 Run THREE checks against the disjoint oracle, never the prover agent's notes.
 
-(1) FAITHFULNESS (only-ACSL-added): cd ${REPO} && ./framac-monitor-check.sh ${r} ; ./framac-monitor-check.sh ${h}
+(1) FAITHFULNESS (only-ACSL-added): cd ${REPO} && bin/framac-monitor-check.sh ${r} ; bin/framac-monitor-check.sh ${h}
     Both ACCEPT -> faithful=true. EITHER FABRICATED -> revert it (cp framac-orig/<rel> framac/<rel>),
     faithful=false, gateB/gateC=NA, finalVerdict=FAILED (TRIVIAL if original is a no-op); drop any 'bug'.
 
@@ -171,7 +171,7 @@ Run THREE checks against the disjoint oracle, never the prover agent's notes.
     logic/predicate via its base/step equations) is legitimate; flag an axiom only if it references the C
     function name or \\result (a behavioral fact). Else gateB=CLEAN.
 
-(3) GATE C (non-vacuity): ./framac-mutation-probe.sh ${r}
+(3) GATE C (non-vacuity): bin/framac-mutation-probe.sh ${r}
     TEETH -> gateC=TEETH (also confirms any axiomatic is consistent). VACUOUS/INCONCLUSIVE is NOT
     terminal — the generic probe (it only flips +/-/<=/==, skipping ACSL spans) can miss a real spec.
     You MUST then author ONE targeted mutation of the BODY (perturb a returned expr / assigned var /
@@ -180,7 +180,7 @@ Run THREE checks against the disjoint oracle, never the prover agent's notes.
     'ensures \result==0||\result==1') -> gateC=VACUOUS, finalVerdict=FAILED + "strengthen the spec".
 
 (4) GATE C' (completeness vs gold — catches what the probe cannot: a spec with teeth that omits the
-    intended property): hint = ./framac-completeness.sh ${r}; then judge editorially (spec text only),
+    intended property): hint = bin/framac-completeness.sh ${r}; then judge editorially (spec text only),
     diff gold ensures vs loop ensures: for each property the GOLD ensures, is an EQUIVALENT in the loop
     (an inlined \forall/\exists of a gold predicate counts)? gateCp=COMPLETE / INCOMPLETE(name the miss)
     / NOGOLD. The hint over-flags inlined predicates — editorial judgment overrides.
@@ -194,7 +194,7 @@ Return the structured gate result (put gate outputs in 'note').`
 function commitPrompt(n, results) {
   return `You are the framac-monitoring committer for batch ${n}. In ${REPO}:
 1. Append one TSV line per result to framac/.verdicts.tsv as "<file>\\t<finalVerdict>\\t<note>" using: ${JSON.stringify(results)}.
-2. Run ./framac-gen-verdicts.sh to regenerate framac/VERDICTS.md.
+2. Run bin/framac-gen-verdicts.sh to regenerate framac/VERDICTS.md.
 3. For any result carrying a 'bug', draft a report under framac-issues/ (minimal adversarial input + a draft patch),
    following framac-issues/README.md.
 4. git add the batch files (${results.map(r => 'framac/' + rel(r.file)).join(' ')}) + framac/VERDICTS.md + framac/.verdicts.tsv + any framac-issues/*.md.
@@ -290,14 +290,14 @@ target it runs the whole queue.
 
 - **Isolated contexts:** each `framac-sl` and each monitor check is its own agent — the JS
   coordinator holds only small structured results.
-- **Monitor runs three gates unattended:** (1) **faithfulness** — `framac-monitor-check.sh`
+- **Monitor runs three gates unattended:** (1) **faithfulness** — `bin/framac-monitor-check.sh`
   (stripping the ACSL must reproduce the original C) rejects/reverts fabrications; (2) **Gate B**
   — grep for smuggled escape hatches (`admit`/`Admitted`/`\trusted`/`assert \false`), with a
   carve-out for *definitional* `axiomatic`/`axiom` (the standard way to define a recursive logic
   function — legitimate; only a behavioral axiom mentioning the C function or `\result` is a
-  hatch); (3) **Gate C** — `framac-mutation-probe.sh` mutates the body and requires the proof to
+  hatch); (3) **Gate C** — `bin/framac-mutation-probe.sh` mutates the body and requires the proof to
   break (`TEETH`), which also exposes a vacuous spec or an inconsistent axiomatic; and (4) **Gate C'**
-  — completeness vs the human gold (`framac-completeness.sh` hint + an editorial gold-vs-loop ensures
+  — completeness vs the human gold (`bin/framac-completeness.sh` hint + an editorial gold-vs-loop ensures
   comparison), which catches a spec that has teeth but omits the *intended* property (a sort proving
   sortedness but not permutation; a search proving only a result-bound). A unit is only PROVED if
   faithful && gateB CLEAN && gateC TEETH && gateCp ∈ {COMPLETE, NOGOLD}; gateCp INCOMPLETE → PARTIAL.
@@ -317,7 +317,7 @@ target it runs the whole queue.
 
 - **Preprocessing flags are mandatory, and go through `-cpp-extra-args`.** Frama-C rejects a
   bare `-Ifoo` (`option -Ifoo is invalid; use -cpp-extra-args="-Ifoo"`). So the queue's
-  `flags` (derived from `compile_commands.json` by `framac-queue.sh`) must be wrapped:
+  `flags` (derived from `compile_commands.json` by `bin/framac-queue.sh`) must be wrapped:
   `-cpp-extra-args="<flags> <CPP_EXTRA>"`. A unit that still won't preprocess (a generated
   header, a missing define) is a `gap`, not a proof failure.
 - **The StandardAlgorithms corpus needs `-include typedefs.h`** (the `CPP_EXTRA` default).

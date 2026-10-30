@@ -1,0 +1,13 @@
+
+#ifndef PARTITION_ACSL_INCLUDED
+#define PARTITION_ACSL_INCLUDED
+
+#include "typedefs.h"
+
+/*@
+  predicate Partition{L}(value_type* a, integer m, integer n) =
+    \forall integer i, k; 0 <= i < m <= k < n  ==>  a[i] <= a[k];
+*/
+
+#endif /* PARTITION_ACSL_INCLUDED */
+

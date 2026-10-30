@@ -14,10 +14,10 @@ by-construction; these rules keep the soft side and the disjointness honest.
 
 | Collapse mode | Symptom (seen in this project) | Blocked by |
 |---|---|---|
-| **Fabricated proof** | annotator edits executable C (a forward-decl, a changed statement) so WP goes green | **Faithfulness gate** — `framac-monitor-check.sh` strips ACSL and requires byte-identical to git HEAD (the `ssl_ticket_parse` revert) — rules 1, 2 |
+| **Fabricated proof** | annotator edits executable C (a forward-decl, a changed statement) so WP goes green | **Faithfulness gate** — `bin/framac-monitor-check.sh` strips ACSL and requires byte-identical to git HEAD (the `ssl_ticket_parse` revert) — rules 1, 2 |
 | **Over-promising stub** | an authored callee stub `ensures` stronger than the documented surface; caller "proves" against a fiction | **Gate B over-promise check** (WS5): a stub `ensures` must be implied by the real callee — rule 13 |
 | **Vacuous axiomatic** | a definitional `axiomatic` whose axioms are mutually inconsistent → *every* goal proves, green means nothing | **Consistency probe**: a deliberately-false lemma against the axioms must NOT prove — rule 4 |
-| **Sorting trap (coherent-and-wrong, soft side)** | `ensures Sorted` proved but permutation absent; a zero-fill body satisfies it | **Gate C′ trivial-witness probe** (`framac-completeness.sh`): a constant/zero/identity artifact must NOT satisfy the spec; disjoint property-author — rules 8, 9, 13 |
+| **Sorting trap (coherent-and-wrong, soft side)** | `ensures Sorted` proved but permutation absent; a zero-fill body satisfies it | **Gate C′ trivial-witness probe** (`bin/framac-completeness.sh`): a constant/zero/identity artifact must NOT satisfy the spec; disjoint property-author — rules 8, 9, 13 |
 | **Assume-the-attacker-away** | a `requires` that narrows the untrusted-input domain; green proof of a parser that ignored malformed input | **Security Gate C**: reject any `requires` restricting the adversarial input — rule 10 (safe direction) |
 | **Self-declared done** | "the agent reported 56/67" ends the unit; counts trusted unread | **Gate-defined done** — coordinator re-verifies faithfulness + spot-checks WP; no self-report is evidence — rule 3 |
 | **Honorary barrier** | the property-author/verifier has the implementation (or the annotator's rationale) in context | **Physical barriers** — fresh sub-agent context, surface + acceptance only — rule 2 |

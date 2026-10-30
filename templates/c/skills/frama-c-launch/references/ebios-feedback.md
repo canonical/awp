@@ -50,7 +50,7 @@ re-run without breaking exogeneity — see the last section).
 4. Re-plot the Farmer diagram post-treatment with the **proposed** likelihoods, labelled
    "proposed — pending risk-owner sign-off".
 5. Hand the proposed W5 delta to the EBIOS risk owner. Emit it as part of the soft-residual packet
-   (`framac-soft-residual.sh` → `SOFT-RESIDUAL.md`); the owner's sign-off is the campaign's **DONE**.
+   (`bin/framac-soft-residual.sh` → `SOFT-RESIDUAL.md`); the owner's sign-off is the campaign's **DONE**.
 6. **Coverage check:** every **high-severity** feared event (W1) must map to ≥1 verified-or-residual
    scenario in §3. A gap → iterate EBIOS W2–W4 or extend the verification scope (a `gap-N`).
 7. **Persist it NUMBERED, one per cycle:** write `<prefix>-W5-ebios-feedback-NN.md` (zero-padded; next

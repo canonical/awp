@@ -181,7 +181,7 @@ soundness audit (`Print Assumptions`).
   *documented surface*, never the callee body; the verifier never reads the body or the
   diff. Driving `framac-sl` as a sub-loop must not hand a barriered base role anything it
   is forbidden to see; the monitoring layer adds barriers, it never removes the base's.
-- **Faithfulness is physical.** ACSL lives only in comments; `framac-monitor-check.sh`
+- **Faithfulness is physical.** ACSL lives only in comments; `bin/framac-monitor-check.sh`
   strips it and requires the remaining C to be byte-identical to `framac-orig/`. Editing a
   statement / `#define` / `#include` to make a goal pass is the FABRICATED failure.
 
@@ -247,7 +247,7 @@ delegated. The architecture report is a first-class output (alongside the verdic
 
 **Also at Gate A_top: write the squeeze table (WS2).** Before any delegation the coordinator fills
 the per-campaign `(U,L)` table from `templates/squeeze-table.md` — each actor's upper
-bound, lower bound, **denied evidence**, and **provider** — and `framac-squeeze-audit.sh` must pass
+bound, lower bound, **denied evidence**, and **provider** — and `bin/framac-squeeze-audit.sh` must pass
 (C1 pairwise-distinct pairs; C3 every judge — property-author, verifier, completeness oracle,
 monitor — denies the implementation/annotation; providers recorded). The table is pasted row-by-row
 into each sub-agent prompt, so an actor learns from fresh context which authorities bind it and, by
@@ -376,7 +376,7 @@ per-unit Tier-3 gate therefore adds:
    `STATUS: DRAFT`.
 2. **Scheduler** builds the include/call graph of `dir yyy`, topo-sorts **leaf-first**
    *refined by the audit ranking*, marks the independent (parallelizable) set, **and emits
-   the `{file, flags}` queue** (`framac-queue.sh compile_commands.json
+   the `{file, flags}` queue** (`bin/framac-queue.sh compile_commands.json
    framac/.verdicts.tsv`). Mirror the pristine sources to `framac-orig/` so the
    faithfulness gate has an original to diff.
 3. **Gate A_top** → `APPROVED` (coordinator judges plan + schedule + guidance reading +
@@ -458,10 +458,10 @@ per-unit Tier-3 gate therefore adds:
    skill/inferred contract has a monitor verdict.
 10. **Emit the crosswalk (campaign close — Move 5).** Once the verdict log is final and the architect
     has filled `<prefix>-acsl/stride-ledger.tsv` (the §3 STRIDE coverage assessment), generate the
-    threat↔verification join as a first-class deliverable: `./crosswalk-gen.sh <prefix>` writes
+    threat↔verification join as a first-class deliverable: `bin/crosswalk-gen.sh <prefix>` writes
     `<prefix>-crosswalk.md` from the code-blind report (§1/§2/§5) + `verdicts.tsv` (§4) +
     `stride-ledger.tsv` (§3). The generator machine-checks every `PROVED` cell against the verdicts
-    (a fabricated PROVED fails), bootstraps the `ledger-ratchet.sh` baseline on first run, and is gated
+    (a fabricated PROVED fails), bootstraps the `bin/ledger-ratchet.sh` baseline on first run, and is gated
     by `make stride-ci` (G4 = drift, G1 = ratchet). Do NOT hand-write the crosswalk. See
     `references/crosswalk-generation.md`. The W5/feedback step below draws its deltas from this crosswalk.
 11. **EBIOS W5 risk-feedback (campaign close — only if an EBIOS RM study + a filled
@@ -488,7 +488,7 @@ unit can be guidance-wrong. The monitor squeezes each from a base it does not sh
 `U` = the guidance + `framac-gold`; `L` = the WP oracle + cross-unit discharge.
 
 ### The four base gates (run per unit, on every all-`Valid` result)
-1. **Gate F — faithfulness.** `framac-monitor-check.sh` strips all ACSL and requires the
+1. **Gate F — faithfulness.** `bin/framac-monitor-check.sh` strips all ACSL and requires the
    remaining C to be byte-identical to `framac-orig/`. Any edit to executable C →
    **FABRICATED** → revert + re-label FAILED. (Watch the line-oriented traps: a force-include
    or a reformat that the strip tool leaves behind reads as added code.)
@@ -500,15 +500,15 @@ unit can be guidance-wrong. The monitor squeezes each from a base it does not sh
    mentions the C function under verification or `\result`. The residual risk of a
    definitional axiomatic is *inconsistency* (proves everything), which Gate C catches, not
    grep.
-3. **Gate C — non-vacuity (mutation probe).** `framac-mutation-probe.sh` mutates the
+3. **Gate C — non-vacuity (mutation probe).** `bin/framac-mutation-probe.sh` mutates the
    **code** (not the ACSL) and requires some goal to turn RED — proving the spec has teeth
    and any axiomatic is consistent. Two refinements are load-bearing: mutate **only outside
    ACSL spans** (a mutation that hits a loop invariant gives a *false* VACUOUS), and treat
    `VACUOUS`/`INCONCLUSIVE` as **NEEDS-MANUAL** (author one targeted body mutation), never a
    terminal FAILED. A trivially-true postcondition (`\result==0 || \result==1`) is the
    genuinely vacuous shape — no body mutation can break it.
-4. **Gate C′ — completeness vs gold.** When `framac-gold/` exists, `framac-completeness.sh`
-   / `framac-compare.sh` diff the proved theorem against the human reference. Mutation
+4. **Gate C′ — completeness vs gold.** When `framac-gold/` exists, `bin/framac-completeness.sh`
+   / `bin/framac-compare.sh` diff the proved theorem against the human reference. Mutation
    TEETH proves **non-vacuity, NOT completeness** — the *sorting trap*: `ensures
    Sorted(a,0,n)` passes Gate F+B+C yet a zero-fill body satisfies it (sortedness ≠
    permutation). A unit that machine-passes but omits the intended property is **PARTIAL**,
@@ -522,7 +522,7 @@ unit can be guidance-wrong. The monitor squeezes each from a base it does not sh
    concurrent-edit corruption, but it can never flag a contract that is *valid but answers the
    wrong question* — only a code-blind actor holding the intended property can. Its executable
    half is the **trivial-witness probe**: a constant/zero/identity artifact must NOT satisfy the
-   written spec (the sorting-trap detector, generalized — extend `framac-completeness.sh`).
+   written spec (the sorting-trap detector, generalized — extend `bin/framac-completeness.sh`).
 
 **Gate B/C extension for Tier-3 (system) properties — the ghost-antecedent audit.** On any all-`Valid`
 result that includes a **macsl/HAPPY** property, additionally run the ghost-antecedent audit of §4b:
@@ -601,7 +601,7 @@ reducing the analyzed context. **A class-A / "ceiling" label is UNWRITABLE by th
 run `config/skills/sl-internal/scripts/no_ceiling_gate.py` — it REJECTS (→ class-C) any ceiling claim
 that lacks a *named goal-dump* + a *non-proving minimal twin* + an *attempted-and-failed Coq residual*
 + a *not-store-bloat verdict*, and marks a bundle-complete-but-undisjointly-attested one `PENDING`
-(an open class-C row). `framac-gen-report.sh --lint` rejects a `CEILING-*` report row without its
+(an open class-C row). `bin/framac-gen-report.sh --lint` rejects a `CEILING-*` report row without its
 bundle. "I tried several levers, it's hard" is **not** the bundle; reading the actual goal is step one.
 
 ### The prover-escalation soundness audit (Frama-C-specific)
@@ -631,7 +631,7 @@ the monitor treats *only a cache-clean, zero-admit replay* as ground truth:
 *skills and inferred contracts* — but **not the coordinator's triage/coverage decisions**,
 above all the fast-path that marks a unit `TRIVIAL`/PARTIAL and stops. Those need a separate
 check: when a `framac-gold/` reference exists, **diff the loop's outputs against it**
-(`framac-compare.sh`). A class of units the loop called done that the gold actually annotates
+(`bin/framac-compare.sh`). A class of units the loop called done that the gold actually annotates
 more deeply is a *systematic triage error*, not noise — feed it back as a carve-out to the
 triage rule. (This is the C analogue of the Creusot 241-file calibration; here it surfaced
 the PARTIAL-vs-PROVED gap that the strengthening waves then closed.)
@@ -693,7 +693,7 @@ mission — only the top gates.**
 by construction — that is **MACHINE-DONE**. They do **not** close the *soft* side: by the
 paper's nesting argument (§mechanics) a stack of monitors only relocates the un-squeezed
 editorial judgment upward, so the campaign is **DONE** only after a person *outside* the loop
-signs off the **soft-residual delta**. Emit it with `framac-soft-residual.sh` → `SOFT-RESIDUAL.md`
+signs off the **soft-residual delta**. Emit it with `bin/framac-soft-residual.sh` → `SOFT-RESIDUAL.md`
 (the bounded thing the human adjudicates: intended-property clauses *not* mechanically discharged,
 Gate-A amendments, Gate-S carve-outs — never a re-verify of the hard side, which WP settled).
 The reviewer should be external and ideally a **different provider family** than the annotator;
@@ -714,7 +714,7 @@ invariant, §0 global-invariant pattern, or an un-attempted Coq discharge). Repo
 un-propagated-callee / un-threaded-invariant Timeout as residual risk is a reporting-discipline
 violation.
 
-Every campaign report is generated/checked by **`framac-gen-report.sh`** (repo root), which fixes
+Every campaign report is generated/checked by **`bin/framac-gen-report.sh`** (repo root), which fixes
 how results are stated so a reader can't be misled and a skeptic can't credit the verifier for the
 squeeze's work:
 - **One count convention, stated once:** `N/M = proved/total` WP goals (RTE included); coverage is a
@@ -729,7 +729,7 @@ squeeze's work:
   result; the squeeze adds trustworthiness-by-construction (faithfulness gate) + disjoint
   adjudication of the soft residual.*
 - **Headline discipline:** a coverage/robustness headline may never appear without its denominator +
-  residual taxonomy in the same sentence. `framac-gen-report.sh --lint REPORT.md` enforces this
+  residual taxonomy in the same sentence. `bin/framac-gen-report.sh --lint REPORT.md` enforces this
   (rejects "end-to-end robust" / "fully verified" without the caveat, and a missing attribution
   line); run it on any hand-written report before shipping.
 - Body order is **scope → verdicts → soundness**; tooling lore goes to `references/wp-gotchas.md`,
@@ -741,7 +741,7 @@ squeeze's work:
   `FI-*`** sections are defects; **latent** is a real-but-unreachable weakness; **WITNESSED** is a
   *discharged proof → proven safe, NOT a bug*; **REVIEWED-CAREFUL** is safe-by-inspection;
   **DISCHARGED-by-delegation** is safe-because-it-calls-a-WITNESSED-primitive. **Enforced:**
-  `framac-gen-report.sh --lint <file>` fails (exit 1) on any file whose name contains `found-issues`
+  `bin/framac-gen-report.sh --lint <file>` fails (exit 1) on any file whose name contains `found-issues`
   that lacks this legend near the top (and, for such files, it correctly does **not** require the
   report-only attribution/count lines). The same vocabulary keys the `…-kit/reviewed-alarms.tsv`
   `disposition` column, so the legend and the ledger agree by construction.
@@ -758,7 +758,7 @@ squeeze's work:
   **never** "TrustInSoft", "TIS", "tis-interpreter", or "PolarSSL-kit". (See `time-loop` §6.)
 
 ## 8c. Canary phase (mandatory wiring check, WS4)
-Run **`framac-canary.sh`** once per campaign (self-contained — no corpus needed) and **open the
+Run **`bin/framac-canary.sh`** once per campaign (self-contained — no corpus needed) and **open the
 report with its table**. It seeds two coherent-and-wrong artifacts and asserts the gates *fire*
 (catchability as a consistency check, paper §synthesis — not an efficacy rate):
 - **faithfulness (hard side):** a fabricated proof — executable C edited so WP discharges a false
@@ -768,13 +768,13 @@ report with its table**. It seeds two coherent-and-wrong artifacts and asserts t
   only, no permutation); a zero-fill **trivial witness** also proves green. WP is green on **both**
   bodies and cannot tell — the catch belongs to **Gate C′ / the disjoint completeness oracle**.
 A campaign whose soft canary is "caught" only by re-running WP (not by the trivial-witness probe /
-a disjoint actor) is flagged as **not exercising disjointness**. `framac-canary.sh` exits non-zero
+a disjoint actor) is flagged as **not exercising disjointness**. `bin/framac-canary.sh` exits non-zero
 if either gate fails to fire — treat that as a broken loop, not a unit failure.
 
 ## 8d. Lower-bound integrity + cost (WS5 + WS8)
 The gate rests on an executable ground truth — but that ground truth (WP + authored
 stubs/axioms) can itself be coherent-and-wrong (paper §10). Three checks keep it honest:
-- **Consistency probe (mandatory for any `axiomatic`)** — `framac-consistency-probe.sh`: an
+- **Consistency probe (mandatory for any `axiomatic`)** — `bin/framac-consistency-probe.sh`: an
   inconsistent axiom set proves everything, so every green is vacuous. The probe lemma **must
   reference the axiom symbols** at a concrete point (e.g. `lemma p: gcd(a,0)==a+1;`); a bare
   `lemma \false;` is **insufficient** — SMT won't instantiate quantified axioms without a trigger
@@ -793,9 +793,9 @@ stubs/axioms) can itself be coherent-and-wrong (paper §10). Three checks keep i
   on EVA — the labor of hand-authoring enough ACSL for WP to converge — is gone:** the spec-author /
   annotator author the contracts, so we converge by *adding spec*, not by *trusting more analyzer*.
   For a Typed-model cast / RTE residue, reach for **`-wp-model bytes`** / a representation predicate /
-  the symbolic-base allocator idiom — **never an EVA split**. `framac-gen-report.sh --lint` rejects a
+  the symbolic-base allocator idiom — **never an EVA split**. `bin/framac-gen-report.sh --lint` rejects a
   report that cites EVA as a discharge oracle; each obligation records *which* WP/SMT/Coq oracle closed it.
-- **Cost telemetry** — `framac-cost.sh` records per-unit role-invocations / tokens / wall-clock and
+- **Cost telemetry** — `bin/framac-cost.sh` records per-unit role-invocations / tokens / wall-clock and
   reports the structural multiple + the H4 amortization (one-time proof cost vs near-zero replay
   via `verify.sh`-style WP re-run — amortizes on long regression horizons, a dead loss on one-shot
   tasks).
@@ -816,7 +816,7 @@ a filled `../frama-c-launch/templates/ebios-crosswalk.md` exist; otherwise skip.
   surface of **one** asset — not logic/crypto/state-machine/BLOCKED parts. Name what is left.
 - **Human terminus (MACHINE-DONE → DONE):** the coordinator *proposes*; the **EBIOS risk owner**
   (who accepts residual risk) *adjudicates and signs*. Emit the proposed delta inside the
-  soft-residual packet (`framac-soft-residual.sh`); the sign-off is the campaign's DONE. Coverage
+  soft-residual packet (`bin/framac-soft-residual.sh`); the sign-off is the campaign's DONE. Coverage
   check: every high-severity W1 feared event maps to ≥1 verified-or-residual scenario, else iterate.
 - **Numbered, one per cycle (NOT consolidated):** persist each cycle's W5 proposal as
   `<prefix>-W5-ebios-feedback-NN.md` (zero-padded; next index after the highest existing — start
@@ -854,14 +854,14 @@ a filled `../frama-c-launch/templates/ebios-crosswalk.md` exist; otherwise skip.
   contract propagation [WS8a], N-5 prover-ladder audit for new TCB classes [WS4/5/6], N-6 ATT&CK
   coverage view [WS9], N-7 Gate-S over new learned skills, N-8 sl-auditor re-audit triggers, N-9
   faithfulness preserved): **how each composes with — reuses, never reinvents — the four base gates
-  (§6).** The N-1 WS1 stage-1 rule it documents is *enforced* by `ledger-ratchet.sh`.
-- `ledger-ratchet.sh` (repo root) — the **cross-run ratchet CI gate** over the STRIDE coverage ledger
+  (§6).** The N-1 WS1 stage-1 rule it documents is *enforced* by `bin/ledger-ratchet.sh`.
+- `bin/ledger-ratchet.sh` (repo root) — the **cross-run ratchet CI gate** over the STRIDE coverage ledger
   (crosswalk-template §3.2): parses the six S,T,R,I,D,E columns from a crosswalk, freezes a
   `<crosswalk>.ledger-baseline.tsv` on first run (bootstrap PASS), and on later runs **FAILs only on
   regression** (a PROVED/TRUSTED cell now UNMODELED, or a high-value asset row now missing). Incomplete
   cells only WARN (Issue 2 — regression-only so the gate is not DOA); no ledger ⇒ SKIP. Enforces the
   WS1 stage-1 rule (`# ws1-stage: N`, default 1): a race/concurrency-family cell `PROVED` at stage 1
-  FAILs. The single-file structural ledger check stays in `rmf-lint.sh`/`ebios-lint.sh` C9; this is the
+  FAILs. The single-file structural ledger check stays in `bin/rmf-lint.sh`/`bin/ebios-lint.sh` C9; this is the
   cross-run ratchet they defer to.
 - **Verification depth ladder (§4b)** — RTE floor → formal tests → macsl/HAPPY policies: the per-unit
   depth policy set at Gate A_top by risk. Formal-test pattern: `../frama-c/SKILL.md` "A formal test".
@@ -879,22 +879,22 @@ a filled `../frama-c-launch/templates/ebios-crosswalk.md` exist; otherwise skip.
   framac-sl / monitor / committer / capitalize agent prompts + schemas + how to launch/watch/resume.
 - `references/loops-design.md` — the two-loop design rationale (Creusot→Frama-C concept map, the
   depth-vs-breadth complementarity, the lace bug→RTE-goal mechanism, Frama-C-specific considerations).
-- `framac-gen-report.sh` (repo root) — discipline-compliant report generator + report linter (§8b).
+- `bin/framac-gen-report.sh` (repo root) — discipline-compliant report generator + report linter (§8b).
 - `templates/squeeze-table.md` — the per-campaign `(U,L)` table template (WS2); fill at
-  Gate A_top, audit with `framac-squeeze-audit.sh` (repo root) for C1/C3 disjointness.
-- `framac-soft-residual.sh` (repo root) — emits `SOFT-RESIDUAL.md`, the human-terminus packet (WS3);
+  Gate A_top, audit with `bin/framac-squeeze-audit.sh` (repo root) for C1/C3 disjointness.
+- `bin/framac-soft-residual.sh` (repo root) — emits `SOFT-RESIDUAL.md`, the human-terminus packet (WS3);
   a campaign is MACHINE-DONE until it is signed off, then DONE.
-- `canaries/` + `framac-canary.sh` (repo root) — the seeded faithfulness + soft-side canaries (WS4);
+- `canaries/` + `bin/framac-canary.sh` (repo root) — the seeded faithfulness + soft-side canaries (WS4);
   run once per campaign, both gates must fire, the table opens the report.
-- `framac-consistency-probe.sh` (repo root) — the lower-bound-integrity gate for axiomatics (WS5);
-  `framac-cost.sh` (repo root) — per-unit cost telemetry + H4 amortization (WS8).
+- `bin/framac-consistency-probe.sh` (repo root) — the lower-bound-integrity gate for axiomatics (WS5);
+  `bin/framac-cost.sh` (repo root) — per-unit cost telemetry + H4 amortization (WS8).
 - `getting-better/` — feature suggestions (`YYYYMMDD-hhmm-name.md`).
 - `bugs-to-report/` — bug reports (`YYYYMMDD-hhmm-name.md`).
 - Base loop: `../framac-sl/SKILL.md`; Workflow driver: `references/framac-workflow.md`;
   base learning + ACSL reference: `config/skills/frama-c/`.
-- Monitor scripts: `framac-monitor-check.sh` (faithfulness), `framac-mutation-probe.sh`
-  (non-vacuity), `framac-completeness.sh` / `framac-compare.sh` (gold), `framac-queue.sh`
-  (queue), `framac-gold.sh` (gold mirror), `framac-corpus-db.sh`, `framac-gen-verdicts.sh`.
+- Monitor scripts: `bin/framac-monitor-check.sh` (faithfulness), `bin/framac-mutation-probe.sh`
+  (non-vacuity), `bin/framac-completeness.sh` / `bin/framac-compare.sh` (gold), `bin/framac-queue.sh`
+  (queue), `bin/framac-gold.sh` (gold mirror), `bin/framac-corpus-db.sh`, `bin/framac-gen-verdicts.sh`.
 - Coq escalation: install + workflow + worked GCD example + proof patterns in
   `config/skills/frama-c/references/coq-escalation.md` (the `framac-coq8` opam switch).
 - Upstream onboarding loop: `../frama-c-launch/SKILL.md` — derives the build flags, scope map,

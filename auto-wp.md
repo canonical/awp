@@ -161,32 +161,43 @@ placeholders in it and changes nothing else:
 2. **Quick start**, the example that has to work as written once the
    prerequisites of item 4 are met. It runs Claude Code in an LXD container,
    because the campaign runs for days with `--dangerously-skip-permissions`:
-   the agent can then change only the container, not the user's files, SSH
-   keys or Claude login. Three steps:
+   the agent can then change only the container and `foobar`, which LXD
+   mounts into it, not the user's other files, SSH keys or Claude login.
+   Three steps:
 
    1. *On the host*, from the directory that contains `foobar`: set
-      `CT=wp-foobar` and `UFC=~/git/use-frama-c`; `lxc launch ubuntu:24.04
-      "$CT"`; copy `foobar` into `/home/ubuntu` with a `tar` pipe through
-      `lxc exec ... sudo -u ubuntu`; copy the `use-frama-c` tools (the
-      `ln -s` list of item 4, without `_build/`) into
-      `/home/ubuntu/git/use-frama-c` the same way; install the packages
+      `CT=wp-foobar` and `NET=lxdbr0`; create the bridge when `lxc network show "$NET"` fails (`lxc network create "$NET"`); `lxc launch ubuntu:24.04 "$CT" --network "$NET"`; wait with
+      `lxc exec "$CT" -- cloud-init status --wait`, so that cloud-init
+      creates `/home/ubuntu` before the mount does; mount `foobar` with
+      `lxc config device add "$CT" foobar disk source="$PWD/foobar"
+      path=/home/ubuntu/foobar shift=true` (the user asked for a mount
+      instead of a copy, 2026-10-30; `shift=true` maps the host owner to
+      `ubuntu`, verified 2026-10-30: files the agent creates are owned by the
+      host user, and commit, push and a container restart work); install the packages
       (git, python3, tmux, curl, opam, the Frama-C build dependencies and the
       GRUB build dependencies, the same list as `tests/c/provision.sh`);
-      open a shell as `ubuntu` with `lxc exec "$CT" -- sudo -iu ubuntu`. One
-      paragraph says how to add a NIC when the `default` profile has none.
+      unload the AppArmor profile Ubuntu 24.04 ships for opam
+      (`apparmor_parser -R /etc/apparmor.d/opam`, plus a link in
+      `/etc/apparmor.d/disable/`), which inside an LXD container denies
+      opam's downloads their network sockets (verified 2026-10-28: `opam
+      init` fails with "Could not resolve host"); open a shell as `ubuntu` with `lxc exec "$CT" -- sudo -iu ubuntu`. One
+      paragraph says that this line creates `lxdbr0` when missing (verified
+      2026-10-28: without it, `lxc launch --network lxdbr0` fails with
+      "Network not found" on this host), that `NET` can name an existing
+      bridge with `MANAGED` `YES` in `lxc network list`, and why
+      `--network` is given: the `default` profile of some LXD installs, this
+      host's among them, has no NIC, and `apt-get update` then fails.
    2. *In the container*:
 
       ```
       cd foobar
       git clone https://gitlab.freedesktop.org/gnu-grub/grub.git
-      UFC=~/git/use-frama-c
-      ln -s "$UFC"/*.sh "$UFC"/frama-c-patches "$UFC"/framac-src \
-            "$UFC"/framac-gold "$UFC"/macsl "$UFC"/no-ceiling.md .
       git config user.name "Your Name"
       git config user.email "you@example.com"
       git init --bare ~/foobar.git
       git remote add origin ~/foobar.git
       opam init --disable-sandboxing -y --bare
+      bin/fetch-sources.sh
       curl -fsSL https://claude.ai/install.sh | bash
       . ~/.profile
       tmux new -s wp
@@ -224,15 +235,16 @@ placeholders in it and changes nothing else:
    - the loop commits a checkpoint after every cycle and pushes it, so
      `foobar` needs a git identity and a remote (`auto-wp.py` has already run
      `git init`, §3.5). The remote is a bare repository in the container, so
-     no credential enters it. The results reach the host with
-     `lxc file pull -r wp-foobar/home/ubuntu/foobar.git .` and a `git clone`
-     of that copy. The README says not to share a host directory with the
-     container instead, since the agent could leave git hooks or scripts
-     there that later run on the host;
+     no credential enters it. The files and the commits (`foobar/.git`) are
+     on the host through the mount, so nothing has to be copied out;
+   - the agent can write anything in `foobar`, `.git/hooks/` and `bin/`
+     included, so the README says to check, before running git or a script
+     there on the host, that `.git/hooks/` holds only `*.sample` files and
+     to read `git diff` of `bin/`;
    - `grub/` is a separate git repository; git does not track it inside
      `foobar` unless it is added as a submodule;
-   - `lxc delete --force wp-foobar` removes the container, its copy of the
-     code and the login; the container name must contain only letters,
+   - `lxc delete --force wp-foobar` removes the container and the login,
+     and leaves `foobar` on the host; the container name must contain only letters,
      digits and hyphens.
 
    One closing paragraph says `claude` can also run directly in `foobar` on
@@ -243,33 +255,24 @@ placeholders in it and changes nothing else:
    (`--dir=`, `--machdep=`, `--linux`, `--full-tu`, `--fresh`, `--no-coq`),
    pointing to `config/commands/time-loop.md` for details.
 4. **Prerequisites**:
-   - On the host: LXD usable by the user, and **a `use-frama-c` checkout.**
-     The C skills call tools that live at the root of `use-frama-c` and are
-     not part of the templates (§4.2.1): the lint checks `rmf-lint.sh` and
-     `ebios-lint.sh`, which `rmf-sl` and `ebios-sl` use as their machine
-     gates, the `framac-*.sh` campaign scripts, the patched Frama-C source
-     (`framac-src/`, `frama-c-patches/`) without which `frama-c-launch`
-     treats the toolchain as non-conformant, and the `macsl` plugin. Step 1
-     of the quick start copies them into the container and step 2 links them
-     into the project:
-
-     ```
-     UFC=~/git/use-frama-c
-     ln -s "$UFC"/*.sh "$UFC"/frama-c-patches "$UFC"/framac-src \
-           "$UFC"/framac-gold "$UFC"/macsl "$UFC"/no-ceiling.md .
-     ```
+   - On the host: LXD usable by the user, and nothing else. The project is
+     stand-alone: it never refers to a checkout on the host such as
+     `~/git/use-frama-c`. The tools the C skills call from the project root
+     are copied into it (§4.2.1), and `bin/fetch-sources.sh` (step 2) downloads
+     the two trees too large to ship.
    - In the container: Claude Code (installed in step 2), and Frama-C 32.1
      with WP and the provers, in the `framac-coq8` opam switch.
      `frama-c-launch` checks the toolchain on the first run and builds it
-     from `framac-src/` plus `frama-c-patches/` if it is missing.
+     from `framac-src/` (fetched with `frama-c-patches/` applied) if it is
+     missing.
    - Optional: `~/.local-llm-machine-ip.txt` in the container, one line with
      the IP of a local LLM host (for example an ollama server) that the
      container can reach. It is used by the cross-provider judge in
      `sl-auditor` and `no_ceiling_gate.py`. Without it those steps are
      advisory, and `sl-auditor` asks the user before going on.
 5. **What is in this directory**: `config/` (skills and commands, listed in
-   `config/auto-wp.json`), `.agents` and `.claude/` (links to it), and, in
-   the container, the links to the `use-frama-c` tools (step 2). One line saying the
+   `config/auto-wp.json`), `.agents` and `.claude/` (links to it), the tools
+   of §4.2.1 (the scripts in `bin/`), and what `bin/fetch-sources.sh` downloads. One line saying the
    skills can be edited in place and that the loops add what they learn under
    `config/skills/*/getting-better/` and `config/skills/*/references/learned-*.md`.
 
@@ -277,7 +280,7 @@ placeholders in it and changes nothing else:
 differences:
 
 - *Quick start.* It uses a Rust crate instead of GRUB, with the same three
-  LXD steps. Step 1 copies no `use-frama-c` tools and installs the Creusot
+  LXD steps, with `foobar` mounted the same way. Step 1 installs the Creusot
   build dependencies instead (the list of `tests/rust/provision.sh`). Step 2
   runs `opam init --disable-sandboxing -y --bare`, installs rustup, clones
   Creusot into `~/git/creusot` and runs its `./INSTALL`, then
@@ -333,6 +336,11 @@ project must be a git repository.
   created foobar/config (language: c)
     skills:   21
     commands: 3
+  copied  foobar/.gitignore
+  copied  foobar/bin
+  copied  foobar/frama-c-patches
+  copied  foobar/framac-gold
+  copied  foobar/no-ceiling.md
   linked  foobar/.agents          -> config
   linked  foobar/.claude/skills   -> ../config/skills
   linked  foobar/.claude/commands -> ../config/commands
@@ -341,7 +349,10 @@ project must be a git repository.
   ```
 
   and exit 0. With `--rust` the counts are `skills: 16` and `commands: 0`
-  (§4.3.2). The `git` line reads `git     foobar is already in a git work
+  (§4.3.2), and there is no `copied` line (the Rust layer has no
+  `tools/`). An entry that already exists in the target is not overwritten:
+  the program prints `kept    foobar/<name> (already exists)` instead of
+  its `copied` line. The `git` line reads `git     foobar is already in a git work
   tree` when nothing was done.
 - Usage errors (unknown option, both `--c` and `--rust`, missing or extra
   positional argument): message on stderr, exit 2 (`argparse` default).
@@ -351,7 +362,7 @@ project must be a git repository.
   on stderr prefixed with `auto-wp: error:`, exit 1.
 - **Rollback.** On a run-time error, at whatever point it happens, remove
   everything this run created, in reverse order: `.git/` (if this run
-  initialised it), `README.md`, the three links, `.claude/` (only if this run
+  initialised it), `README.md`, the three links, the copied tools, `.claude/` (only if this run
   created it and it is now empty), `config/`, and `<directory-name>` itself
   plus any parents (only those this run created, and only if empty). Never
   remove anything that existed before the run. A re-run then starts from the
@@ -370,15 +381,14 @@ auto-wp/
 ├── tests/
 └── templates/
     ├── common/{skills,commands}/
-    ├── c/{skills,commands}/ + README.md
+    ├── c/{skills,commands,tools}/ + README.md
     └── rust/{skills,commands}/ + README.md
 ```
 
 They are seeded once from `../use-frama-c/config/` (common and C layers) and
 `../use-creusot/` (Rust layer), following §4.4, then maintained here, so
-`auto-wp.py` works on a machine with neither repository. (Running a C
-campaign still needs a `use-frama-c` checkout for its root-level tools,
-§4.2.1.)
+`auto-wp.py` works on a machine with neither repository, and the projects it
+creates do not need them either (§4.2.1).
 
 ### 4.1 `templates/common/` — shared skills
 
@@ -413,25 +423,67 @@ A `--c` project therefore has 21 skills (12 common + 9) and 3 commands.
 `meta-penguin` is not included: it is `time-loop` specialised to two Linux
 kernel subsystems of one campaign, not reusable for a new project.
 
-#### 4.2.1 Tools outside the templates
+#### 4.2.1 Root-level tools: `templates/c/tools/`
 
-The C skills also call files that live at the root of `use-frama-c`, outside
-`config/`, and that are **not** copied into the templates:
+The C skills also call files from the project root, outside `config/`. In
+`use-frama-c` they live at the root of the repository. The generated project
+is stand-alone, so they ship in `templates/c/tools/`, and `auto-wp.py` copies
+every entry of a layer's `tools/` to the project root (§3.6), keeping
+permission bits. The layer holds:
 
-- all 20 `*.sh` scripts at the root, each referenced from `config/`:
-  `rmf-lint.sh` and `ebios-lint.sh` (the machine gates of `rmf-sl` and
-  `ebios-sl`), `framac-onboard.sh`, `framac-gen-report.sh`,
-  `framac-squeeze-audit.sh`, `framac-monitor-check.sh`, `ledger-ratchet.sh`,
-  `crosswalk-gen.sh` and the other `framac-*.sh`;
-- `framac-src/` and `frama-c-patches/`: the patched Frama-C source that
-  `frama-c-launch` builds and requires;
-- `framac-gold/`, `macsl/` (the macsl plugin) and `no-ceiling.md`.
+- `bin/`, with every script: the 20 `*.sh` scripts at the root of
+  `use-frama-c`, each referenced from `config/` (`rmf-lint.sh` and
+  `ebios-lint.sh`, the machine gates of `rmf-sl` and `ebios-sl`;
+  `framac-onboard.sh`, `framac-gen-report.sh`, `framac-squeeze-audit.sh`,
+  `framac-monitor-check.sh`, `ledger-ratchet.sh`, `crosswalk-gen.sh` and the
+  other `framac-*.sh`), plus `fetch-sources.sh`, written for auto-wp;
+- `frama-c-patches/`, `framac-gold/` and `no-ceiling.md`, the data the
+  scripts and skills read, at the project root as in `use-frama-c`;
+- a `.gitignore`, written for auto-wp.
 
-They are large (`macsl/` alone is 5.9 MB), they change with `use-frama-c`, and
-some hold a full Frama-C source tree. So version 0.1.0 does not copy them: the
-C README requires a `use-frama-c` checkout and gives the command that links
-them into the project (§3.4, item 4). Shipping them as a `templates/c/tools/`
-layer is future work (§6).
+The scripts are in `bin/`, not at the root as in `use-frama-c`, so the
+project root stays readable. Every caller in the skills and commands calls
+them as `bin/<name>.sh`, from the project root (§4.4); they still read and
+write paths relative to the current directory (`framac-gold/`, the campaign
+directories), so they must be run from the project root. The two scripts that
+locate files from their own path go one level up: `framac-canary.sh` (to find
+`config/`) and `fetch-sources.sh` (to put `framac-src/` and `macsl/` at the
+root).
+
+Together about 1.3 MB, seeded with `git archive` from the committed tree of
+`use-frama-c` (commit `9b0c95145`). Two trees are too large to ship and are
+public, so `bin/fetch-sources.sh` downloads them into the project root instead;
+`.gitignore` keeps them, and every `_build/`, out of the project history:
+
+- `framac-src/` (127 MB of source, 1.2 GB once built):
+  the release archive `https://www.frama-c.com/download/frama-c-32.1-Germanium.tar.gz`,
+  checked against the sha256 of opam's `frama-c.32.1` package (`opam source`
+  is not used: it needs an opam switch, and a fresh `opam init --bare` has
+  none), then the patches: `frama-c-patches/apply.sh`
+  (`0001-*`, `0002-*`), `cabs2cil-c23-auto.patch` (with `patch -p0`), the
+  `wp-cbits-bound-lemmas` axioms into
+  `src/plugins/wp/share/why3/frama_c_wp/cbits.mlw`, and its
+  `Cbits.v.realization` appended to `src/plugins/wp/share/coqwp/Cbits.v`.
+  Verified 2026-10-28: the result equals `use-frama-c/framac-src` except for
+  one axiom, `land_lor_absorb` (AppArmor deny-dominance), that is in
+  `use-frama-c/framac-src` but in no file of `frama-c-patches/`. A campaign
+  that needs it must add it as a patch first.
+- `macsl/` (the macsl plugin): `git clone https://github.com/canonical/macsl.git`
+  at commit `b7a472e`, the commit of the `use-frama-c` submodule. Verified
+  identical to the submodule, without its `_build*/` directories.
+
+The script leaves an existing `framac-src/` or `macsl/` as it is, and
+assembles `framac-src/` in a temporary directory, so a failed download leaves
+nothing behind. It needs curl, sha256sum, tar, git, patch and network
+access, but not opam. Verified 2026-10-28: the archive gives the same tree as
+`opam source frama-c.32.1`.
+
+Four skill files that pointed into `~/git/use-frama-c` are rewritten to the
+project root (§4.4). `frama-c-launch`'s build recipe uses the vendored
+`./framac-src` when it exists. It also calls
+`frama-c-patches/cabs2cil-c23-auto/apply.sh`, which does not exist in
+`use-frama-c`. That is harmless here, because `bin/fetch-sources.sh` has already
+applied that patch.
 
 #### 4.2.2 Changes to the `time-loop` skill and command
 
@@ -798,16 +850,26 @@ These rules apply to both source repositories. When copying from
   are executable; in `use-creusot`, only `sl_disjointness_check.py` is).
 - Do not rewrite `config/...` paths: they stay valid because the project
   installs into `config/` (§3.2).
-- The only content changes are the `creusot-sl` packaging of §4.3.2 and the
-  three `time-loop` changes of §4.2.2 (deadline kept on a re-run; report in
+- The only content changes are the `creusot-sl` packaging of §4.3.2, the
+  path rewrites below, and the three `time-loop` changes of §4.2.2 (deadline kept on a re-run; report in
   `XXX.md`; no "diminishing returns" stop). Known defects in the sources (§4.3.3) are copied as they are.
-- Hard-coded paths into `use-frama-c` are kept as they are; they point to the
-  `macsl` plugin, which lives in `use-frama-c`. They are in
-  `frama-c-monitoring/references/framac-workflow.md`,
-  `frama-c-monitoring/canaries/macsl-contexts-sync.sh`,
-  `frama-c-api/references/macsl-contexts.md` and
-  `time-loop/getting-better/20260628-1000-macsl-context-vocabulary-under-surfaced.md`.
-- Root-level tools of `use-frama-c` are not copied (§4.2.1).
+- Hard-coded paths into `use-frama-c` are rewritten to the project root,
+  where `bin/fetch-sources.sh` puts `macsl/`: in
+  `frama-c-monitoring/canaries/macsl-contexts-sync.sh` (default `MACSL_CMXS`
+  computed from the script's own location),
+  `frama-c-api/references/macsl-contexts.md`,
+  `time-loop/getting-better/20260628-1000-macsl-context-vocabulary-under-surfaced.md`
+  and `frama-c-monitoring/references/framac-workflow.md` (default `repo` is
+  `.`). After seeding, no file under `templates/*/skills/` mentions
+  `use-frama-c`.
+- Root-level tools of `use-frama-c` are copied into `templates/c/tools/`,
+  the scripts into `templates/c/tools/bin/` (§4.2.1). Every mention of one of
+  these scripts in the skills, commands and README, bare (`rmf-lint.sh`) or
+  with `./`, is rewritten to `bin/<name>.sh` (152 rewrites in 38 files). No
+  other file named like them exists in the templates, so the rewrite is
+  unambiguous; test T7 of `tests.md` keeps it so. Their historical notes (the `lsl-mul-pow2-regression`
+  reproduction recipes, which name the opentitan campaign directories in
+  `use-frama-c`) are kept as they are; no skill runs them.
 
 ## 5. Tests
 
@@ -848,7 +910,13 @@ subprocess.
     still finds the templates.
 13. `--c foobar` writes `foobar/README.md`, which contains
     `git clone https://gitlab.freedesktop.org/gnu-grub/grub.git`,
-    `/time-loop grub 72` and `use-frama-c`, and no `{{`.
+    `/time-loop grub 72` and `bin/fetch-sources.sh`, and contains no `{{`,
+    no `~/git/` and no `UFC`.
+13b. `--c foobar` copies the tools of §4.2.1 to `foobar/` as regular files
+    (21 `bin/*.sh` and no `*.sh` at the root, `frama-c-patches/apply.sh`,
+    `framac-gold/`, `no-ceiling.md`, `.gitignore` listing `/framac-src/`),
+    with the executable bit on every script; `--rust` creates no `bin/`; an existing `foo/.gitignore` is kept and
+    reported with `kept`.
 14. `--rust foobar` writes a README that contains `creusot-launch`, and
     contains the string `/time-loop mycrate 72` **if and only if**
     `templates/rust/commands/time-loop.md` exists.
@@ -868,9 +936,6 @@ subprocess.
 ## 6. Out of scope for version 0.1.0
 
 - Updating an existing project from newer templates (`--update`).
-- Shipping the `use-frama-c` root-level tools as a template layer
-  (`templates/c/tools/`) so that C projects no longer need a checkout
-  (§4.2.1).
 - Merging the divergent SL skills into one common version, and fixing the
   known defects listed in §4.3.3.
 - Generating `CLAUDE.md`/`AGENTS.md` or source scaffolding inside the project.

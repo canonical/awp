@@ -144,6 +144,29 @@ class Run:
             shutil.copy2(chosen[name], dest / name, follow_symlinks=False)
         return sorted(Path(n).stem for n in chosen)
 
+    def install_tools(self):
+        """Copy each layer's tools/ entries to the project root; keep existing ones."""
+        chosen = {}
+        for layer in self.layers:
+            src = layer / "tools"
+            if src.is_dir():
+                for entry in src.iterdir():
+                    if not entry.name.endswith("~"):
+                        chosen[entry.name] = entry
+        for name in sorted(chosen):
+            dest = self.target / name
+            if os.path.lexists(dest):
+                self.out.append(f"kept    {self.show(name)} (already exists)")
+                continue
+            if chosen[name].is_dir() and not chosen[name].is_symlink():
+                shutil.copytree(chosen[name], dest, symlinks=True,
+                                ignore=shutil.ignore_patterns("*~"))
+                self.created.append(("tree", dest))
+            else:
+                shutil.copy2(chosen[name], dest, follow_symlinks=False)
+                self.created.append(("file", dest))
+            self.out.append(f"copied  {self.show(name)}")
+
     def link(self):
         claude = self.target / ".claude"
         if not claude.is_dir():
@@ -195,6 +218,7 @@ class Run:
         self.check_target()
         self.make_target()
         self.install_config()
+        self.install_tools()
         self.link()
         self.write_readme()
         self.init_git()

@@ -1,0 +1,15 @@
+/**************************************************************************/
+/*  Opt-in SHIFT-lemma driver (mitigation-1 for the lsl_mul_pow2          */
+/*  global-axiom regression).  See README.md.                            */
+/*                                                                        */
+/*  Pass ONLY to shift-heavy units:                                       */
+/*    -wp-driver=<this>.driver                                            */
+/*    -wp-library=<mitigation dir>/wp-library                             */
+/*  It appends the opt-in CbitsShift theory to the always-loaded `cbits`  */
+/*  WP library, so `lsl_mul_pow2` becomes visible to Alt-Ergo/Z3 for THIS */
+/*  invocation only.  Units that do not load this driver keep the lean    */
+/*  cbits theory (no shift axiom -> no search-space enlargement).         */
+/**************************************************************************/
+
+library cbits:
+why3.import += "frama_c_wp.cbits_shift.CbitsShift";

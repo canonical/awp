@@ -52,7 +52,7 @@ Never records implementation specifics.
   under-specified; the machine probe could not catch it.
 - Heuristic: do NOT accept PROVED on the strength of faithful + Gate B + mutation-TEETH alone — those
   bound NON-VACUITY, not COMPLETENESS. Add **Gate C′**: compare the loop's `ensures` to the intended
-  property (the requirement, or the human `gold` spec via `framac-completeness.sh` + an editorial
+  property (the requirement, or the human `gold` spec via `bin/framac-completeness.sh` + an editorial
   gold-vs-loop diff). Tell-tale of an under-specified "proof": the only `ensures` is a **result bound**
   (`\result <= n`) or a **target-shape** predicate (sorted/heap) with no functional/relational clause
   tying the result to the input. Such a unit is PARTIAL. The completeness hint OVER-flags (a loop that

@@ -74,7 +74,7 @@ specs, no proof scaffolding, no scope rankings. Future onboardings load this at 
   must NOT read a bare `ignoring`/`dropping` as a dropped-annotation signal; restrict the dropped-ACSL
   tell to annotation-specific messages (`unbound logic`, `annot-error`, `ignoring/dropping (the)
   annotation`, `unexpected token`) and gate PARSE-FAIL on frama-c's **exit code**. Otherwise every
-  attribute-using TU reads as a false DEPENDENCY-UNMET (fixed in `framac-onboard.sh`).
+  attribute-using TU reads as a false DEPENDENCY-UNMET (fixed in `bin/framac-onboard.sh`).
 
 ### Pin -machdep; record -wp-fct / -wp-model +cast as queue flags, not failures
 - Kind: defer-to-oracle

@@ -407,10 +407,42 @@ class TestAutoWp(AutoWpTestCase):
         text = (self.tmp / "foobar/README.md").read_text()
         self.assertIn("git clone https://gitlab.freedesktop.org/gnu-grub/grub.git", text)
         self.assertIn("/time-loop grub 72", text)
-        self.assertIn("use-frama-c", text)
+        self.assertIn("bin/fetch-sources.sh", text)
+        # Stand-alone: no host checkout such as ~/git/use-frama-c is needed.
+        self.assertNotIn("~/git/", text)
+        self.assertNotIn("UFC", text)
         self.assertNotIn("{{", text)
         self.assertTrue(text.startswith(
             "# foobar — automated verification of C (Frama-C/WP) code"), text[:80])
+
+    def test_13b_c_tools_stand_alone(self):
+        self.assertOk(self.run_auto_wp("--c", "foobar"))
+        d = self.tmp / "foobar"
+        for rel in ("bin/rmf-lint.sh", "bin/ebios-lint.sh", "bin/ledger-ratchet.sh",
+                    "bin/crosswalk-gen.sh", "bin/fetch-sources.sh", "no-ceiling.md", ".gitignore",
+                    "frama-c-patches/apply.sh", "framac-gold"):
+            self.assertTrue(os.path.lexists(d / rel), rel)
+            self.assertFalse((d / rel).is_symlink(), rel)
+        self.assertEqual(len(list(d.glob("bin/*.sh"))), 21)
+        self.assertEqual(list(d.glob("*.sh")), [], "scripts belong in bin/, not the root")
+        for s in d.glob("bin/*.sh"):
+            self.assertTrue(os.access(s, os.X_OK), s.name)
+        self.assertIn("/framac-src/", (d / ".gitignore").read_text())
+
+    def test_13c_rust_has_no_c_tools(self):
+        self.assertOk(self.run_auto_wp("--rust", "foobar"))
+        self.assertFalse(os.path.lexists(self.tmp / "foobar/bin"))
+
+    def test_13d_existing_tool_kept(self):
+        foo = self.tmp / "foo"
+        foo.mkdir()
+        (foo / ".gitignore").write_text("mine\n")
+        r = self.run_auto_wp("--c", "foo")
+        self.assertOk(r)
+        self.assertEqual((foo / ".gitignore").read_text(), "mine\n")
+        self.assertIn("kept    foo/.gitignore (already exists)", r.stdout.splitlines())
+        self.assertNotIn("copied  foo/.gitignore", r.stdout.splitlines())
+        self.assertIn("copied  foo/bin", r.stdout.splitlines())
 
     # 14 ---------------------------------------------------------------------
     def test_14_rust_readme(self):
@@ -574,6 +606,11 @@ class TestOutputAndConstraints(AutoWpTestCase):
             "created foobar/config (language: c)\n"
             "  skills:   21\n"
             "  commands: 3\n"
+            "copied  foobar/.gitignore\n"
+            "copied  foobar/bin\n"
+            "copied  foobar/frama-c-patches\n"
+            "copied  foobar/framac-gold\n"
+            "copied  foobar/no-ceiling.md\n"
             "linked  foobar/.agents          -> config\n"
             "linked  foobar/.claude/skills   -> ../config/skills\n"
             "linked  foobar/.claude/commands -> ../config/commands\n"

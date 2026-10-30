@@ -13,13 +13,14 @@
 # Exit: 0 = in sync · 1 = DRIFT (tool/catalog context sets differ) · 2 = tool unavailable (cannot check)
 set -u
 
-CMXS="${MACSL_CMXS:-$HOME/git/use-frama-c/macsl/_build/default/src/macsl.cmxs}"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT="$(cd "$HERE/../../../.." && pwd)"   # the project root, which holds config/ and macsl/
+CMXS="${MACSL_CMXS:-$PROJECT/macsl/_build/default/src/macsl.cmxs}"
 CATALOG="${MACSL_CATALOG:-$HERE/../../frama-c-api/references/macsl-contexts.md}"
 
 [ -f "$CATALOG" ] || { echo "FAIL: catalog not found: $CATALOG"; exit 1; }
 if ! command -v frama-c >/dev/null 2>&1 || [ ! -f "$CMXS" ]; then
-  echo "SKIP(2): macsl plugin not built ($CMXS) or frama-c absent — build 'dune build' in use-frama-c/macsl, then re-run."
+  echo "SKIP(2): macsl plugin not built ($CMXS) or frama-c absent — run bin/fetch-sources.sh and 'dune build' in macsl/ at the project root, then re-run."
   exit 2
 fi
 
