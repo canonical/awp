@@ -1,0 +1,12 @@
+The goal is now to test the python script. Write the test specification in `./tests.md`.
+All tests should be under `./tests/`.
+All C tests should be under `./tests/c/`.
+All Rust tests should be under `./tests/rust/`.
+To test C code write a bash script which spawns using LXC a container, copy auto-wp.py inside.
+The following command should work:
+```bash
+python3 auto-wp-py
+git clone https://gitlab.freedesktop.org/gnu-grub/grub.git
+```
+In Claude code followed in the harness by: `/time-loop grub 72`
+What is the best way to forward the secrets to use current session in LXC?
