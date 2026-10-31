@@ -12,11 +12,11 @@ PYTHON ?= python3
 OUT    := tests/out
 STAMP   = $(shell date -u +%Y%m%d-%H%M%S)
 
-SCRIPTS := $(wildcard tests/lib/*.sh tests/c/*.sh tests/rust/*.sh)
+SCRIPTS := $(wildcard tests/lib/*.sh tests/c/*.sh tests/rust/*.sh sdks/*.sh sdks/*/prepare.sh)
 
 .PHONY: help test test-l2 test-c-l2 test-rust-l2 check-scripts \
-        provision-c provision-rust smoke-c smoke-rust workspace-rust \
-        clean clean-lxc
+        provision-c provision-rust smoke-c smoke-c-gzip smoke-rust workspace-rust \
+        sdk-lean sdk-rocq sdk-framac test-sdks clean clean-lxc
 
 help: ## Show this help
 	@echo "auto-wp test targets:"
@@ -66,11 +66,34 @@ provision-rust: | $(OUT) ## Build autowp-rust-base (hours)
 smoke-c: | $(OUT) ## Level 3, C: 3-hour /time-loop run (token)
 	tests/c/smoke-test.sh 2>&1 | tee $(OUT)/c-smoke-$(STAMP).log
 
+smoke-c-gzip: | $(OUT) ## Level 3, C: 1-hour /time-loop run on gzip 1.9 (token)
+	tests/c/gzip-test.sh 2>&1 | tee $(OUT)/c-gzip-$(STAMP).log
+
 workspace-rust: | $(OUT) ## Level 3, Rust: why3find.json workspace cases A-H
 	tests/rust/workspace-test.sh 2>&1 | tee $(OUT)/rust-workspace-$(STAMP).log
 
 smoke-rust: | $(OUT) ## Level 3, Rust: creusot-launch smoke test (token)
 	tests/rust/smoke-test.sh 2>&1 | tee $(OUT)/rust-smoke-$(STAMP).log
+
+# --- Workshop SDKs (workshop-autowp-c-base-spec.md) ------------------------
+# Each target packs the SDK with `sdkcraft try` and runs sdks/test-sdk.sh on a
+# throwaway workshop. Needs sdkcraft, workshop and LXD 6.8+. Not run by `test`.
+
+sdk-lean: | $(OUT) ## Pack and test the autowp-lean SDK
+	cd sdks/autowp-lean && sdkcraft try
+	sdks/test-sdk.sh autowp-lean 2>&1 | tee $(OUT)/sdk-lean-$(STAMP).log
+
+sdk-rocq: | $(OUT) ## Pack and test the autowp-rocq SDK (about an hour)
+	cd sdks/autowp-rocq && sdkcraft try
+	sdks/test-sdk.sh autowp-rocq 2>&1 | tee $(OUT)/sdk-rocq-$(STAMP).log
+
+sdk-framac: | $(OUT) ## Pack and test the autowp-framac SDK (hours)
+	sdks/autowp-framac/prepare.sh
+	cd sdks/autowp-framac && sdkcraft try
+	sdks/test-sdk.sh autowp-framac 2>&1 | tee $(OUT)/sdk-framac-$(STAMP).log
+
+test-sdks: | $(OUT) ## Test the three tried SDKs together in one workshop
+	sdks/test-sdk.sh autowp-framac autowp-rocq autowp-lean 2>&1 | tee $(OUT)/sdks-$(STAMP).log
 
 # --- cleanup ---------------------------------------------------------------
 

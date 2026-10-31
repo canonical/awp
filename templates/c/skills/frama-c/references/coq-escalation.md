@@ -31,10 +31,12 @@ opam switch create framac-coq8 4.14.2
 eval $(opam env --switch=framac-coq8 --set-switch)
 
 # 2. Coq 8.20.1 FIRST — what Why3's realizations compile against
-opam install coq.8.20.1
+opam pin add coq 8.20.1      # pin, not install: a later dune upgrade would move it to 9.x
 
-# 3. THEN Why3 + Frama-C + an SMT solver; Why3's build now builds the realizations
-opam install why3 frama-c alt-ergo
+# 3. THEN Why3 + an SMT solver; Why3's build now builds the realizations.
+#    Frama-C itself is the PATCHED source build, not `opam install frama-c`:
+#    see install.md (steps 4-5).
+opam install "why3>=1.8.0" "why3<1.9" "why3-coq>=1.8.0" "why3-coq<1.9" alt-ergo z3
 
 # 4. detection should now find Coq with a real version AND compiled libraries
 why3 config detect

@@ -62,7 +62,7 @@ note "step 1: packages"
 autowp_exec_root "$BASE" bash -c 'export DEBIAN_FRONTEND=noninteractive
     apt-get update -q
     apt-get install -y -q git python3 tmux curl opam build-essential pkg-config \
-        libgtk-3-dev libgraphviz-dev libgtksourceview-3.0-dev \
+        libgtk-3-dev libgraphviz-dev graphviz libgtksourceview-3.0-dev \
         bear \
         autoconf automake autopoint gettext bison flex libtool \
         libdevmapper-dev libfreetype-dev libfuse3-dev liblzma-dev fonts-unifont \
@@ -88,8 +88,9 @@ else
         opam switch create framac-coq8 ocaml-base-compiler.4.14.2 -y
         eval "$(opam env --switch=framac-coq8 --set-switch)"
         # Coq before Why3, Coq pinned to 8.20 (plain `coq` is Rocq 9.x now)
-        opam install -y coq.8.20.1
-        opam install -y "why3>=1.8.0" "why3<1.9" alt-ergo z3
+        # pinned: a plain install is upgraded to Coq 9.x when alt-ergo upgrades dune
+        opam pin add -y coq 8.20.1
+        opam install -y "why3>=1.8.0" "why3<1.9" "why3-coq>=1.8.0" "why3-coq<1.9" alt-ergo z3
         why3 config detect
         test -f "$(why3 --print-libdir)/coq/BuiltIn.vo"
         opam install -y yaml ppx_deriving_yaml ocamlgraph ppx_inline_test unionFind dune

@@ -1,0 +1,15 @@
+#!/bin/bash
+# Runs as root; checks as the workshop user. The single-quoted script is
+# expanded by the workshop user's login shell, not here.
+# shellcheck disable=SC2016
+if ! out=$(runuser -u workshop -- bash -lc '
+        set -e
+        frama-c -version | grep -q "^32\.1"
+        d=$(frama-c -wp-detect 2>&1)
+        for p in Alt-Ergo Z3 Coq; do echo "$d" | grep -qi "$p" || { echo "no $p in -wp-detect"; exit 1; }; done
+        grep -q land_le_l "$(frama-c -print-share-path)/wp/why3/frama_c_wp/cbits.mlw"
+        frama-c -load-module "$AUTOWP_FRAMAC_MACSL" -version >/dev/null' 2>&1); then
+    workshopctl set-health error "autowp-framac: $(echo "$out" | tail -3 | tr '\n' ' ')"
+    exit 0
+fi
+workshopctl set-health okay

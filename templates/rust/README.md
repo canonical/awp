@@ -11,10 +11,13 @@ which LXD mounts into it: not your other files, not your SSH keys, not your
 Claude login. You need LXD on the host
 (`lxc list` works as your user).
 
-**1. On the host**, from the directory that contains `{{DIR}}`, create the
-container and mount `{{DIR}}` into it:
+**1. On the host**, in `{{DIR}}`, the directory of this README: go up to
+its parent, create the container and mount `{{DIR}}` into it. The mount
+line uses `$PWD/{{DIR}}`, so the commands must run from the parent, which
+the first line does:
 
 ```
+cd ..
 CT=wp-{{DIR}}
 NET=lxdbr0
 lxc network show "$NET" >/dev/null 2>&1 || lxc network create "$NET"

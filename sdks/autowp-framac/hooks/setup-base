@@ -1,0 +1,9 @@
+#!/bin/bash
+# Runs as root at install and on every refresh (part of the base snapshot).
+# The opam switch was built at /opt/autowp-framac; point that path at the SDK.
+ln -sfn "$SDK" /opt/autowp-framac
+# Run-time libraries, and the tools a C campaign runs next to Frama-C.
+apt-get update
+apt-get install libgmp10 zlib1g libgtk-3-0t64 libgtksourceview-3.0-1 graphviz \
+    build-essential pkg-config bear git ripgrep python3
+install -m 644 "$SDK/autowp-framac.profile" /etc/profile.d/autowp-framac.sh

@@ -458,7 +458,7 @@ New and changed files in the templates:
 | `README.md`: placeholders | c and rust |
 
 New counts: C 22 skills (12 + 1 common, 9 C), 3 commands (`/ebios`,
-`/time-loop` and the driver's), 22 scripts in `bin/`. The C template
+`/time-loop` and the driver's), 23 scripts in `bin/`. The C template
 directory holds 4 command files. Rust 17 skills by the spec count (13 common, of which the Rust layer
 replaces 4 with its own versions, plus 4 Creusot skills), 16 while
 `creusot-launch` is pending.
@@ -704,7 +704,7 @@ open point 2.
   become 16 (17 when `creusot-launch` exists) and the PDF line is added;
 - `test_rust_output_spec_count_16` becomes `…_17`;
 - `test_11_manifest`: the two new keys, and the `commands` list per driver;
-- `test_13b`: 22 executables in `bin/`;
+- `test_13b`: 23 executables in `bin/`;
 - `test_13c`: a Rust project now has `NIST.FIPS.140-3.pdf`, whose
   `copied` line is its only one, and still no `bin/`;
 - the README tests (13, 14): the `{{DRIVER}}` lines for both drivers;
@@ -721,7 +721,7 @@ open point 2.
   `{DIR, LANGUAGE, DRIVER, FEEDBACK, DRIVER_LINE}`, the Rust README
   `{DIR, LANGUAGE, DRIVER_LINE}`;
 - T6: unchanged, and it must still pass after the `time-loop` rewrite;
-- T7: 22 scripts in `templates/c/tools/bin/`;
+- T7: 23 scripts in `templates/c/tools/bin/`;
 - T7: every mention of `fips-lint.sh` in the new files is written
   `bin/fips-lint.sh`, as T7 already enforces for the other scripts. T7
   excludes every layer's `tools/` from the scan, not only
@@ -775,7 +775,7 @@ not specified until the target is chosen.
 | §3.6 | the `driver:` line; the new counts; the PDF `copied` line for both languages, so "with `--rust` there is no `copied` line" is no longer true |
 | §4 | the tree shows `common/{skills,commands,tools}` |
 | §4.1 | `fips-sl` in the common skills; `common/tools/` |
-| §4.2.1 | `fips-lint.sh` in `bin/`; 22 scripts |
+| §4.2.1 | `fips-lint.sh` in `bin/`; 23 scripts |
 | §5 | the tests above |
 
 **`tests.md`:** T3, T5, T7 and the new T8, T9, T9b, T9c and T10 in §3.2

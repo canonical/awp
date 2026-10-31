@@ -219,7 +219,7 @@ class TestTemplates(unittest.TestCase):
     def test_T7_scripts_in_bin(self):
         tools = TEMPLATES / "c/tools"
         names = sorted(p.name for p in (tools / "bin").glob("*.sh"))
-        self.assertEqual(len(names), 21)
+        self.assertEqual(len(names), 22)
         self.assertEqual(sorted(p.name for p in tools.glob("*.sh")), [])
         pat = re.compile(r"(?<![\w/.-])(?:\./)?(" + "|".join(map(re.escape, names)) + r")")
         bad = []

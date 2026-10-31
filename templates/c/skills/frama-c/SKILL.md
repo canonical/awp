@@ -32,6 +32,32 @@ Run the verifier with `frama-c -wp [FLAGS] FILE.c`; add `-wp-rte` to also genera
 runtime-error goals (overflow, division-by-zero, invalid memory access, bad shift).
 A function is verified when every goal reports **`Valid`**.
 
+## Installing the toolchain
+
+The campaign needs **Frama-C 32.1 built from source with `frama-c-patches/`
+applied**, not the stock opam package, in the opam switch **`framac-coq8`**
+with Coq 8.20.1, Why3 1.8.x, Alt-Ergo and Z3. In short, from the project
+root:
+
+```sh
+opam init --disable-sandboxing -y --bare
+opam switch create framac-coq8 ocaml-base-compiler.4.14.2 -y
+eval "$(opam env --switch=framac-coq8 --set-switch)"
+opam pin add -y coq 8.20.1                                  # Coq FIRST, PINNED (not Rocq 9)
+opam install -y "why3>=1.8.0" "why3<1.9" "why3-coq>=1.8.0" "why3-coq<1.9" alt-ergo z3 && why3 config detect
+opam install -y yaml ppx_deriving_yaml ocamlgraph ppx_inline_test unionFind dune
+opam install -y --deps-only frama-c.32.1                    # dependencies only
+bin/fetch-sources.sh                                        # patched framac-src/, macsl/
+(cd framac-src && dune build @install && dune install --prefix "$(opam var prefix)" \
+    frama-c frama-c-wp frama-c-rtegen frama-c-region frama-c-server qed)
+frama-c -version && frama-c -wp-detect                      # 32.1; Alt-Ergo, Z3, Coq
+```
+
+The system packages, the AppArmor fix needed inside an LXD container, the
+macsl build, the check that the patches are in the installed binary, and the
+pitfalls are in **`references/install.md`**. `frama-c-launch` runs this
+recipe itself on a first run when the toolchain is missing.
+
 ## Where ACSL lives (load-bearing for the faithfulness gate)
 
 ACSL is confined to comments and never changes executable C:

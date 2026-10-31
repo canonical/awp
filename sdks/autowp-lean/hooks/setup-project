@@ -1,0 +1,8 @@
+#!/bin/bash
+# Runs as the workshop user, after the mounts are connected.
+# Seed ~/.elan (a mount plug, so it survives refreshes) with the elan and the
+# toolchain the SDK ships, the first time only: afterwards ~/.elan is the
+# user's, and a project's lean-toolchain file may add other toolchains to it.
+if [ ! -x "$HOME/.elan/bin/elan" ]; then
+    cp -a "$SDK/elan/." "$HOME/.elan/"
+fi

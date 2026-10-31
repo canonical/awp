@@ -1,0 +1,38 @@
+name: autowp-lean
+version: "4.35.0"
+title: Lean 4 for auto-wp
+summary: Lean 4 through elan, with Lake, ripgrep and the Lean LSP MCP server
+description: |
+  The Lean 4 environment the auto-wp `lean` skill expects: elan with the
+  Lean toolchain leanprover/lean4:v4.35.0 preinstalled, Lake, ripgrep for
+  lemma search, and lean-lsp-mcp for interactive proof inspection. elan's
+  home and Mathlib's cache persist across workshop refreshes.
+license: Apache-2.0
+base: ubuntu@24.04
+platforms:
+  amd64:
+
+plugs:
+  elan:
+    interface: mount
+    workshop-target: /home/workshop/.elan
+  mathlib-cache:
+    interface: mount
+    workshop-target: /home/workshop/.cache/mathlib
+
+parts:
+  elan:
+    plugin: nil
+    source: https://github.com/leanprover/elan/releases/download/v4.2.4/elan-x86_64-unknown-linux-gnu.tar.gz
+    source-type: tar
+    build-packages: [curl, ca-certificates]
+    override-build: |
+      # Install elan and the pinned toolchain into a staging ELAN_HOME; the
+      # setup-project hook copies it into the user's ~/.elan (a mount plug).
+      export ELAN_HOME="$CRAFT_PART_INSTALL/elan"
+      ./elan-init -y --no-modify-path \
+          --default-toolchain "leanprover/lean4:v$CRAFT_PROJECT_VERSION"
+      "$ELAN_HOME/bin/lean" --version
+  config:
+    plugin: dump
+    source: files

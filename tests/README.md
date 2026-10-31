@@ -10,7 +10,7 @@ here and how to run it.
 |---|---|---|---|---|
 | 1 | program and template tests | host | seconds | Python 3.10+, git |
 | 2 | `auto-wp.py` and the README clone step, on a stock image | fresh LXD container | minutes | LXD, network |
-| 3 | a short campaign in the harness, or a tool-level regression | copy of a provisioned base container | 3–4 h | level 2, Claude token |
+| 3 | a short campaign in the harness, or a tool-level regression | copy of a provisioned base container | 1–4 h | level 2, Claude token |
 | 4 | `/time-loop grub 72`, plus a resume run (C only) | copy of a provisioned base container | 72 h + 4 h | level 3 |
 
 Run levels 1 and 2 after every change to `auto-wp.py` or the templates.
@@ -33,6 +33,7 @@ Levels 3 and 4 need a provisioned base container first:
 ```
 make provision-c     # or provision-rust; builds autowp-c-base (hours)
 make smoke-c         # level 3, C
+make smoke-c-gzip    # level 3, C, gzip 1.9 (one hour)
 make workspace-rust  # level 3, Rust, no token needed
 make smoke-rust      # level 3, Rust
 tests/c/acceptance.sh start   # level 4, see c/README.md

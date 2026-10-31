@@ -1,0 +1,4 @@
+#!/bin/sh
+# Runs ocamlfind from the autowp-framac opam switch.
+. /opt/autowp-framac/env.sh
+exec ocamlfind "$@"

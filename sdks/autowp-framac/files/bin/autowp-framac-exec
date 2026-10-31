@@ -1,0 +1,4 @@
+#!/bin/sh
+# Runs a command in the autowp-framac opam switch: autowp-framac-exec <cmd> [args]
+. /opt/autowp-framac/env.sh
+exec "$@"

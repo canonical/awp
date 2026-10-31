@@ -28,6 +28,27 @@ Run the verifier with `cargo creusot` in a project (scaffold one with
 `cargo creusot new <name>` / `init`). A function is verified when its obligations
 report `Proved … ✔`.
 
+## Installing Creusot
+
+Creusot installs from its repository with its own `./INSTALL`, which builds
+`cargo-creusot`, its pinned Rust nightly, Why3, why3find and the provers
+(Alt-Ergo, Z3, CVC4, CVC5). In short:
+
+```sh
+opam init --disable-sandboxing -y --bare
+curl -sSf https://sh.rustup.rs | sh -s -- -y && . ~/.cargo/env
+git clone https://github.com/creusot-rs/creusot.git ~/git/creusot
+cd ~/git/creusot && git checkout f15b985 && ./INSTALL     # an hour or more
+cargo creusot version                                      # lists Why3, why3find and the four provers
+```
+
+Keep `~/git/creusot` where it is: `./INSTALL` points `~/.cargo/config.toml`
+at it. Never create a Creusot project under another `Cargo.toml`:
+`cargo creusot new` then writes `why3find.json` next to that parent manifest.
+The system packages, the AppArmor fix needed inside an LXD container, the
+tested versions, the smoke test and the workaround for a parent `Cargo.toml`
+are in **`references/install.md`**.
+
 ## Preamble every file needs
 
 ```rust

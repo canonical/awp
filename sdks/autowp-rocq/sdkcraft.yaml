@@ -1,0 +1,47 @@
+name: autowp-rocq
+version: "9.2.0"
+title: Rocq for auto-wp
+summary: The Rocq prover 9.2 with its standard library, in a read-only opam switch
+description: |
+  The Rocq environment the auto-wp `rocq` skill expects: Rocq 9.2.0 and
+  rocq-stdlib 9.2.0, with the `coq` compatibility binaries (coqc, coqtop,
+  coqdep), built from opam once at SDK build time. Independent of the Coq
+  8.20.1 that autowp-framac ships for Frama-C's WP.
+license: LGPL-2.1-only
+base: ubuntu@24.04
+platforms:
+  amd64:
+
+parts:
+  rocq:
+    plugin: nil
+    build-packages: [opam, build-essential, git, curl, unzip, rsync, m4,
+                     pkg-config, libgmp-dev, zlib1g-dev, ca-certificates]
+    override-build: |
+      # opam roots embed absolute paths, so the switch is built at the path
+      # it has at run time: /opt/autowp-rocq, which setup-base links to $SDK.
+      R=/opt/autowp-rocq
+      rm -rf "$R"; mkdir -p "$R"
+      export OPAMROOT="$R/opam" OPAMYES=1 OPAMCOLOR=never
+      opam init --disable-sandboxing --bare --no-setup
+      opam switch create rocq ocaml-base-compiler.4.14.2
+      eval "$(opam env --switch=rocq --set-switch)"
+      opam install "coq.$CRAFT_PROJECT_VERSION" "rocq-stdlib.$CRAFT_PROJECT_VERSION"
+      coqc --version
+      # The run-time environment: it prepends to PATH, never replaces it.
+      S="$OPAMROOT/rocq"
+      {
+        echo "# The run-time environment of the $CRAFT_PROJECT_NAME opam switch."
+        echo "export OPAMROOT='$OPAMROOT' OPAMSWITCH='rocq' OPAM_SWITCH_PREFIX='$S'"
+        echo "export CAML_LD_LIBRARY_PATH='$S/lib/stublibs:$S/lib/ocaml/stublibs:$S/lib/ocaml'"
+        echo "export OCAML_TOPLEVEL_PATH='$S/lib/toplevel'"
+        echo "export PATH='$S/bin':\"\$PATH\""
+      } > "$R/env.sh"
+      # Prune what the run time does not need.
+      opam clean --all-switches --download-cache --logs
+      rm -rf "$OPAMROOT/download-cache" "$OPAMROOT/repo" "$OPAMROOT"/rocq/.opam-switch/sources \
+             "$OPAMROOT"/rocq/.opam-switch/build "$OPAMROOT"/rocq/doc "$OPAMROOT"/rocq/man
+      cp -a "$R/." "$CRAFT_PART_INSTALL/"
+  config:
+    plugin: dump
+    source: files

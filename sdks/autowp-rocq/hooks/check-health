@@ -1,0 +1,21 @@
+#!/bin/bash
+# Runs as root; checks as the workshop user. The single-quoted script is
+# expanded by the workshop user's login shell, not here.
+# shellcheck disable=SC2016
+if ! out=$(runuser -u workshop -- bash -lc '
+        set -e
+        coqc --version
+        rocq --version
+        d=$(mktemp -d); cd "$d"
+        cat > H.v <<V
+From Stdlib Require Import Arith.
+Lemma autowp_health (n : nat) : n + 0 = n.
+Proof. now rewrite Nat.add_0_r. Qed.
+Print Assumptions autowp_health.
+V
+        coqc H.v | grep -q "Closed under the global context"
+        rm -rf "$d"' 2>&1); then
+    workshopctl set-health error "autowp-rocq: $(echo "$out" | tail -3 | tr '\n' ' ')"
+    exit 0
+fi
+workshopctl set-health okay

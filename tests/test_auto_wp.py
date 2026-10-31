@@ -423,7 +423,7 @@ class TestAutoWp(AutoWpTestCase):
                     "frama-c-patches/apply.sh", "framac-gold"):
             self.assertTrue(os.path.lexists(d / rel), rel)
             self.assertFalse((d / rel).is_symlink(), rel)
-        self.assertEqual(len(list(d.glob("bin/*.sh"))), 21)
+        self.assertEqual(len(list(d.glob("bin/*.sh"))), 22)
         self.assertEqual(list(d.glob("*.sh")), [], "scripts belong in bin/, not the root")
         for s in d.glob("bin/*.sh"):
             self.assertTrue(os.access(s, os.X_OK), s.name)

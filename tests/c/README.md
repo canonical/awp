@@ -11,6 +11,7 @@ objects and the Claude token.
 | `install-test.sh` | 2 | `test-c-l2` | minutes | no |
 | `provision.sh` | — | `provision-c` | hours | no |
 | `smoke-test.sh` | 3 | `smoke-c` | 3–5 h | yes |
+| `gzip-test.sh` | 3 | `smoke-c-gzip` | 1–3 h | yes |
 | `acceptance.sh` | 4 | none | 72 h + 6 h | yes |
 
 ## `install-test.sh` — level 2
@@ -55,6 +56,25 @@ Copies `autowp-c-base/ready`, generates `foobar`, clones GRUB, and runs
 - it stopped on time and wrote the interim report to `foobar/grub.md`;
 - the token was not written anywhere, and files changed outside the
   expected places are listed (informational).
+
+## `gzip-test.sh` — level 3, gzip 1.9
+
+A one-hour campaign on GNU gzip 1.9 (`../../gzip-test.md`, `tests.md`
+§5.5), in a copy of `autowp-c-base/ready`. In the container it generates
+`gzip-analyze`, downloads `gzip-1.9.zip` from the first of five mirrors that
+answers, checks its sha256 and its GPG signature (signing key pinned), unzips
+it, commits it as the baseline, and runs `/time-loop gzip-1.9 1` in the
+harness. Hard limit 3 hours.
+
+- G.0 — the archive is the pinned one, correctly signed; otherwise the test
+  exits 2 before the token is moved in.
+- G.1–G.10 — the level 3 checks of `smoke-test.sh`, adapted: `gzip-1.9/`
+  unchanged since the import commit, the RMF report passes
+  `bin/rmf-lint.sh`, a 1-hour deadline, the wake count only reported,
+  the interim report in `gzip-1.9.md`.
+- G.11 — at least one unit has `PROVED` goals; the counts of units, proofs
+  and found issues are printed. A failure can come from an hour lost to rate
+  limits: read the pane transcript first.
 
 ## `acceptance.sh` — level 4
 

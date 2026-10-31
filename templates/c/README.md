@@ -11,48 +11,40 @@ which LXD mounts into it: not your other files, not your SSH keys, not your
 Claude login. You need LXD on the host
 (`lxc list` works as your user).
 
-**1. On the host**, from the directory that contains `{{DIR}}`, create the
-container and mount `{{DIR}}` into it:
+**1. On the host**, run `bin/launch_lxc.sh` from `{{DIR}}`, the directory
+of this README:
 
 ```
-CT=wp-{{DIR}}
-NET=lxdbr0
-lxc network show "$NET" >/dev/null 2>&1 || lxc network create "$NET"
-lxc launch ubuntu:24.04 "$CT" --network "$NET"
-lxc exec "$CT" -- cloud-init status --wait
-lxc config device add "$CT" {{DIR}} disk source="$PWD/{{DIR}}" \
-    path=/home/ubuntu/{{DIR}} shift=true
-lxc exec "$CT" --env DEBIAN_FRONTEND=noninteractive -- sh -c 'apt-get update &&
-    apt-get install -y git python3 tmux \
-    curl opam build-essential pkg-config libgtk-3-dev libgraphviz-dev \
-    libgtksourceview-3.0-dev bear autoconf automake autopoint gettext bison \
-    flex libtool libdevmapper-dev libfreetype-dev libfuse3-dev liblzma-dev \
-    fonts-unifont unzip rsync m4 libgmp-dev zlib1g-dev'
-lxc exec "$CT" -- sh -c 'ln -s /etc/apparmor.d/opam /etc/apparmor.d/disable/ &&
-    apparmor_parser -R /etc/apparmor.d/opam'
-lxc exec "$CT" -- sudo -iu ubuntu
+bin/launch_lxc.sh
 ```
 
-`NET` is the LXD bridge that gives the container its network access. The
-second line creates the bridge `lxdbr0` if it does not exist yet; to use a
-bridge you already have, set `NET` to a name whose `MANAGED` column is `YES`
-in `lxc network list`. Without `--network`, the container gets its network
-from the `default` profile, and on some LXD installs that profile has none:
-`apt-get update` then fails.
+The script finds `{{DIR}}` from its own path, so it also works from any
+other directory (`path/to/{{DIR}}/bin/launch_lxc.sh`). It creates the container `wp-{{DIR}}`,
+mounts `{{DIR}}` into it, installs the packages the campaign needs, and opens
+a shell in it as the user `ubuntu`. It does, in order:
 
-The `lxc config device add` line mounts `{{DIR}}` at `/home/ubuntu/{{DIR}}`
-in the container. `shift=true` makes your files appear there as owned by the
-user `ubuntu`, and the files the agent creates belong to you on the host.
-Everything the run writes is in `{{DIR}}` on the host as soon as it is
-written. `cloud-init status --wait` waits until the container has created
-`/home/ubuntu`, so that the mount does not create it first.
-
-The `apparmor_parser` line unloads the AppArmor profile that Ubuntu 24.04
-ships for opam. Inside an LXD container that profile stops opam's downloads
-from opening network sockets, so `opam init` fails with "Could not resolve
-host". The link keeps the profile unloaded after a restart of the container.
-
-The last command opens a shell as the user `ubuntu` in the container.
+- **Network.** It creates the LXD bridge `lxdbr0` if it does not exist yet,
+  and attaches the container to it. Without that, the container gets its
+  network from the `default` profile, and on some LXD installs that profile
+  has none: `apt-get update` then fails. To use a bridge you already have,
+  run `NET=<name> bin/launch_lxc.sh` with a name whose `MANAGED`
+  column is `YES` in `lxc network list`.
+- **Container.** It launches `ubuntu:24.04` and waits for `cloud-init`, so
+  that the container creates `/home/ubuntu` before the mount does. Set
+  `CT=<name>` for another container name. If the container already exists,
+  the script stops and says how to open a shell in it or delete it.
+- **Mount.** It mounts `{{DIR}}` at `/home/ubuntu/{{DIR}}` with
+  `shift=true`, which makes your files appear there as owned by the user
+  `ubuntu`, and the files the agent creates belong to you on the host.
+  Everything the run writes is in `{{DIR}}` on the host as soon as it is
+  written.
+- **Packages.** git, python3, tmux, curl, opam, and the Frama-C and GRUB
+  build dependencies.
+- **AppArmor.** It unloads the AppArmor profile that Ubuntu 24.04 ships for
+  opam. Inside an LXD container that profile stops opam's downloads from
+  opening network sockets, so `opam init` fails with "Could not resolve
+  host". A link in `/etc/apparmor.d/disable/` keeps the profile unloaded
+  after a restart of the container.
 
 **2. In the container**, clone the code, fetch the Frama-C and macsl sources,
 and start Claude Code in `tmux`, so the run goes on when you close the
@@ -163,7 +155,8 @@ prompt until you answer it.
   example `bin/rmf-lint.sh grub-analysis-rmf-report.md`): the lint checks
   `bin/rmf-lint.sh` and `bin/ebios-lint.sh` (the machine gates of `rmf-sl`
   and `ebios-sl`), the `bin/framac-*.sh` campaign scripts,
-  `bin/ledger-ratchet.sh`, `bin/crosswalk-gen.sh` and `bin/fetch-sources.sh`.
+  `bin/ledger-ratchet.sh`, `bin/crosswalk-gen.sh`, `bin/fetch-sources.sh`,
+  and `bin/launch_lxc.sh` (step 1 of the quick start).
 - The data those scripts and skills read: the Frama-C patches
   (`frama-c-patches/`), the gold corpus (`framac-gold/`) and `no-ceiling.md`.
 - `bin/fetch-sources.sh` downloads the two trees too large to ship here:

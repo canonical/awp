@@ -1,0 +1,8 @@
+#!/bin/bash
+# Runs as root at install and on every refresh (part of the base snapshot).
+# The opam switch was built at /opt/autowp-rocq; point that path at the SDK.
+ln -sfn "$SDK" /opt/autowp-rocq
+# Run-time libraries of the OCaml-compiled binaries, and the skill's tools.
+apt-get update
+apt-get install libgmp10 zlib1g python3 ripgrep
+install -m 644 "$SDK/autowp-rocq.profile" /etc/profile.d/autowp-rocq.sh

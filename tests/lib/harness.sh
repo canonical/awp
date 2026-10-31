@@ -134,6 +134,28 @@ harness_stop() {
 
 # --- common campaign steps and checks (tests.md 3.4, 4) ---------------------
 
+# The campaign the checks look at. The defaults are the GRUB campaign of
+# smoke-test.sh and acceptance.sh; gzip-test.sh sets its own (tests.md 5.5).
+#   CAMPAIGN_PROJECT   project directory under ~ (foobar)
+#   CAMPAIGN_SRC       source directory in the project, the XXX of /time-loop (grub)
+#   CAMPAIGN_SRC_KIND  repo: the source is its own clone (K1 against its HEAD);
+#                      tracked: the source is committed in the project (K1
+#                      against the import commit)
+#   CAMPAIGN_COMMIT_FILE  file holding the K1 baseline commit
+#   CAMPAIGN_WAKES     strict: fewer than two wakes fails C3.5; info: reported only
+#   CAMPAIGN_LINT      1: the report check also runs bin/rmf-lint.sh on the report
+CAMPAIGN_PROJECT=${CAMPAIGN_PROJECT:-foobar}
+CAMPAIGN_SRC=${CAMPAIGN_SRC:-grub}
+CAMPAIGN_SRC_KIND=${CAMPAIGN_SRC_KIND:-repo}
+CAMPAIGN_COMMIT_FILE=${CAMPAIGN_COMMIT_FILE:-.autowp-grub-commit}
+CAMPAIGN_WAKES=${CAMPAIGN_WAKES:-strict}
+CAMPAIGN_LINT=${CAMPAIGN_LINT:-0}
+
+# The state file of the campaign's time-loop.
+campaign_state_file() {
+    echo "/home/ubuntu/$CAMPAIGN_PROJECT/$CAMPAIGN_SRC-analysis-acsl/time-loop.state"
+}
+
 # campaign_setup_c <container>: the level 2 steps, bin/fetch-sources.sh as the
 # README runs it, and a local bare origin (tests.md 3.4). opam is already
 # initialised in the base (provision.sh step 3).
@@ -150,6 +172,47 @@ campaign_setup_c() {
         git -C grub rev-parse HEAD > ~/.autowp-grub-commit'
 }
 
+# The gzip 1.9 archive of gzip-test.sh (gzip-test.md 2): mirrors tried in
+# order, the pinned sha256, and the fingerprint of the key that signed it.
+GZIP_MIRRORS="https://mirror.us-midwest-1.nexcess.net/gnu//gzip https://ftp.gnu.org/gnu/gzip https://ftpmirror.gnu.org/gzip https://mirrors.kernel.org/gnu/gzip https://mirror.csclub.uwaterloo.ca/gnu/gzip"
+GZIP_SHA256=6dbd6307d88d866bea0d0b39aa14506a6a092eee5bcdc62f0c070ef8ea47e99c
+GZIP_SIGNER=155D3FC500C834486D1EEA677FD9FCCB000BEEEE
+GNU_KEYRING_URL=https://ftp.gnu.org/gnu/gnu-keyring.gpg
+
+# campaign_setup_c_gzip <container>: gzip-test.md 4. Generates gzip-analyze,
+# downloads gzip-1.9.zip from the first mirror that answers, checks its sha256
+# and its GPG signature (G.0), unzips it, commits it as the K1 baseline, and
+# adds a local bare origin. Prints "mirror: <url>"; exits 2 on a check failure.
+campaign_setup_c_gzip() {
+    local c=$1
+    autowp_exec_user "$c" "set -e; touch ~/.autowp-t0; sleep 1
+        cd ~
+        python3 auto-wp/auto-wp.py gzip-analyze --c >/dev/null
+        cd gzip-analyze
+        got=
+        for m in $GZIP_MIRRORS; do
+            if curl -fsSL --max-time 300 -o gzip-1.9.zip \"\$m/gzip-1.9.zip\" &&
+               curl -fsSL --max-time 60 -o gzip-1.9.zip.sig \"\$m/gzip-1.9.zip.sig\"; then
+                got=\$m; break
+            fi
+        done
+        [ -n \"\$got\" ] || { echo 'no mirror answered' >&2; exit 2; }
+        echo \"mirror: \$got\"
+        echo '$GZIP_SHA256  gzip-1.9.zip' | sha256sum -c --quiet || { echo 'sha256 mismatch' >&2; exit 2; }
+        curl -fsSL --max-time 300 -o ~/gnu-keyring.gpg $GNU_KEYRING_URL
+        gpgv --status-fd 1 --keyring ~/gnu-keyring.gpg gzip-1.9.zip.sig gzip-1.9.zip 2>/dev/null \
+            | grep -q '^\[GNUPG:\] VALIDSIG $GZIP_SIGNER ' || { echo 'bad or foreign signature' >&2; exit 2; }
+        unzip -q gzip-1.9.zip
+        rm gzip-1.9.zip gzip-1.9.zip.sig
+        [ -f gzip-1.9/configure ] && [ -f gzip-1.9/gzip.c ] || { echo 'unexpected archive layout' >&2; exit 2; }
+        bin/fetch-sources.sh >/dev/null
+        git add gzip-1.9
+        git -c user.name=autowp-test -c user.email=autowp-test@localhost commit -qm 'import gzip-1.9'
+        git rev-parse HEAD > ~/.autowp-gzip-commit
+        git init -q --bare ~/remote.git
+        git remote add origin ~/remote.git"
+}
+
 # k1 <container> <repo-dir> <commit> <id>: source untouched.
 k1() {
     local c=$1 dir=$2 commit=$3 id=$4
@@ -161,11 +224,24 @@ k1() {
     fi
 }
 
+# k1_tracked <container> <project-dir> <src> <commit> <id>: source untouched,
+# for a source committed in the project (gzip-test.sh). Untracked build output
+# inside <src> is allowed, as for k1.
+k1_tracked() {
+    local c=$1 dir=$2 src=$3 commit=$4 id=$5
+    if autowp_exec_user "$c" "cd '$dir' && git diff --quiet '$commit' -- '$src' \
+        && [ -z \"\$(git status --porcelain --untracked-files=no -- '$src')\" ]"; then
+        pass "$id"
+    else
+        fail "$id" "$src changed since $commit: $(autowp_exec_user "$c" "cd '$dir' && git diff --stat '$commit' -- '$src' | tail -3 | tr '\n' ' '")"
+    fi
+}
+
 # k3 <container> <id>: informational list of files changed outside the allowlist.
 k3() {
     local c=$1 id=$2 out
     out=$(autowp_exec_user "$c" 'find ~ /tmp -xdev -newer ~/.autowp-t0 -type f 2>/dev/null \
-        | grep -vE "^/home/ubuntu/(foobar|toolchain|\.claude|\.claude\.json|\.cache|\.opam|\.local/share/claude|\.config|\.bash_history|\.gitconfig|remote\.git|\.autowp-)|^/tmp/" \
+        | grep -vE "^/home/ubuntu/('"$CAMPAIGN_PROJECT"'|toolchain|\.claude|\.claude\.json|\.cache|\.opam|\.local/share/claude|\.config|\.bash_history|\.gitconfig|remote\.git|\.autowp-)|^/tmp/" \
         | head -30' || true)
     info "$id" "outside the allowlist: ${out:-nothing}" 
     info "$id" "writes into ~/toolchain: $(autowp_exec_user "$c" 'find ~/toolchain -xdev -newer ~/.autowp-t0 -type f 2>/dev/null | head -10 | tr "\n" " "')"
@@ -255,10 +331,21 @@ wait_loop_stopped() {
 # C3.10 is report_check_c).
 campaign_checks_c() {
     local c=$1 hours=$2 p=$3 st S start deadline wakes ncyc longest last n missing=""
-    local F=/home/ubuntu/foobar/grub-analysis-acsl/time-loop.state
-    k1 "$c" /home/ubuntu/foobar/grub "$(autowp_exec_user "$c" 'cat ~/.autowp-grub-commit')" "${p}2"
-    check "${p}3" "grub-analysis-rmf-report.md missing or empty" \
-        autowp_exec_user "$c" 'test -s ~/foobar/grub-analysis-rmf-report.md'
+    local F P=$CAMPAIGN_PROJECT X=$CAMPAIGN_SRC base
+    F=$(campaign_state_file)
+    base=$(autowp_exec_user "$c" "cat ~/$CAMPAIGN_COMMIT_FILE")
+    if [ "$CAMPAIGN_SRC_KIND" = tracked ]; then
+        k1_tracked "$c" "/home/ubuntu/$P" "$X" "$base" "${p}2"
+    else
+        k1 "$c" "/home/ubuntu/$P/$X" "$base" "${p}2"
+    fi
+    if ! autowp_exec_user "$c" "test -s ~/$P/$X-analysis-rmf-report.md"; then
+        fail "${p}3" "$X-analysis-rmf-report.md missing or empty"
+    elif [ "$CAMPAIGN_LINT" = 1 ] && ! autowp_exec_user "$c" "cd ~/$P && bin/rmf-lint.sh $X-analysis-rmf-report.md >/dev/null 2>&1"; then
+        fail "${p}3" "bin/rmf-lint.sh fails on $X-analysis-rmf-report.md"
+    else
+        pass "${p}3"
+    fi
     S=$(state_json "$c" "$F")
     if [ "$(json_get "$S" error)" = missing ]; then
         fail "${p}4" "$F does not exist"
@@ -274,7 +361,8 @@ campaign_checks_c() {
         fi
         wakes=$(python3 -c 'import json,sys; print(" ".join(map(str, json.loads(sys.argv[1])["wakes"])))' "$S")
         n=$(wc -w <<<"$wakes")
-        if [ "$n" -ge 2 ]; then pass "${p}5"
+        if [ "$CAMPAIGN_WAKES" = info ]; then info "${p}5" "$n wake(s) recorded in the state file"
+        elif [ "$n" -ge 2 ]; then pass "${p}5"
         elif [ "$n" -eq 1 ]; then fail "${p}5" "the state file records only one wake: the scheduled wake-up did not fire"
         else fail "${p}5" "no wake recorded in the state file"; fi
         # C3.6: every cycle has a commit in ~/remote.git
@@ -312,16 +400,21 @@ campaign_checks_c() {
 
 # report_check_c <container> <id> <interim|final>: C3.10 / C4.5.
 report_check_c() {
-    local c=$1 id=$2 kind=$3 others
-    if ! autowp_exec_user "$c" 'test -s ~/foobar/grub.md'; then
-        fail "$id" "~/foobar/grub.md missing or empty"; return
+    local c=$1 id=$2 kind=$3 others P=$CAMPAIGN_PROJECT X=$CAMPAIGN_SRC inside
+    if ! autowp_exec_user "$c" "test -s ~/$P/$X.md"; then
+        fail "$id" "~/$P/$X.md missing or empty"; return
     fi
-    if ! autowp_exec_user "$c" "grep -qi '$kind' ~/foobar/grub.md"; then
-        fail "$id" "grub.md does not say it is the $kind report"; return
+    if ! autowp_exec_user "$c" "grep -qi '$kind' ~/$P/$X.md"; then
+        fail "$id" "$X.md does not say it is the $kind report"; return
     fi
-    others=$(autowp_exec_user "$c" 'cd ~/foobar; find . -maxdepth 1 -name "*.md" -newer ~/.autowp-t0 \
-            ! -name grub.md ! -name "grub-analysis-*" ! -name README.md; \
-        git -C grub status --porcelain --untracked-files=all | grep -iE "report|\.md$"' || true)
+    if [ "$CAMPAIGN_SRC_KIND" = tracked ]; then
+        inside="git status --porcelain --untracked-files=all -- '$X'"
+    else
+        inside="git -C '$X' status --porcelain --untracked-files=all"
+    fi
+    others=$(autowp_exec_user "$c" "cd ~/$P; find . -maxdepth 1 -name '*.md' -newer ~/.autowp-t0 \
+            ! -name '$X.md' ! -name '$X-analysis-*' ! -name README.md; \
+        $inside | grep -iE 'report|\.md\$'" || true)
     if [ -n "$others" ]; then fail "$id" "other report files: $(echo "$others" | tr '\n' ' ')"
     else pass "$id"; fi
 }

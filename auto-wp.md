@@ -165,7 +165,16 @@ placeholders in it and changes nothing else:
    mounts into it, not the user's other files, SSH keys or Claude login.
    Three steps:
 
-   1. *On the host*, from the directory that contains `foobar`: set
+   1. *On the host*. In the C README this step is one command,
+      `bin/launch_lxc.sh` (§4.2.1), run from `foobar`; the script finds the
+      project from its own path, takes `CT` and `NET` from the environment,
+      stops if the container already exists, and the README lists what it
+      does in five bullets (network, container, mount, packages, AppArmor).
+      The Rust README, whose project has no `bin/`, gives the same commands
+      inline. The commands: starting in `foobar`, the directory of the
+      README, `cd ..` (the mount line uses `$PWD/foobar`, and running it from
+      inside `foobar` fails with "Missing source path", seen
+      2026-10-30); set
       `CT=wp-foobar` and `NET=lxdbr0`; create the bridge when `lxc network show "$NET"` fails (`lxc network create "$NET"`); `lxc launch ubuntu:24.04 "$CT" --network "$NET"`; wait with
       `lxc exec "$CT" -- cloud-init status --wait`, so that cloud-init
       creates `/home/ubuntu` before the mount does; mount `foobar` with
@@ -436,7 +445,8 @@ permission bits. The layer holds:
   `ebios-lint.sh`, the machine gates of `rmf-sl` and `ebios-sl`;
   `framac-onboard.sh`, `framac-gen-report.sh`, `framac-squeeze-audit.sh`,
   `framac-monitor-check.sh`, `ledger-ratchet.sh`, `crosswalk-gen.sh` and the
-  other `framac-*.sh`), plus `fetch-sources.sh`, written for auto-wp;
+  other `framac-*.sh`), plus `fetch-sources.sh` and `launch_lxc.sh`
+  (step 1 of the README quick start), written for auto-wp;
 - `frama-c-patches/`, `framac-gold/` and `no-ceiling.md`, the data the
   scripts and skills read, at the project root as in `use-frama-c`;
 - a `.gitignore`, written for auto-wp.
@@ -913,7 +923,7 @@ subprocess.
     `/time-loop grub 72` and `bin/fetch-sources.sh`, and contains no `{{`,
     no `~/git/` and no `UFC`.
 13b. `--c foobar` copies the tools of §4.2.1 to `foobar/` as regular files
-    (21 `bin/*.sh` and no `*.sh` at the root, `frama-c-patches/apply.sh`,
+    (22 `bin/*.sh` and no `*.sh` at the root, `frama-c-patches/apply.sh`,
     `framac-gold/`, `no-ceiling.md`, `.gitignore` listing `/framac-src/`),
     with the executable bit on every script; `--rust` creates no `bin/`; an existing `foo/.gitignore` is kept and
     reported with `kept`.

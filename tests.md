@@ -19,6 +19,7 @@ tests/
 │   ├── provision.sh         builds the reusable C base container (§5.1)
 │   ├── install-test.sh      level 2: auto-wp.py --c + git clone grub (§5.2)
 │   ├── smoke-test.sh        level 3: 3-hour /time-loop run (§5.3)
+│   ├── gzip-test.sh         level 3: 1-hour /time-loop run on gzip 1.9 (§5.5)
 │   └── acceptance.sh        level 4: /time-loop grub 72 (§5.4)
 └── rust/
     ├── provision.sh         builds the reusable Rust base container (§6.1)
@@ -41,7 +42,7 @@ script.
 |---|---|---|---|---|
 | 1 | program and template tests | host | seconds | Python 3.10+, git |
 | 2 | README quick start up to the harness, on a stock image | fresh LXD container | minutes | LXD, network |
-| 3 | a short campaign in the harness, or a tool-level regression | container copied from a provisioned base | 3–4 h | level 2, Claude token |
+| 3 | a short campaign in the harness, or a tool-level regression | container copied from a provisioned base | 1–4 h | level 2, Claude token |
 | 4 | `/time-loop grub 72`, plus a resume run | container copied from a provisioned base | 72 h + 4 h | level 3 |
 
 Levels 1 and 2 run on every change to `auto-wp.py` or the templates. Level 3
@@ -114,7 +115,7 @@ content belong on the host, not in a container:
 | T4 | No editor backup (`*~`) and nothing from `use-creusot/config/foo/` in `templates/`. |
 | T5 | Both `README.md` templates contain only the placeholders `{{DIR}}` and `{{LANGUAGE}}`. |
 | T6 | The three `time-loop` changes of `auto-wp.md` §4.2.2 are in `templates/c/`: `commands/time-loop.md` no longer contains "Stop early" nor "(diminishing returns)", and contains the replacement "Stop" bullet; `skills/time-loop/SKILL.md` no longer contains "DIMINISHING-RETURNS stop fires ONLY", and its description contains "There is no diminishing-returns stop"; both files name `XXX.md` as the report file and state that a re-run keeps the stored deadline. |
-| T7 | `templates/c/tools/bin/` holds the 21 scripts (`auto-wp.md` §4.2.1), `templates/c/tools/` has no `*.sh` at its top level, and no file under `templates/` outside `tools/` names one of these scripts without its `bin/` prefix (bare or `./name.sh`). |
+| T7 | `templates/c/tools/bin/` holds the 22 scripts (`auto-wp.md` §4.2.1), `templates/c/tools/` has no `*.sh` at its top level, and no file under `templates/` outside `tools/` names one of these scripts without its `bin/` prefix (bare or `./name.sh`). |
 
 ### 3.3 Claude Code in the container
 
@@ -323,6 +324,41 @@ then `restart`.
 | C4.6b | **Restart after the deadline**: once the resume run has ended, `restart` again with `/time-loop grub 4`. The loop starts no new cycle: it writes the report to `grub.md` and stops within 30 minutes, and the deadline in the state file is unchanged. |
 | C4.7 | No second onboarding: the onboarding package in `grub-analysis-acsl/` has the same modification time and content as before the stop. |
 | C4.8 | `--dir`: after the resume run, `restart` with `/time-loop grub 1 --dir=grub-core/fs` on the same container. The state file then records the scope `grub/grub-core/fs`, and every unit the new cycles work on is under that directory. |
+
+### 5.5 `gzip-test.sh` — level 3, gzip 1.9
+
+The full specification is `gzip-test.md`. A one-hour campaign on a second
+code base, GNU gzip 1.9, in a copy of `autowp-c-base/ready` (the toolchain
+must already be built: a one-hour budget leaves no time to build it).
+
+1. `python3 auto-wp.py gzip-analyze --c` in the container.
+2. Download `gzip-1.9.zip` from the first of five mirrors that answers,
+   check its pinned sha256 and its GPG signature (`gpgv` against the GNU
+   keyring, signing key pinned by fingerprint), unzip it, run
+   `bin/fetch-sources.sh`, and commit `gzip-1.9/` once in `gzip-analyze` as
+   the baseline for K1. `gzip-1.9/` is a release tree, not a clone.
+3. Start the harness in `~/gzip-analyze` and type `/time-loop gzip-1.9 1`.
+   Hard limit 3 hours.
+
+| # | Check |
+|---|---|
+| G.0 | The archive came from a listed mirror, its sha256 matches, its signature is good and made by the pinned key, and `configure` and `gzip.c` exist. On failure the test exits 2 before the token is moved in. |
+| G.1 | K4. |
+| G.2 | K1 for a tracked source: `git diff --quiet <import commit> -- gzip-1.9`; untracked build output allowed. |
+| G.3 | `gzip-1.9-analysis-rmf-report.md` exists, is not empty, and passes `bin/rmf-lint.sh`. |
+| G.4 | As C3.4, with a 1-hour deadline. |
+| G.5 | *Informational.* The number of wakes (one hour may hold a single cycle). |
+| G.6, G.7 | As C3.6 and C3.7. |
+| G.8 | K2. |
+| G.9 | *Informational.* K3, with `~/gzip-analyze` in the allowlist. |
+| G.10 | As C3.10, for `~/gzip-analyze/gzip-1.9.md`. |
+| G.11 | At least one unit has `PROVED` goals in a `verdicts.tsv` of the project; the counts of units, proofs and found issues are printed. |
+
+The checks reuse `campaign_checks_c` and `report_check_c`, which read the
+campaign from `CAMPAIGN_PROJECT`, `CAMPAIGN_SRC`, `CAMPAIGN_SRC_KIND`,
+`CAMPAIGN_COMMIT_FILE`, `CAMPAIGN_WAKES` and `CAMPAIGN_LINT`
+(`tests/lib/harness.sh`); the defaults are the GRUB campaign, so
+`smoke-test.sh` and `acceptance.sh` are unchanged.
 
 ## 6. Rust tests (`tests/rust/`)
 
