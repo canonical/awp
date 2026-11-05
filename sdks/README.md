@@ -54,7 +54,7 @@ because `sdkcraft` builds in a container that only sees the SDK's directory.
 Each SDK also declares `noble-arm64` and `resolute-arm64`. `sdkcraft` does
 not cross-build, so an amd64 host packs only the amd64 platforms; the arm64
 ones are built by `.github/workflows/sdks-arm64.yml` on GitHub's
-`ubuntu-24.04-arm` runner (run it by hand, or on a push to `master` that
+`ubuntu-24.04-arm` runner (run it by hand, or on a push to `main` that
 touches `sdks/`), which keeps each `.sdk` as a workflow artifact. Workshop
 itself only runs on Linux: on a Mac, use it inside an arm64 Ubuntu VM
 (Multipass, UTM, Lima), and test the arm64 SDKs there with `test-sdk.sh`.
