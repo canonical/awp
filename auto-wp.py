@@ -3,7 +3,7 @@
 
 Usage: ./auto-wp.py [--c|--rust] <directory-name>
 
-See auto-wp.md for the specification.
+See spec/auto-wp.md for the specification.
 """
 
 import argparse

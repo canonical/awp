@@ -2,8 +2,8 @@
 
 Four [Workshop](https://ubuntu.com/workshop/docs/) SDKs that package the
 proof environments auto-wp's skills need. The designs are
-`../workshop-autowp-c-base-spec.md` (Frama-C, Rocq, Lean) and
-`../workshop-autowp-rust-base-spec.md` (Creusot).
+`../spec/workshop-autowp-c-base-spec.md` (Frama-C, Rocq, Lean) and
+`../spec/workshop-autowp-rust-base-spec.md` (Creusot).
 
 | SDK | Version | Contents |
 |---|---|---|

@@ -1,7 +1,7 @@
 # C tests
 
 Container tests for a project generated with `auto-wp.py --c`, on GRUB.
-Every check is specified in `../../tests.md` §5; the IDs below are those of
+Every check is specified in `../../spec/tests.md` §5; the IDs below are those of
 that section. Run the scripts from any directory, or through the `make`
 targets at the repository root. See `../README.md` for the levels, the LXD
 objects and the Claude token.
@@ -59,7 +59,7 @@ Copies `autowp-c-base/ready`, generates `foobar`, clones GRUB, and runs
 
 ## `gzip-test.sh` — level 3, gzip 1.9
 
-A one-hour campaign on GNU gzip 1.9 (`../../gzip-test.md`, `tests.md`
+A one-hour campaign on GNU gzip 1.9 (`../../spec/gzip-test.md`, `tests.md`
 §5.5), in a copy of `autowp-c-base/ready`. In the container it generates
 `gzip-analyze`, downloads `gzip-1.9.zip` from the first of five mirrors that
 answers, checks its sha256 and its GPG signature (signing key pinned), unzips

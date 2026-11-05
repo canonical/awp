@@ -1,4 +1,4 @@
-# auto-wp — test targets (see tests.md).
+# auto-wp — test targets (see spec/tests.md).
 #
 # Levels 1 and 2 are run by `make test` and `make test-l2`. Levels 3 and 4
 # (provision, smoke, workspace, acceptance) take hours and need a Claude
@@ -75,7 +75,7 @@ workspace-rust: | $(OUT) ## Level 3, Rust: why3find.json workspace cases A-H
 smoke-rust: | $(OUT) ## Level 3, Rust: creusot-launch smoke test (token)
 	tests/rust/smoke-test.sh 2>&1 | tee $(OUT)/rust-smoke-$(STAMP).log
 
-# --- Workshop SDKs (workshop-autowp-c-base-spec.md) ------------------------
+# --- Workshop SDKs (spec/workshop-autowp-c-base-spec.md) ------------------------
 # Each target packs the SDK with `sdkcraft try` and runs sdks/test-sdk.sh on a
 # throwaway workshop. Needs sdkcraft, workshop and LXD 6.8+. Not run by `test`.
 

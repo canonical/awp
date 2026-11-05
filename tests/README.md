@@ -1,7 +1,7 @@
 # auto-wp tests
 
 Tests for `auto-wp.py` and the projects it generates. The full specification,
-with every check and its rationale, is `../tests.md`. This file says what is
+with every check and its rationale, is `../spec/tests.md`. This file says what is
 here and how to run it.
 
 ## Levels

@@ -2,7 +2,7 @@
 
 Container tests for a project generated with `auto-wp.py --rust`, which
 verifies Rust code with Creusot. Every check is specified in
-`../../tests.md` §6; the IDs below are those of that section. Run the
+`../../spec/tests.md` §6; the IDs below are those of that section. Run the
 scripts from any directory, or through the `make` targets at the repository
 root. See `../README.md` for the levels, the LXD objects and the Claude
 token.
