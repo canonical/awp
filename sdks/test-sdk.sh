@@ -114,16 +114,22 @@ for s in "$@"; do
             for e in rocq lean frama-c-sdk; do
                 case " $* " in *" $e "*) ;; *) extra=$e; break ;; esac
             done
-            [ -n "$extra" ] && echo "  - name: try-$extra" >> "$P/.workshop/sdktest.yaml"
+            if [ -z "$extra" ]; then
+                # All the other SDKs are already in this workshop: nothing to
+                # add. sdks/creusot/tests/run.sh runs this check on its own.
+                echo "SKIP: $s.persist: no other SDK left to add; see sdks/creusot/tests/run.sh"
+                continue
+            fi
+            echo "  - name: try-$extra" >> "$P/.workshop/sdktest.yaml"
             wx 'sudo touch /etc/autowp-persist-marker' >/dev/null 2>&1
-            if [ -n "$extra" ] && workshop -p "$P" refresh sdktest >/dev/null 2>&1 \
+            if workshop -p "$P" refresh sdktest >/dev/null 2>&1 \
                 && [ "$(wx 'test -e /etc/autowp-persist-marker && echo kept || echo rebuilt' 2>&1)" = rebuilt ]; then
                 out=$(wx 'rustup target list --installed; rustup default; grep -c "creusot-std" ~/.cargo/config.toml' 2>&1)
                 grep -q "^x86_64-unknown-uefi$" <<<"$out" && grep -q "^nightly-2026-08-03" <<<"$out" \
                     && grep -qx "[1-9]" <<<"$(tail -1 <<<"$out")" \
                     && pass "$s.persist" || fail "$s.persist" "$(tr '\n' ' ' <<<"$out")"
             else
-                fail "$s.persist" "no SDK to add, refresh failed, or the container was not rebuilt"
+                fail "$s.persist" "refresh failed, or the container was not rebuilt"
             fi
             ;;
     esac
