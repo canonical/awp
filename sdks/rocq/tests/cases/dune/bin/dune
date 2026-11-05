@@ -1,0 +1,9 @@
+(rocq.extraction
+ (prelude Extr)
+ (extracted_modules gauss)
+ (theories Stdlib DuneLib))
+
+(executable
+ (name main)
+ (modes byte exe)
+ (modules main gauss))

@@ -1,0 +1,39 @@
+summary: Launch a workshop with the lean SDK and check its tools
+
+prepare: |
+  envsubst '${BASE}' <workshop.yaml.in >workshop.yaml
+  workshop launch
+
+restore: |
+  workshop remove || true
+
+execute: |
+  # `workshop launch` only returns 0 once check-health said okay, which
+  # already elaborated a theorem with lean.
+  workshop info test-lean | MATCH "^status: +ready"
+
+  # The tools are on the PATH of the workshop user.
+  workshop exec -- lean --version | MATCH "^Lean \(version 4\.35\.0,"
+  workshop exec -- lake --version | MATCH "Lean version 4\.35\.0"
+  workshop exec -- elan --version | MATCH "^elan 4\."
+  workshop exec -- rg --version | MATCH "^ripgrep "
+  workshop exec -- which lean | MATCH "^/home/workshop/\.elan/bin/lean$"
+  workshop exec -- which lean-lsp-mcp | MATCH "^/opt/lean/venv/bin/lean-lsp-mcp$"
+  workshop exec -- lean-lsp-mcp --version | MATCH "0\.32\.0"
+  workshop exec -- printenv ELAN_HOME | MATCH "^/home/workshop/\.elan$"
+
+  # elan's home was seeded from the SDK, with the pinned toolchain as default
+  # (elan 4.2 has no `elan default` query: read it from `elan show`).
+  workshop exec -- elan show | MATCH "^leanprover/lean4:v4\.35\.0 \(default\)"
+  workshop exec -- cat /home/workshop/.elan/settings.toml \
+    | MATCH 'default_toolchain = "leanprover/lean4:v4\.35\.0"'
+
+  # Both mounts are in place.
+  workshop info test-lean | MATCH "workshop-target: +/home/workshop/\.elan$"
+  workshop info test-lean | MATCH "workshop-target: +/home/workshop/\.cache/mathlib$"
+
+debug: |
+  workshop info test-lean || true
+  workshop tasks || true
+  workshop exec -- printenv PATH || true
+  workshop exec -- ls -la /home/workshop/.elan || true

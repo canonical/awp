@@ -1,4 +1,0 @@
-#!/bin/sh
-# Runs z3 from the autowp-framac opam switch.
-. /opt/autowp-framac/env.sh
-exec z3 "$@"

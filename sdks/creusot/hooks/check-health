@@ -1,0 +1,22 @@
+#!/bin/bash
+# Runs as root; checks as the workshop user. The single-quoted script is
+# expanded by the workshop user's login shell, not here. Kept to seconds:
+# the proofs are in sdks/test-sdk.sh.
+# shellcheck disable=SC2016
+if ! out=$(runuser -u workshop -- bash -lc '
+        set -e
+        v=$(cargo creusot version 2>&1)
+        head -1 <<<"$v" | grep -qx "cargo-creusot 0.15.0-dev"
+        # The provers of this architecture (no CVC4 on arm64), from the build.
+        IFS="|" read -ra want <<<"version 1.8.2|why3find v1.3.0|$(cat /opt/creusot/share/provers)"
+        for t in "${want[@]}"; do
+            grep -qF -- "$t" <<<"$v" || { echo "cargo creusot version: no $t"; exit 1; }
+        done
+        [ "$(command -v cargo-creusot)" = /opt/creusot/bin/cargo-creusot ]
+        [ ! -e "$HOME/.cargo/bin/cargo-creusot" ] || { echo "~/.cargo/bin/cargo-creusot shadows the SDK one"; exit 1; }
+        cargo creusot config | grep -qx "No problems found."
+        rustup run nightly-2026-08-03 /opt/creusot/data/toolchains/nightly-2026-08-03/bin/creusot-rustc --version' 2>&1); then
+    workshopctl set-health error "creusot: $(echo "$out" | tail -3 | tr '\n' ' ')"
+    exit 0
+fi
+workshopctl set-health okay

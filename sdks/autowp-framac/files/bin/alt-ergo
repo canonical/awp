@@ -1,4 +1,0 @@
-#!/bin/sh
-# Runs alt-ergo from the autowp-framac opam switch.
-. /opt/autowp-framac/env.sh
-exec alt-ergo "$@"

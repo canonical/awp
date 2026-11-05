@@ -1,0 +1,4 @@
+#!/bin/sh
+# Runs a command in the frama-c-sdk opam switch: frama-c-sdk-exec <cmd> [args]
+. /opt/frama-c-sdk/env.sh
+exec "$@"

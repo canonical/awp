@@ -1,4 +1,0 @@
-#!/bin/sh
-# Runs frama-c-gui from the autowp-framac opam switch.
-. /opt/autowp-framac/env.sh
-exec frama-c-gui "$@"

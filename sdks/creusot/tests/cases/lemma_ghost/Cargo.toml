@@ -1,0 +1,10 @@
+[package]
+name = "lemma_ghost"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+creusot-std = "0.15.0-dev"
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(creusot)'] }

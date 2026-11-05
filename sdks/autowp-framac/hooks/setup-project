@@ -1,3 +1,0 @@
-#!/bin/bash
-# Runs as the workshop user: Why3's prover configuration is per user.
-/opt/autowp-framac/bin/autowp-framac-exec why3 config detect >/dev/null

@@ -1,4 +1,0 @@
-#!/bin/sh
-# Runs dune from the autowp-framac opam switch.
-. /opt/autowp-framac/env.sh
-exec dune "$@"

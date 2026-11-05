@@ -1,0 +1,25 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "enabledManagers": ["custom.regex"],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "managerFilePatterns": ["/^sdks/lean/sdkcraft\\.yaml$/"],
+      "matchStrings": ["version:\\s*\"(?<currentValue>[0-9.]+)\""],
+      "depNameTemplate": "leanprover/lean4",
+      "datasourceTemplate": "github-releases",
+      "extractVersionTemplate": "^v(?<version>.*)$",
+      "versioningTemplate": "semver"
+    }
+  ],
+  "baseBranchPatterns": ["master"],
+  "packageRules": [
+    {
+      "matchPackageNames": ["leanprover/lean4"],
+      "matchBaseBranches": ["master"],
+      "allowedVersions": "/^4\\./",
+      "ignoreUnstable": true
+    }
+  ]
+}

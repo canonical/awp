@@ -1,0 +1,54 @@
+summary: lean-lsp-mcp answers MCP requests on a Lake project over stdio
+
+details: |
+  ../../lib/mcp_probe.py speaks raw JSON-RPC (standard library only): the
+  MCP initialize handshake, tools/list, then lean_diagnostic_messages,
+  lean_goal, lean_local_search (ripgrep) and lean_verify on
+  ../../lib/algo/Probe.lean, which has one correct and one false theorem.
+
+prepare: |
+  envsubst '${BASE}' <workshop.yaml.in >workshop.yaml
+  cp -r ../../lib/algo algo
+  cp ../../lib/mcp_probe.py .
+  workshop launch
+
+restore: |
+  workshop remove || true
+  rm -rf algo mcp_probe.py workshop.yaml mcp.log
+
+execute: |
+  workshop exec -- cp -r /project/algo /tmp/algo
+  # Build first, so that the server's `lake serve` finds the imports ready.
+  workshop exec -w /tmp/algo -- lake build
+  workshop exec -w /tmp/algo -- timeout 1200 /usr/bin/python3 /project/mcp_probe.py /tmp/algo Probe.lean >mcp.log 2>&1
+  cat mcp.log
+
+  MATCH "^MCP-INIT: OK" <mcp.log
+  MATCH "^MCP-SERVER: Lean LSP 0\.32\.0" <mcp.log
+  MATCH "^MCP-LIST: OK" <mcp.log
+  for t in lean_goal lean_diagnostic_messages lean_local_search lean_verify lean_hover_info lean_multi_attempt; do
+    grep "^MCP-TOOLS:" mcp.log | MATCH " $t( |$)"
+  done
+
+  # section NAME: the raw result of one tool call.
+  section() { awk -v s="$1" '$0 ~ "^----- "s" result" {on=1; next} $0 ~ "^----- end "s {on=0} on' mcp.log; }
+
+  # Diagnostics: the omega error of the false theorem on line 5, nothing else.
+  MATCH "^MCP-DIAG: OK" <mcp.log
+  section DIAG | MATCH '"line": 5'
+  section DIAG | MATCH "omega could not prove the goal"
+  section DIAG | NOMATCH '"line": 3[,}]'
+  # The goal before the tactic on line 3.
+  MATCH "^MCP-GOAL: OK" <mcp.log
+  section GOAL | MATCH "Algo\.isort l\)\.length = l\.length"
+  # ripgrep-backed declaration search.
+  MATCH "^MCP-SEARCH: OK" <mcp.log
+  section SEARCH | MATCH "isort_perm"
+  # Axiom check of the sort's specification, with the source scan working.
+  MATCH "^MCP-VERIFY: OK" <mcp.log
+  section VERIFY | MATCH '"trust": "standard"'
+  section VERIFY | NOMATCH "sorryAx|not installed"
+
+debug: |
+  cat mcp.log 2>/dev/null || true
+  workshop exec -- cat /tmp/lean-lsp-mcp.stderr || true

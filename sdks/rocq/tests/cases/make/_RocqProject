@@ -1,0 +1,9 @@
+-R theories AutoWP
+theories/Trees.v
+theories/Compiler.v
+theories/Sort.v
+theories/Recursion.v
+theories/Ssr.v
+theories/Tactics2.v
+theories/Extract.v
+theories/Audit.v

@@ -1,0 +1,4 @@
+name: test-lean
+base: ${BASE}
+sdks:
+  - name: try-lean

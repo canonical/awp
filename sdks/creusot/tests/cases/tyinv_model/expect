@@ -1,0 +1,8 @@
+proved impl_Bounded/new
+proved impl_Bounded/get
+proved impl_Bounded/incr
+proved impl_Stack/new
+proved impl_Stack/is_full
+proved impl_Stack/push
+proved impl_Stack/pop
+proved client

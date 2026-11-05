@@ -1,0 +1,3 @@
+proved impl_Bounded/incr_ok
+failed impl_Bounded/incr_unchecked
+failed impl_Bounded/make_bad

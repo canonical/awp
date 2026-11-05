@@ -1,0 +1,49 @@
+summary: elan's home and the Mathlib cache survive restore and refresh
+
+details: |
+  ~/.elan and ~/.cache/mathlib are mount plugs. `workshop restore` rolls the
+  container filesystem back to the last launch (a marker in /etc goes) but
+  must leave the mounts (their markers stay), and the setup-project hook
+  must not reseed a populated ~/.elan. A refresh with an unchanged
+  definition must keep everything working.
+
+prepare: |
+  envsubst '${BASE}' <workshop.yaml.in >workshop.yaml
+  cp -r ../../lib/algo algo
+  workshop launch
+
+restore: |
+  workshop remove || true
+  rm -rf algo workshop.yaml
+
+execute: |
+  # check_lean: the toolchain works and a project builds and runs.
+  check_lean() {
+    workshop exec -- elan show | MATCH "^leanprover/lean4:v4\.35\.0 \(default\)"
+    workshop exec -- lean --version | MATCH "^Lean \(version 4\.35\.0,"
+    workshop exec -- rm -rf /tmp/algo
+    workshop exec -- cp -r /project/algo /tmp/algo
+    workshop exec -w /tmp/algo -- lake build | MATCH "Build completed successfully"
+    workshop exec -w /tmp/algo -- lake exe algo 4 2 3 | MATCH "^2 3 4$"
+  }
+
+  workshop exec -- sh -c 'echo keep > ~/.elan/autowp-test-marker'
+  workshop exec -- sh -c 'echo keep > ~/.cache/mathlib/autowp-test-marker'
+  workshop exec -- sudo touch /etc/autowp-test-marker
+
+  workshop restore test-lean
+  workshop info test-lean | MATCH "^status: +ready"
+  workshop exec -- test ! -e /etc/autowp-test-marker
+  workshop exec -- cat /home/workshop/.elan/autowp-test-marker | MATCH "^keep$"
+  workshop exec -- cat /home/workshop/.cache/mathlib/autowp-test-marker | MATCH "^keep$"
+  check_lean
+
+  workshop refresh test-lean
+  workshop info test-lean | MATCH "^status: +ready"
+  workshop exec -- cat /home/workshop/.elan/autowp-test-marker | MATCH "^keep$"
+  workshop exec -- cat /home/workshop/.cache/mathlib/autowp-test-marker | MATCH "^keep$"
+  check_lean
+
+debug: |
+  workshop info test-lean || true
+  workshop exec -- ls -la /home/workshop/.elan /home/workshop/.cache/mathlib || true

@@ -1,0 +1,57 @@
+summary: Build, run and audit a multi-module Lake project with verified algorithms
+
+details: |
+  ../../lib/algo is a Lake project with the library Algo (inductive types,
+  structural and well-founded recursion, an insertion sort proved sorted and
+  a permutation of its input, a state-machine model with an inductive
+  invariant) and the executable algo. It depends on Lean's core library
+  only, so the build is offline.
+
+prepare: |
+  envsubst '${BASE}' <workshop.yaml.in >workshop.yaml
+  cp -r ../../lib/algo algo
+  workshop launch
+
+restore: |
+  workshop remove || true
+  rm -rf algo workshop.yaml *.log
+
+execute: |
+  # Build in the workshop, not in /project (the host's directory).
+  workshop exec -- cp -r /project/algo /tmp/algo
+
+  workshop exec -w /tmp/algo -- lake build >build.log 2>&1
+  MATCH "Build completed successfully" <build.log
+  # No warning at all: in particular no "declaration uses 'sorry'".
+  NOMATCH "warning|sorry" <build.log
+  for m in Basic WF Sort Model; do
+    workshop exec -- test -f "/tmp/algo/.lake/build/lib/lean/Algo/$m.olean"
+  done
+
+  # The executable sorts its arguments and runs the well-founded functions.
+  workshop exec -w /tmp/algo -- lake exe algo 5 3 9 1 0 3 >run.log
+  MATCH "^0 1 3 3 5 9$" <run.log
+  MATCH "^log2'\(1000\) = 9, gcd'\(84, 36\) = 12$" <run.log
+  rc=0
+  workshop exec -w /tmp/algo -- ./.lake/build/bin/algo 1 x 2>usage.log || rc=$?
+  test "$rc" = 2
+  MATCH "usage: algo" <usage.log
+
+  # Incremental: editing one module rebuilds it and none of the unrelated ones.
+  workshop exec -w /tmp/algo -- sh -c "echo '-- edited' >> Algo/Model.lean"
+  workshop exec -w /tmp/algo -- lake build >rebuild.log 2>&1
+  MATCH "Built Algo\.Model" <rebuild.log
+  NOMATCH "Built Algo\.(Basic|WF|Sort)\b" <rebuild.log
+
+  # Axiom audit: 13 theorems, no sorryAx, only Lean's standard axioms.
+  workshop exec -w /tmp/algo -- lake env lean Audit.lean >axioms.log 2>&1
+  test "$(grep -cE "depends on axioms|does not depend on any axioms" axioms.log)" = 13
+  NOMATCH "sorryAx" <axioms.log
+  extra=$(grep -oE "\[[^]]*\]" axioms.log | tr -d '[] ' | tr ',' '\n' \
+    | grep -vxE "propext|Classical\.choice|Quot\.sound|" || true)
+  test -z "$extra"
+  rm -f build.log run.log usage.log rebuild.log axioms.log
+
+debug: |
+  cat build.log rebuild.log axioms.log 2>/dev/null || true
+  workshop exec -- ls -la /tmp/algo /tmp/algo/.lake/build/lib/lean/Algo || true

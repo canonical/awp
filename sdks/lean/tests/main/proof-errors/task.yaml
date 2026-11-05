@@ -1,0 +1,69 @@
+summary: False proofs, sorry, axioms, non-termination and broken builds are rejected
+
+details: |
+  Each case passes only if Lean reports the expected error with exit
+  status 1; a crash (panic, segfault, stack overflow) never counts.
+
+prepare: |
+  envsubst '${BASE}' <workshop.yaml.in >workshop.yaml
+  cp -r ../../lib/neg neg
+  cp -r ../../lib/broken broken
+  workshop launch
+
+restore: |
+  workshop remove || true
+  rm -rf neg broken workshop.yaml out.log
+
+execute: |
+  workshop exec -- cp -r /project/neg /project/broken /tmp/
+
+  # lean_rejects FILE PATTERN...: `lean FILE` exits 1, without crashing, and
+  # its output matches every PATTERN.
+  lean_rejects() {
+    local f=$1 rc=0 p
+    shift
+    workshop exec -w /tmp/neg -- lean "$f" >out.log 2>&1 || rc=$?
+    cat out.log
+    test "$rc" = 1
+    NOMATCH "PANIC|Segmentation fault|uncaught exception|[Ss]tack overflow" <out.log
+    for p in "$@"; do MATCH "$p" <out.log; done
+  }
+  lean_rejects FalseDecide.lean "FalseDecide.lean:2:[0-9]+: error: Tactic .decide. proved that the proposition" "is false"
+  lean_rejects FalseOmega.lean "FalseOmega.lean:2:[0-9]+: error: omega could not prove the goal"
+  lean_rejects FalseGrind.lean "FalseGrind.lean:2:[0-9]+: error: .grind. failed"
+  lean_rejects FalseInduction.lean "FalseInduction.lean:[0-9]+:[0-9]+: error: unsolved goals"
+  lean_rejects NonTerm.lean "NonTerm.lean:2:[0-9]+: error: fail to show termination"
+  lean_rejects BadDecreasing.lean "BadDecreasing.lean:4:[0-9]+: error: omega could not prove the goal"
+
+  # sorry is accepted with a warning, exposed by #print axioms, and rejected
+  # once warnings are errors.
+  workshop exec -w /tmp/neg -- lean Sorry.lean >out.log 2>&1
+  MATCH "Sorry.lean:2:[0-9]+: warning: declaration uses .sorry." <out.log
+  MATCH "'uses_cheat' depends on axioms: \[sorryAx\]" <out.log
+  rc=0
+  workshop exec -w /tmp/neg -- lean -DwarningAsError=true Sorry.lean >out.log 2>&1 || rc=$?
+  test "$rc" = 1
+  MATCH "Sorry.lean:2:[0-9]+: error: declaration uses .sorry." <out.log
+
+  # A smuggled axiom compiles silently: only #print axioms reveals it.
+  workshop exec -w /tmp/neg -- lean Axiom.lean >out.log 2>&1
+  NOMATCH "error" <out.log
+  MATCH "'looks_fine' depends on axioms: \[smuggled\]" <out.log
+
+  # Mathlib is not bundled: importing it fails at once, offline, cleanly.
+  workshop exec -- sh -c "printf 'import Mathlib\n' > /tmp/M.lean"
+  lean_rejects /tmp/M.lean "error: unknown module prefix 'Mathlib'"
+
+  # A Lake project with a type error in one module: the build fails and names
+  # the file and line, the good module is built, the bad one is not.
+  rc=0
+  workshop exec -w /tmp/broken -- lake build >out.log 2>&1 || rc=$?
+  cat out.log
+  test "$rc" != 0
+  MATCH "error: Broken/Bad.lean:4:[0-9]+: Type mismatch" <out.log
+  MATCH "error: build failed" <out.log
+  workshop exec -- test -f /tmp/broken/.lake/build/lib/lean/Broken/Good.olean
+  workshop exec -- test ! -e /tmp/broken/.lake/build/lib/lean/Broken/Bad.olean
+
+debug: |
+  cat out.log 2>/dev/null || true

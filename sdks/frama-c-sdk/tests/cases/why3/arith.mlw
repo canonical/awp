@@ -1,0 +1,6 @@
+(* Plain Why3, no Frama-C: each prover must answer Valid. *)
+theory Arith
+  use int.Int
+  goal distrib: forall a b c: int. a * (b + c) = a * b + a * c
+  goal order: forall x y: int. x < y -> x + 1 <= y
+end

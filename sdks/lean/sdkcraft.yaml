@@ -1,0 +1,56 @@
+name: lean
+version: "4.35.0"
+title: Lean 4 for auto-wp
+summary: Lean 4 through elan, with Lake, ripgrep and the Lean LSP MCP server
+description: |
+  This SDK provides the Lean 4 theorem prover for the auto-wp `lean` skill:
+  elan with the toolchain leanprover/lean4:v4.35.0 preinstalled, Lake,
+  ripgrep for lemma search and the lean-lsp-mcp server for interactive proof
+  inspection. elan's home, with its toolchains, and Mathlib's cache are
+  persisted on the host across workshop updates. Mathlib itself is not
+  bundled.
+license: Apache-2.0
+platforms:
+  noble:
+    build-on: [ubuntu@24.04:amd64]
+    build-for: [ubuntu@24.04:amd64]
+  resolute:
+    build-on: [ubuntu@26.04:amd64]
+    build-for: [ubuntu@26.04:amd64]
+  # arm64 (Apple Silicon VMs, arm64 servers): built on an arm64 host, e.g.
+  # the GitHub ubuntu-24.04-arm runner (.github/workflows/sdks-arm64.yml);
+  # sdkcraft does not cross-build.
+  noble-arm64:
+    build-on: [ubuntu@24.04:arm64]
+    build-for: [ubuntu@24.04:arm64]
+  resolute-arm64:
+    build-on: [ubuntu@26.04:arm64]
+    build-for: [ubuntu@26.04:arm64]
+
+plugs:
+  elan:
+    interface: mount
+    workshop-target: /home/workshop/.elan
+  mathlib-cache:
+    interface: mount
+    workshop-target: /home/workshop/.cache/mathlib
+
+parts:
+  elan:
+    plugin: nil
+    build-packages: [curl, ca-certificates]
+    override-build: |
+      set -eo pipefail
+      # elan for the target architecture (x86_64 or aarch64).
+      ARCH="${CRAFT_ARCH_TRIPLET_BUILD_FOR%%-*}"
+      curl -fsSL "https://github.com/leanprover/elan/releases/download/v4.2.4/elan-$ARCH-unknown-linux-gnu.tar.gz" \
+          | tar -xz
+      # Install elan and the pinned toolchain into a staging ELAN_HOME; the
+      # setup-project hook copies it into the user's ~/.elan (a mount plug).
+      export ELAN_HOME="$CRAFT_PART_INSTALL/elan"
+      ./elan-init -y --no-modify-path \
+          --default-toolchain "leanprover/lean4:v$CRAFT_PROJECT_VERSION"
+      "$ELAN_HOME/bin/lean" --version
+  config:
+    plugin: dump
+    source: files

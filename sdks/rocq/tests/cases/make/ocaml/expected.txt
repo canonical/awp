@@ -1,0 +1,5 @@
+isort: 0 1 3 3 5 9
+gcd: 21
+log2: 9
+interleave: 1 2 3 4 5
+run: 14 eval: 14

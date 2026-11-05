@@ -1,0 +1,11 @@
+#!/bin/bash
+# Runs as root at install and on every refresh (part of the base snapshot).
+# The opam switch was built at /opt/rocq; point that path at the SDK.
+ln -sfn "$SDK" /opt/rocq
+# Run-time libraries of the OCaml-compiled binaries, the skill's tools, and
+# make and gcc for `rocq makefile` projects and native OCaml (ocamlopt needs
+# the assembler, linker and libc6-dev for -lm; extracted code and dune
+# executables need them).
+apt-get update
+apt-get install libgmp10 zlib1g python3 ripgrep make gcc libc6-dev
+install -m 644 "$SDK/rocq.profile" /etc/profile.d/rocq.sh

@@ -1,0 +1,6 @@
+proved add_bounded
+proved add_checked
+proved add_saturating
+proved add_wrapping
+proved midpoint
+proved abs

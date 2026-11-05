@@ -1,0 +1,4 @@
+#!/bin/sh
+# Runs why3 from the frama-c-sdk opam switch.
+. /opt/frama-c-sdk/env.sh
+exec why3 "$@"

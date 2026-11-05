@@ -1,0 +1,185 @@
+name: creusot
+version: "0.15.0-f15b985"
+title: Creusot for auto-wp
+summary: Creusot at f15b985 with its Rust nightly, Why3, why3find and provers
+description: |
+  The Creusot toolchain the auto-wp Rust skills expect: cargo-creusot and
+  creusot-rustc built at commit f15b985, the Rust nightly-2026-08-03 they
+  need, Creusot's Why3 and why3find switch, Alt-Ergo, Z3, CVC4 and CVC5,
+  and the Creusot sources that creusot-std is patched to.
+  Alt-Ergo 2.6.4 is bundled under the OCamlPro Non-Commercial Purpose
+  License: research use only, see share/licenses/alt-ergo/ in the SDK.
+license: LGPL-2.1-or-later AND LicenseRef-OCamlPro-Non-Commercial-1.0
+platforms:
+  noble:
+    build-on: [ubuntu@24.04:amd64]
+    build-for: [ubuntu@24.04:amd64]
+  resolute:
+    build-on: [ubuntu@26.04:amd64]
+    build-for: [ubuntu@26.04:amd64]
+  # arm64 (Apple Silicon VMs, arm64 servers): built on an arm64 host, e.g.
+  # the GitHub ubuntu-24.04-arm runner (.github/workflows/sdks-arm64.yml);
+  # sdkcraft does not cross-build.
+  noble-arm64:
+    build-on: [ubuntu@24.04:arm64]
+    build-for: [ubuntu@24.04:arm64]
+  resolute-arm64:
+    build-on: [ubuntu@26.04:arm64]
+    build-for: [ubuntu@26.04:arm64]
+
+plugs:
+  rustup:
+    interface: mount
+    workshop-target: /home/workshop/.rustup
+  cargo:
+    interface: mount
+    workshop-target: /home/workshop/.cargo
+
+parts:
+  creusot:
+    plugin: nil
+    source: https://github.com/creusot-rs/creusot.git
+    source-type: git
+    source-commit: f15b98593980ce264a681a275b204891d03e9608
+    build-packages: [opam, build-essential, pkg-config, m4, unzip, curl,
+                     ca-certificates, git, rsync, autoconf, libgmp-dev,
+                     zlib1g-dev, python3]
+    override-build: |
+      set -eo pipefail
+      # Design: workshop-autowp-rust-base-spec.md §3. Everything is built at
+      # /opt/creusot, the path setup-base links to $SDK at run time:
+      # the opam switch and cargo-creusot's creusot-std path are absolute.
+      R=/opt/creusot
+      COMMIT=f15b98593980ce264a681a275b204891d03e9608
+      NIGHTLY=nightly-2026-08-03
+      RUSTUP_VERSION=1.29.2
+      # x86_64 or aarch64. On aarch64, Creusot's installer has no Alt-Ergo
+      # binary (built from opam below) and no CVC4 at all (CVC5 supersedes it).
+      ARCH="${CRAFT_ARCH_TRIPLET_BUILD_FOR%%-*}"
+      case "$ARCH" in
+          x86_64)  RUSTUP_SHA256=5be191e8c70a5007074254cb74d78dbfdd25cd5a61c27de7b8e5410122ec24f4 ;;
+          aarch64) RUSTUP_SHA256=a9c168dbea81a84671c6b7a5c1795cb0eb699020110d107ddfca427bd797e697 ;;
+          *) echo "unsupported architecture: $ARCH"; exit 1 ;;
+      esac
+      rm -rf "$R"; mkdir -p "$R/bin" "$R/src" "$R/share/smoke" "$R/seed"
+      export RUSTUP_HOME="$R/rustup" CARGO_HOME="$R/cargo" \
+             CREUSOT_DATA_HOME="$R/data" OPAMROOT="$R/opam" \
+             OPAMYES=1 OPAMCOLOR=never
+      export PATH="$R/bin:$CARGO_HOME/bin:$PATH"
+      INFO="$R/share/build-info.txt"
+
+      # 1. The checkout at its final path (cargo-creusot records it).
+      rsync -a --exclude /target "$CRAFT_PART_BUILD/" "$R/src/creusot/"
+      test "$(git -C "$R/src/creusot" rev-parse HEAD)" = "$COMMIT"
+
+      # 2. Rust: a pinned rustup-init, the nightly installed explicitly, and
+      #    made the default (the cargo proxy refuses to run without one).
+      curl -fsSL -o /tmp/rustup-init \
+          "https://static.rust-lang.org/rustup/archive/$RUSTUP_VERSION/$ARCH-unknown-linux-gnu/rustup-init"
+      echo "$RUSTUP_SHA256  /tmp/rustup-init" | sha256sum -c -
+      chmod +x /tmp/rustup-init
+      /tmp/rustup-init -y --no-modify-path --profile minimal --default-toolchain none
+      rustup toolchain install "$NIGHTLY" --profile minimal \
+          -c rustfmt -c rustc-dev -c llvm-tools
+      rustup default "$NIGHTLY"
+
+      # 3. opam, without why3-ide (and so without GTK).
+      opam init --disable-sandboxing --bare --no-setup
+      opam var --global in-creusot-ci=true
+
+      # 4. Creusot: Why3 + why3find switch in $CREUSOT_DATA_HOME/_opam,
+      #    cargo-creusot, creusot-rustc, the prelude, the provers. On aarch64,
+      #    Alt-Ergo 2.6.4 comes from its own opam switch under $R (the
+      #    installer links $CREUSOT_DATA_HOME/bin/alt-ergo to it), and CVC4
+      #    is dropped from the default why3find.json of `cargo creusot new`.
+      PROVERS="alt-ergo 2.6.4|z3 5.3.2|cvc4 1.8|cvc5 1.4.1"
+      if [ "$ARCH" = aarch64 ]; then
+          opam switch create alt-ergo ocaml-base-compiler.4.14.2 --no-switch
+          opam install --switch=alt-ergo alt-ergo.2.6.4
+          (cd "$R/src/creusot" && PATH="$OPAMROOT/alt-ergo/bin:$PATH" ./INSTALL --external alt-ergo)
+          python3 - "$CREUSOT_DATA_HOME/why3find.json" <<'PY'
+      import json, sys
+      f = sys.argv[1]; c = json.load(open(f))
+      c["provers"] = [p for p in c["provers"] if p != "cvc4"]
+      c["profile"] = [p for p in c.get("profile", []) if not p["prover"].startswith("cvc4")]
+      json.dump(c, open(f, "w"), indent=2)
+      PY
+          PROVERS="alt-ergo 2.6.4|z3 5.3.2|cvc5 1.4.1"
+      else
+          (cd "$R/src/creusot" && ./INSTALL)
+      fi
+
+      # 5. cargo-creusot out of $CARGO_HOME/bin (which becomes the seed).
+      mv "$CARGO_HOME/bin/cargo-creusot" "$R/bin/"
+
+      # 6. Checks.
+      v=$(cargo creusot version 2>&1)
+      echo "$v" | head -8
+      head -1 <<<"$v" | grep -qx "cargo-creusot 0.15.0-dev"
+      IFS='|' read -ra want <<<"version 1.8.2|why3find v1.3.0|$PROVERS"
+      for t in "${want[@]}"; do
+          grep -qF -- "$t" <<<"$v" || { echo "cargo creusot version: no '$t'"; exit 1; }
+      done
+      echo "$PROVERS" > "$R/share/provers"   # what check-health expects
+      smoke() {   # a fresh project in a fresh directory; prints its path
+          local d; d=$(mktemp -d)
+          (cd "$d" && cargo creusot new smoke >/dev/null)
+          echo "$d/smoke"
+      }
+      proves() {  # cargo creusot in $1 proves add_one
+          local out
+          out=$(cd "$1" && cargo creusot 2>&1) || { echo "$out" | tail -5; return 1; }
+          echo "$out" | tail -2
+          grep -q "^Proved .*add_one" <<<"$out"
+      }
+      p=$(smoke)
+      proves "$p"
+      {
+          echo "creusot $CRAFT_PROJECT_VERSION, built $(date -u +%FT%TZ) on $(. /etc/os-release && echo "$VERSION_ID")"
+          echo "creusot $COMMIT, rustup $RUSTUP_VERSION"
+          echo "$v" | head -8
+      } > "$INFO"
+
+      # 7. Prune; then try the nightly without rustc-dev and llvm-tools, in a
+      #    fresh project (a rerun in $p would reuse its cache and prove
+      #    whatever the toolchain).
+      rm -rf "$R/src/creusot/.git" "$R/src/creusot/target"
+      opam clean --download-cache --logs || true
+      rm -rf "$OPAMROOT/download-cache" "$OPAMROOT/repo" \
+             "$OPAMROOT"/alt-ergo/.opam-switch/sources "$OPAMROOT"/alt-ergo/.opam-switch/build \
+             "$OPAMROOT"/alt-ergo/doc "$OPAMROOT"/alt-ergo/man \
+             "$CREUSOT_DATA_HOME/_opam/.opam-switch/sources" \
+             "$CREUSOT_DATA_HOME/_opam/.opam-switch/build" \
+             "$CREUSOT_DATA_HOME/_opam/doc" "$CREUSOT_DATA_HOME/_opam/man"
+      rustup component remove --toolchain "$NIGHTLY" rustc-dev llvm-tools
+      p2=$(smoke)
+      if proves "$p2" && (cd "$p2" && cargo test -q); then
+          echo "nightly: shipped without rustc-dev and llvm-tools" >> "$INFO"
+      else
+          echo "nightly: rustc-dev and llvm-tools needed at run time; kept" >> "$INFO"
+          rustup component add --toolchain "$NIGHTLY" rustc-dev llvm-tools
+      fi
+      rm -rf "$RUSTUP_HOME/downloads" "$RUSTUP_HOME/tmp" "$(dirname "$p")" "$(dirname "$p2")"
+
+      # 8. Seeds. The registry seed in a fresh CARGO_HOME holding only the
+      #    creusot-std patch, so it has the smoke project's crates and not
+      #    the ~200 of Creusot's own build; its Cargo.lock ships with it.
+      S="$R/seed/cargo"
+      mkdir -p "$S"
+      cp "$CARGO_HOME/config.toml" "$S/config.toml"
+      d=$(mktemp -d)
+      (cd "$d" && CARGO_HOME="$S" cargo creusot new smoke >/dev/null \
+          && cd smoke && CARGO_HOME="$S" cargo generate-lockfile -q \
+          && CARGO_HOME="$S" cargo fetch -q)
+      cp "$d/smoke/Cargo.lock" "$R/share/smoke/Cargo.lock"
+      rm -rf "$d" "$S/config.toml" "$S/registry/src"
+      # The rustup seed: the proxies and the toolchain.
+      mv "$CARGO_HOME/bin" "$S/bin"
+      mv "$RUSTUP_HOME" "$R/seed/rustup"
+      rm -rf "$CARGO_HOME"
+      du -sh "$R"/* "$R/seed"/* | tee -a "$INFO"
+
+      cp -a "$R/." "$CRAFT_PART_INSTALL/"
+  config:
+    plugin: dump
+    source: files

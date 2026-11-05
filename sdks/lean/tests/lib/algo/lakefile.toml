@@ -1,0 +1,10 @@
+name = "algo"
+version = "0.1.0"
+defaultTargets = ["Algo", "algo"]
+
+[[lean_lib]]
+name = "Algo"
+
+[[lean_exe]]
+name = "algo"
+root = "Main"

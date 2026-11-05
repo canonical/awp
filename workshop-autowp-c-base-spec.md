@@ -5,9 +5,9 @@ environments auto-wp's skills need:
 
 | SDK | Provides | Used by |
 |---|---|---|
-| `autowp-framac` | Frama-C 32.1 with WP, built from source with auto-wp's `frama-c-patches/`, the macsl plugin, Why3 1.8, Coq 8.20.1 for WP, Alt-Ergo, Z3, `bear` | the C layer: `frama-c`, `frama-c-launch`, `frama-c-monitoring`, `framac-sl`, `time-loop` |
-| `autowp-rocq` | Rocq, for interactive and stand-alone proofs | the common skill `rocq` |
-| `autowp-lean` | Lean 4 through elan, Lake, ripgrep, the Lean LSP MCP server | the common skill `lean` |
+| `frama-c-sdk` | Frama-C 32.1 with WP, built from source with auto-wp's `frama-c-patches/`, the macsl plugin, Why3 1.8, Coq 8.20.1 for WP, Alt-Ergo, Z3, `bear` | the C layer: `frama-c`, `frama-c-launch`, `frama-c-monitoring`, `framac-sl`, `time-loop` |
+| `rocq` | Rocq, for interactive and stand-alone proofs | the common skill `rocq` |
+| `lean` | Lean 4 through elan, Lake, ripgrep, the Lean LSP MCP server | the common skill `lean` |
 
 They replace the hours-long, hand-run toolchain build (`tests/c/provision.sh`
 step 3, `frama-c-launch`'s first-run build, `frama-c/references/install.md`)
@@ -74,10 +74,12 @@ point 1).
 
 - **Three independent SDKs.** Each one installs and works alone; none
   depends on another. A workshop combines them as a project needs: a C
-  campaign takes `autowp-framac`, plus `autowp-rocq` or `autowp-lean` only if
+  campaign takes `frama-c-sdk`, plus `rocq` or `lean` only if
   its skills reach for them.
-- **Platform.** `ubuntu@24.04:amd64` first, the base the auto-wp tests and
-  READMEs use. `arm64` is a later addition (open point 6).
+- **Platforms.** `ubuntu@24.04:amd64`, the base the auto-wp tests and
+  READMEs use, and `ubuntu@26.04:amd64`, the current LTS. Each SDK builds
+  one `.sdk` per base (SDKcraft's multi-platform `platforms:` syntax, §11).
+  `arm64` is a later addition (open point 6).
 - **Immutable toolchains.** Each SDK's toolchain is read-only under `$SDK`
   and owned by root. Users run it; they do not `opam install` or
   `elan toolchain install` into it. What must change per user or per
@@ -94,8 +96,8 @@ point 1).
   resolve whatever `$SDK` is (implemented and tested, §11).
 - **Environment.** `setup-base` writes `/etc/profile.d/<name>.sh`. Each SDK
   puts only its own entry points on `PATH`, and prefixes its variables
-  (`AUTOWP_FRAMAC_…`, `AUTOWP_ROCQ_…`, `AUTOWP_LEAN_…`). §3.4 explains why
-  `autowp-framac` does not export its `coqc`.
+  (`FRAMA_C_SDK_…`, `ROCQ_SDK_…`, `LEAN_SDK_…`). §3.4 explains why
+  `frama-c-sdk` does not export its `coqc`.
 - **Versioning.** The SDK `version` is the main upstream version (`32.1`,
   the Rocq version, the Lean toolchain version). Store tracks follow it
   (`32/stable` for Frama-C 32.x); `latest/edge` gets every build.
@@ -104,7 +106,7 @@ point 1).
   `templates/c/tools/` by a local part source, the same files a generated
   project ships. A change to the patches is then one commit for both.
 
-## 3. `autowp-framac`
+## 3. `frama-c-sdk`
 
 ### 3.1 Contents
 
@@ -121,7 +123,7 @@ point 1).
 ### 3.2 `sdkcraft.yaml` (sketch)
 
 ```yaml
-name: autowp-framac
+name: frama-c-sdk
 version: "32.1"
 summary: Frama-C 32.1 with WP, macsl and provers, as used by auto-wp
 description: |
@@ -135,7 +137,7 @@ platforms:
 plugs:
   why3-cache:
     interface: mount
-    workshop-target: /home/workshop/.cache/autowp-framac
+    workshop-target: /home/workshop/.cache/frama-c-sdk
 
 parts:
   framac:
@@ -169,7 +171,7 @@ not tested syntax (open point 3).
 The recipe of `frama-c/references/install.md` and `tests/c/provision.sh`,
 with the opam root at its final path:
 
-1. `export OPAMROOT=/var/lib/workshop/sdk/autowp-framac/opam`;
+1. `export OPAMROOT=/var/lib/workshop/sdk/frama-c-sdk/opam`;
    `opam init --disable-sandboxing -y --bare`;
    `opam switch create framac-coq8 ocaml-base-compiler.4.14.2 -y`.
 2. `opam install -y coq.8.20.1`, then
@@ -192,16 +194,16 @@ with the opam root at its final path:
 
 - **`setup-base`** installs `bear`, `build-essential`, `pkg-config`, `git`
   and `ripgrep` with apt (packages the campaign runs, not build
-  dependencies of the SDK), and writes `/etc/profile.d/autowp-framac.sh`:
-  - `OPAMROOT=$SDK/opam`, `AUTOWP_FRAMAC_SWITCH=framac-coq8`;
+  dependencies of the SDK), and writes `/etc/profile.d/frama-c-sdk.sh`:
+  - `OPAMROOT=$SDK/opam`, `FRAMA_C_SDK_SWITCH=framac-coq8`;
   - `PATH` gains `$SDK/bin`, which holds small wrappers `frama-c`,
     `frama-c-gui`, `why3`, `alt-ergo`, `z3` that run the tool with the
     switch's environment (`opam exec --switch=framac-coq8 -- <tool>`);
-  - `AUTOWP_FRAMAC_MACSL=$SDK/macsl/macsl.cmxs`,
-    `AUTOWP_FRAMAC_SRC=$SDK/src/frama-c-32.1`.
+  - `FRAMA_C_SDK_MACSL=$SDK/macsl/macsl.cmxs`,
+    `FRAMA_C_SDK_SRC=$SDK/src/frama-c-32.1`.
 
   `coqc` is deliberately **not** on `PATH`: the switch's Coq is 8.20.1,
-  pinned for WP, while `autowp-rocq` provides a Rocq for stand-alone proofs.
+  pinned for WP, while `rocq` provides a Rocq for stand-alone proofs.
   Exporting both would make `coqc` depend on SDK order. WP finds its Coq
   through Why3's configuration, not `PATH`.
 - **`setup-project`** runs `why3 config detect` as `workshop`, which writes
@@ -210,25 +212,25 @@ with the opam root at its final path:
 - **`check-health`** runs, as `workshop`: `frama-c -version` is `32.1`;
   `frama-c -wp-detect` lists Alt-Ergo, Z3 and Coq; `land_le_l` is in the
   installed `cbits.mlw`; the macsl `.cmxs` loads
-  (`frama-c -load-module "$AUTOWP_FRAMAC_MACSL" -version`). Any failure
+  (`frama-c -load-module "$FRAMA_C_SDK_MACSL" -version`). Any failure
   sets `error` with the failing command's output.
 
 ### 3.5 What changes in auto-wp
 
-- **`bin/fetch-sources.sh`**: when `AUTOWP_FRAMAC_SRC` is set and
+- **`bin/fetch-sources.sh`**: when `FRAMA_C_SDK_SRC` is set and
   `framac-src/` is absent, link `framac-src` to it instead of downloading;
   same for `macsl/`. Without the SDK, behaviour is unchanged.
 - **`frama-c-launch`'s toolchain confirmation**: accept the SDK as a
   conformant toolchain when `check-health` would pass, and skip the build.
 - **`frama-c/references/install.md`**: a first section, "In a workshop:
-  add `autowp-framac` to the definition", before the build-from-source
+  add `frama-c-sdk` to the definition", before the build-from-source
   recipe, which stays for hosts without Workshop.
 - The project's own packages (GRUB's build dependencies, gzip's `configure`
   needs) are not in the SDK. A generated project carries them as a
   project-local SDK, `.workshop/autowp-project/` with a `setup-base` that
   runs `apt-get install` of the list the README has today.
 
-## 4. `autowp-rocq`
+## 4. `rocq`
 
 | Component | Version | How |
 |---|---|---|
@@ -236,8 +238,8 @@ with the opam root at its final path:
 | MathComp | optional, `rocq-mathcomp-ssreflect` (open point 4) | opam |
 | Rocq MCP server | the server the `rocq` skill's `rocq_query` tools talk to | to be identified (open point 5) |
 
-- **Build**: as §3.3 steps 1 and 6, with `OPAMROOT=/var/lib/workshop/sdk/autowp-rocq/opam`.
-- **`setup-base`**: `/etc/profile.d/autowp-rocq.sh` puts `rocq`, `coqc`,
+- **Build**: as §3.3 steps 1 and 6, with `OPAMROOT=/var/lib/workshop/sdk/rocq/opam`.
+- **`setup-base`**: `/etc/profile.d/rocq.sh` puts `rocq`, `coqc`,
   `coqtop`, `coqdep` wrappers on `PATH`, and sets `ROCQ_PYTHON_BIN` to the
   system `python3` (the skill's capability table checks it). apt:
   `python3`, `ripgrep`.
@@ -246,7 +248,7 @@ with the opam root at its final path:
 - **`check-health`**: `coqc --version`; compile a one-lemma `.v` file
   with no `Admitted`.
 
-## 5. `autowp-lean`
+## 5. `lean`
 
 | Component | Version | How |
 |---|---|---|
@@ -268,7 +270,7 @@ several GB. So the toolchains cannot all be read-only:
 - **Mathlib's cache** gets its own mount plug
   (`workshop-target: /home/workshop/.cache/mathlib`), so `lake exe cache get`
   downloads it once per host, not once per refresh.
-- **`setup-base`**: `/etc/profile.d/autowp-lean.sh` with `ELAN_HOME` and
+- **`setup-base`**: `/etc/profile.d/lean.sh` with `ELAN_HOME` and
   `PATH="$ELAN_HOME/bin:$PATH"`, and `LEAN4_PYTHON_BIN` (the skill's
   capability table).
 - **`setup-project`**: seeds `~/.elan`; registers lean-lsp-mcp with Claude
@@ -285,16 +287,16 @@ several GB. So the toolchains cannot all be read-only:
 name: autowp
 base: ubuntu@24.04
 sdks:
-  - name: autowp-framac        # --c projects
+  - name: frama-c-sdk        # --c projects
     channel: 32/stable
-  - name: autowp-rocq          # optional
-  - name: autowp-lean          # optional
+  - name: rocq          # optional
+  - name: lean          # optional
   - name: project-autowp-project   # the project's own apt packages (§3.5)
 ```
 
-`--c` projects list `autowp-framac`; `--rust` projects list none of the
-three until a Creusot SDK exists (open point 7). Whether `autowp-rocq` and
-`autowp-lean` are listed by default is open point 8.
+`--c` projects list `frama-c-sdk`; `--rust` projects list none of the
+three until a Creusot SDK exists (open point 7). Whether `rocq` and
+`lean` are listed by default is open point 8.
 
 The README then gains a Workshop quick start next to the LXD one:
 
@@ -313,18 +315,18 @@ safety notes on writes into the host directory stay as they are.
 
 Each SDK has spread tests run by `sdkcraft test` on the packed SDK:
 
-- **`autowp-framac`**: the `check-health` checks; WP proves a three-line
+- **`frama-c-sdk`**: the `check-health` checks; WP proves a three-line
   function with `-wp-rte` (`Valid` on every goal); a goal that needs the
   `wp-cbits-bound-lemmas` patch proves (a function from the patch's
   README), which a stock Frama-C fails; macsl loads.
-- **`autowp-rocq`**: compile a lemma; `Print Assumptions` shows no axiom.
-- **`autowp-lean`**: `lake new` and `lake build`; lean-lsp-mcp starts and
+- **`rocq`**: compile a lemma; `Print Assumptions` shows no axiom.
+- **`lean`**: `lake new` and `lake build`; lean-lsp-mcp starts and
   answers its `--help`.
 
 In auto-wp:
 
 - `tests/c/provision.sh` gains a Workshop mode that launches a workshop
-  with `autowp-framac` instead of building the toolchain, so
+  with `frama-c-sdk` instead of building the toolchain, so
   `make provision-c` takes minutes. The LXD base stays for hosts without
   Workshop.
 - `test_auto_wp.py` checks the generated `.workshop/autowp.yaml` per
@@ -335,13 +337,36 @@ In auto-wp:
 ## 8. Publishing
 
 - Register the three names in the SDK Store with `sdkcraft register`.
+- SDK names share one namespace with snap names in the Store. `autowp-framac`
+  could not be registered, so on 2026-11-05 the four SDKs were renamed
+  `frama-c-sdk`, `rocq`, `lean` and `creusot` (each name is registered before
+  `sdkcraft upload`, which otherwise fails with "Name … not found in the sdk
+  namespace"). Each SDK's directory is `sdks/<name>/`, its try name
+  `try-<name>`, its install path `/opt/<name>`, its profile
+  `/etc/profile.d/<name>.sh`, and its variables `<NAME>_SDK_*` (e.g.
+  `FRAMA_C_SDK_MACSL`, `CREUSOT_SDK_SRC`).
 - CI on the auto-wp repository builds on pull requests and uploads to
   `latest/edge` on merge (the pattern of `canonical/template-sdk`).
   Promotion to `<track>/stable` is by hand, after the auto-wp level 3 test
   (`make smoke-c` or `make smoke-c-gzip`) passes on the edge revision.
 - Each SDK's README lists the bundled components and their licences
   (Frama-C LGPL-2.1, Why3 LGPL-2.1, Coq/Rocq LGPL-2.1, Alt-Ergo's
-  licence, Z3 MIT, Lean Apache-2.0, macsl's licence). The `license` field of
+  licence, Z3 MIT, Lean Apache-2.0, macsl's licence).
+- **Alt-Ergo is bundled under a non-commercial licence** (decision of
+  2026-10-31). Alt-Ergo 2.6.4, from opam as from GitHub, is under the
+  *OCamlPro Non-Commercial Purpose License, version 1*: use "solely for
+  research", excluding any use in connection with a product or service that
+  is sold, licensed, leased, loaned or rented, or "used in a profit-making
+  context"; copying and redistribution allowed without fee for that purpose
+  if the copyright notice and the licence go with every copy, and recipients
+  get the same terms. (The free `alt-ergo-free`, CeCILL-C, stops at 2.4.3.)
+  The SDK is not sold, but the restriction is on use, so it passes to every
+  user. Hence: `frama-c-sdk` ships OCamlPro's `LICENSE.md` and the
+  licence text in `$SDK/share/licenses/alt-ergo/` (from
+  `files/share/licenses/alt-ergo/`), its `description` and `sdks/README.md`
+  say "Alt-Ergo: research use only", and commercial users are pointed to
+  OCamlPro. Whether the SDK Store accepts a component under such a licence
+  is checked before publishing. The `license` field of
   `sdkcraft.yaml` names the main component's.
 
 ## 9. Documents to update
@@ -372,11 +397,10 @@ In auto-wp:
    the skill runs its "scripts + `coqc`" profile.
 6. **arm64.** All three toolchains build on arm64; the cost is CI time and
    a test host.
-7. **Creusot.** A fourth SDK, `autowp-creusot`, would follow the same
-   pattern (Creusot's `./INSTALL` at commit `f15b985`, its opam switch and
-   Rust nightly at fixed paths); not requested here.
-8. **Default SDKs.** Whether a `--c` project lists `autowp-rocq` and
-   `autowp-lean` by default (they are common skills) or only on request
+7. **Creusot.** A fourth SDK, `creusot`, is specified in
+   `workshop-autowp-rust-base-spec.md`.
+8. **Default SDKs.** Whether a `--c` project lists `rocq` and
+   `lean` by default (they are common skills) or only on request
    (they add launch time and disk).
 9. **Claude Code in the workshop.** The README installs it in step 2. An
    SDK or a project-local SDK could do it in `setup-project`, but the login
@@ -385,11 +409,14 @@ In auto-wp:
 10. **Size.** The Frama-C switch with Coq, Why3 and the provers is several
     GB before pruning; the SDK Store's size limits are not documented in
     what was read.
+11. **Alt-Ergo licence files in the built SDK.** `files/share/licenses/alt-ergo/`
+    and the notice in `description` were added after the 2026-10-31 builds;
+    the next `make sdk-framac` puts them into the `.sdk`.
 
 ## 11. Implementation and test results (2026-10-31)
 
-The SDKs are in `sdks/autowp-framac/`, `sdks/autowp-rocq/` and
-`sdks/autowp-lean/`, with `sdks/test-sdk.sh` and the `make sdk-*` targets.
+The SDKs are in `sdks/frama-c-sdk/`, `sdks/rocq/` and
+`sdks/lean/`, with `sdks/test-sdk.sh` and the `make sdk-*` targets.
 Tools: `sdkcraft` 0.9.4 (snap), `workshop` 0.9.9, LXD 6.10.1.
 
 **Differences from the design above:**
@@ -420,12 +447,17 @@ Tools: `sdkcraft` 0.9.4 (snap), `workshop` 0.9.9, LXD 6.10.1.
   `frama-c-patches/` into `vendor/` (not committed); the part runs
   `bin/fetch-sources.sh` itself.
 - **lean-lsp-mcp** is installed in `setup-base` into a venv at
-  `/opt/autowp-lean/venv` (a pinned pip install), not as a part: a Python
+  `/opt/lean/venv` (a pinned pip install), not as a part: a Python
   venv is not relocatable either.
 - **`check-health`** runs its checks with `runuser -u workshop -- bash -lc`;
   `sudo -u workshop --login bash -c` re-quotes a multi-line script and broke
   it (`cd: too many arguments`).
-- **No `why3-cache` plug** in `autowp-framac`: WP keeps its caches in the
+- **Two bases.** `sdkcraft.yaml` uses named platforms
+  (`noble: {build-on: [ubuntu@24.04:amd64], build-for: [ubuntu@24.04:amd64]}`
+  and `resolute` for `ubuntu@26.04`) instead of `base:` plus `platforms:
+  amd64:`; `sdkcraft try` builds both. On 26.04 (GCC 15.2, Python 3.14,
+  opam 2.5.0) every apt package name is the same and no build step changed.
+- **No `why3-cache` plug** in `frama-c-sdk`: WP keeps its caches in the
   project.
 
 **Findings about Workshop:**
@@ -433,7 +465,7 @@ Tools: `sdkcraft` 0.9.4 (snap), `workshop` 0.9.9, LXD 6.10.1.
 - `workshop` 0.1.29 (a sideloaded revision on this host) could not launch
   any workshop on LXD 6.10: `"nvidia.driver.capabilities" is not supported
   for "container"`. It was refreshed to 0.9.9 from `latest/stable`.
-- A tried SDK appears in `workshop info` under its own name (`autowp-lean`),
+- A tried SDK appears in `workshop info` under its own name (`lean`),
   tracking `~/.local/share/workshop/try/<name>`.
 - A workshop reaches `ready` only when every SDK's `check-health` sets
   `okay`; a health error aborts the launch.
@@ -441,17 +473,19 @@ Tools: `sdkcraft` 0.9.4 (snap), `workshop` 0.9.9, LXD 6.10.1.
   project `sdkcraft` (about 15 minutes); a forced stop of a build instance
   leaves a stale disk device, and `sdkcraft clean` is then needed.
 
-**Test results** (`sdks/test-sdk.sh`):
+**Test results** (`sdks/test-sdk.sh`; each SDK on a workshop of each base,
+`BASE=ubuntu@24.04` and `BASE=ubuntu@26.04`, same results on both; packed
+sizes differ by less than 0.1 % between bases):
 
 | SDK | Packed size | Result |
 |---|---|---|
-| `autowp-lean` | 684 MB | launch, `ready`; `lean`, `lake`, `rg`, `lean-lsp-mcp` run; `lake new` + `lake build` of a project runs "Hello, world" |
-| `autowp-rocq` | 400 MB | launch, `ready`; Rocq 9.2 proves a lemma, `Print Assumptions` closed |
-| `autowp-framac` | 929 MB | launch, `ready`; `frama-c -version` 32.1; `-wp-detect` lists Alt-Ergo, Z3, Coq; WP with `-wp-rte` proves every goal of a small function; macsl loads; the switch's `coqc` is not on `PATH` |
-| all three in one workshop | | launch, `ready`; every check above passes with the three SDKs installed together, and `coqc` is Rocq 9.2 from `autowp-rocq`, not the 8.20.1 of `autowp-framac` |
+| `lean` | 684 MB | launch, `ready`; `lean`, `lake`, `rg`, `lean-lsp-mcp` run; `lake new` + `lake build` of a project runs "Hello, world" |
+| `rocq` | 400 MB | launch, `ready`; Rocq 9.2 proves a lemma, `Print Assumptions` closed |
+| `frama-c-sdk` | 929 MB | launch, `ready`; `frama-c -version` 32.1; `-wp-detect` lists Alt-Ergo, Z3, Coq; WP with `-wp-rte` proves every goal of a small function; macsl loads; the switch's `coqc` is not on `PATH` |
+| all three in one workshop (24.04, and again on 26.04) | | launch, `ready`; every check above passes with the three SDKs installed together, and `coqc` is Rocq 9.2 from `rocq`, not the 8.20.1 of `frama-c-sdk` |
 
 **Not implemented yet:** the auto-wp side of §3.5 and §6 (the
 `.workshop/autowp.yaml` that `auto-wp.py` would write, the Workshop quick
-start in the READMEs, `bin/fetch-sources.sh` reusing `AUTOWP_FRAMAC_SRC`,
+start in the READMEs, `bin/fetch-sources.sh` reusing `FRAMA_C_SDK_SRC`,
 `frama-c-launch` accepting the SDK), the Workshop mode of
 `tests/c/provision.sh`, and publishing to the SDK Store (§8).

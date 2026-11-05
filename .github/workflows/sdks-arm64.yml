@@ -1,0 +1,86 @@
+# Builds the arm64 versions of the four auto-wp SDKs on GitHub's arm64
+# runners: sdkcraft builds in an LXD container of the host's architecture and
+# does not cross-build, so the amd64 host that builds the other platforms
+# cannot build these. The .sdk files are kept as workflow artifacts; test them
+# in an arm64 Ubuntu VM (e.g. Multipass on an Apple Silicon Mac) with
+# sdks/test-sdk.sh and each SDK's tests/.
+name: SDKs (arm64)
+
+on:
+  workflow_dispatch:
+    inputs:
+      sdks:
+        description: "SDK directories under sdks/ to build (space-separated)"
+        default: "lean rocq frama-c-sdk creusot"
+  push:
+    branches: [master]
+    paths: ["sdks/**", "templates/c/tools/**", ".github/workflows/sdks-arm64.yml"]
+
+permissions:
+  contents: read
+
+jobs:
+  pack:
+    runs-on: ubuntu-24.04-arm
+    # The first Frama-C and Creusot builds take hours (opam, Z3, Coq, rustc).
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      matrix:
+        sdk: [lean, rocq, frama-c-sdk, creusot]
+        platform: [noble-arm64, resolute-arm64]
+    steps:
+      - name: Select
+        id: sel
+        run: |
+          want="${{ github.event.inputs.sdks || 'lean rocq frama-c-sdk creusot' }}"
+          case " $want " in *" ${{ matrix.sdk }} "*) echo "run=true" >> "$GITHUB_OUTPUT" ;; *) echo "run=false" >> "$GITHUB_OUTPUT" ;; esac
+
+      - uses: actions/checkout@v4
+        if: steps.sel.outputs.run == 'true'
+
+      - name: Free disk space
+        if: steps.sel.outputs.run == 'true'
+        run: |
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /usr/local/.ghcup \
+                      /opt/hostedtoolcache || true
+          df -h /
+
+      - name: Install LXD and sdkcraft
+        if: steps.sel.outputs.run == 'true'
+        run: |
+          sudo snap install lxd --channel=6/stable || sudo snap refresh lxd --channel=6/stable
+          sudo lxd waitready
+          sudo lxd init --auto
+          sudo usermod -a -G lxd "$USER"
+          # Docker's firewall rules drop the LXD bridge's forwarded traffic.
+          sudo iptables -P FORWARD ACCEPT
+          sudo snap install --classic sdkcraft
+
+      - name: Prepare (Frama-C vendors its patch set)
+        if: steps.sel.outputs.run == 'true' && matrix.sdk == 'frama-c-sdk'
+        working-directory: sdks/frama-c-sdk
+        run: ./prepare.sh
+
+      - name: Pack
+        if: steps.sel.outputs.run == 'true'
+        working-directory: sdks/${{ matrix.sdk }}
+        run: sg lxd -c "sdkcraft pack --verbose --platform ${{ matrix.platform }}"
+
+      - name: Keep the .sdk
+        if: steps.sel.outputs.run == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.sdk }}-${{ matrix.platform }}
+          path: sdks/${{ matrix.sdk }}/*.sdk
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 30
+
+      - name: Build logs on failure
+        if: failure() && steps.sel.outputs.run == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: logs-${{ matrix.sdk }}-${{ matrix.platform }}
+          path: ~/.local/state/sdkcraft/log/
+          if-no-files-found: ignore

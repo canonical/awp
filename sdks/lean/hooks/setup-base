@@ -1,0 +1,16 @@
+#!/bin/bash
+# Runs as root at install and on every refresh (part of the base snapshot).
+# ripgrep: the lean skill's lean_local_search; python3-venv: lean-lsp-mcp.
+apt-get update
+apt-get install ripgrep python3-venv git curl ca-certificates
+
+# lean-lsp-mcp, pinned, in a venv at a fixed path.
+LSP_MCP_VERSION=0.32.0
+if ! /opt/lean/venv/bin/pip show lean-lsp-mcp 2>/dev/null | grep -qx "Version: $LSP_MCP_VERSION"; then
+    rm -rf /opt/lean/venv
+    mkdir -p /opt/lean
+    python3 -m venv /opt/lean/venv
+    /opt/lean/venv/bin/pip install --quiet "lean-lsp-mcp==$LSP_MCP_VERSION"
+fi
+
+install -m 644 "$SDK/lean.profile" /etc/profile.d/lean.sh

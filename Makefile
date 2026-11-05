@@ -16,7 +16,7 @@ SCRIPTS := $(wildcard tests/lib/*.sh tests/c/*.sh tests/rust/*.sh sdks/*.sh sdks
 
 .PHONY: help test test-l2 test-c-l2 test-rust-l2 check-scripts \
         provision-c provision-rust smoke-c smoke-c-gzip smoke-rust workspace-rust \
-        sdk-lean sdk-rocq sdk-framac test-sdks clean clean-lxc
+        sdk-lean sdk-rocq sdk-framac sdk-creusot test-sdks clean clean-lxc
 
 help: ## Show this help
 	@echo "auto-wp test targets:"
@@ -79,21 +79,25 @@ smoke-rust: | $(OUT) ## Level 3, Rust: creusot-launch smoke test (token)
 # Each target packs the SDK with `sdkcraft try` and runs sdks/test-sdk.sh on a
 # throwaway workshop. Needs sdkcraft, workshop and LXD 6.8+. Not run by `test`.
 
-sdk-lean: | $(OUT) ## Pack and test the autowp-lean SDK
-	cd sdks/autowp-lean && sdkcraft try
-	sdks/test-sdk.sh autowp-lean 2>&1 | tee $(OUT)/sdk-lean-$(STAMP).log
+sdk-lean: | $(OUT) ## Pack and test the lean SDK
+	cd sdks/lean && sdkcraft try
+	sdks/test-sdk.sh lean 2>&1 | tee $(OUT)/sdk-lean-$(STAMP).log
 
-sdk-rocq: | $(OUT) ## Pack and test the autowp-rocq SDK (about an hour)
-	cd sdks/autowp-rocq && sdkcraft try
-	sdks/test-sdk.sh autowp-rocq 2>&1 | tee $(OUT)/sdk-rocq-$(STAMP).log
+sdk-rocq: | $(OUT) ## Pack and test the rocq SDK (about an hour)
+	cd sdks/rocq && sdkcraft try
+	sdks/test-sdk.sh rocq 2>&1 | tee $(OUT)/sdk-rocq-$(STAMP).log
 
-sdk-framac: | $(OUT) ## Pack and test the autowp-framac SDK (hours)
-	sdks/autowp-framac/prepare.sh
-	cd sdks/autowp-framac && sdkcraft try
-	sdks/test-sdk.sh autowp-framac 2>&1 | tee $(OUT)/sdk-framac-$(STAMP).log
+sdk-framac: | $(OUT) ## Pack and test the frama-c-sdk SDK (hours)
+	sdks/frama-c-sdk/prepare.sh
+	cd sdks/frama-c-sdk && sdkcraft try
+	sdks/test-sdk.sh frama-c-sdk 2>&1 | tee $(OUT)/sdk-framac-$(STAMP).log
 
-test-sdks: | $(OUT) ## Test the three tried SDKs together in one workshop
-	sdks/test-sdk.sh autowp-framac autowp-rocq autowp-lean 2>&1 | tee $(OUT)/sdks-$(STAMP).log
+sdk-creusot: | $(OUT) ## Pack and test the creusot SDK (hours)
+	cd sdks/creusot && sdkcraft try
+	sdks/test-sdk.sh creusot 2>&1 | tee $(OUT)/sdk-creusot-$(STAMP).log
+
+test-sdks: | $(OUT) ## Test the four tried SDKs together in one workshop
+	sdks/test-sdk.sh frama-c-sdk rocq lean creusot 2>&1 | tee $(OUT)/sdks-$(STAMP).log
 
 # --- cleanup ---------------------------------------------------------------
 

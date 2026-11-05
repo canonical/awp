@@ -1,0 +1,21 @@
+#!/bin/bash
+# Runs as the workshop user, after the mounts are connected.
+set -e
+NIGHTLY=nightly-2026-08-03
+export RUSTUP_HOME="$HOME/.rustup" CARGO_HOME="$HOME/.cargo"
+export CREUSOT_DATA_HOME=/opt/creusot/data
+# Seed ~/.rustup and ~/.cargo (mount plugs) when the SDK's nightly is not
+# there yet. --update=none keeps the user's files (toolchains, targets,
+# config.toml, registry); unlike --no-clobber, its exit status is 0 when it
+# skips files on every coreutils of 24.04 and 26.04.
+if [ ! -d "$RUSTUP_HOME/toolchains/$NIGHTLY-$(uname -m)-unknown-linux-gnu" ]; then
+    mkdir -p "$RUSTUP_HOME" "$CARGO_HOME"
+    cp -a --update=none "$SDK/seed/rustup/." "$RUSTUP_HOME/"
+    cp -a --update=none "$SDK/seed/cargo/." "$CARGO_HOME/"
+fi
+# A kept settings.toml may name an older nightly.
+"$CARGO_HOME/bin/rustup" default "$NIGHTLY"
+# [patch.crates-io] creusot-std -> /opt/creusot/src/creusot/creusot-std
+# in ~/.cargo/config.toml, keeping the rest. cargo-creusot is called directly
+# (it skips its first argument), so this does not depend on the cargo proxy.
+/opt/creusot/bin/cargo-creusot creusot config --update
