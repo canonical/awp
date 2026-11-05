@@ -141,8 +141,9 @@ it passes to every user of the SDK. The SDK therefore:
 
 A user whose use is commercial removes Alt-Ergo from the strategy in their
 project's `why3find.json` (Z3, CVC4 and CVC5 remain) or obtains a licence
-from OCamlPro. Whether the SDK Store accepts a component under this licence
-is checked before publishing (open point 5).
+from OCamlPro. The SDK Store accepted the SDK on 2026-11-05 with the
+licence field `LGPL-2.1-or-later AND LicenseRef-OCamlPro-Non-Commercial-1.0`
+(open point 5, resolved).
 
 ## 3. Build (`sdkcraft.yaml` and `override-build`)
 
@@ -402,18 +403,20 @@ minutes; and `test_auto_wp.py` checks that `--rust` writes a
 
 ## 7. Using it from auto-wp
 
-- **`auto-wp.py --rust`** writes `.workshop/autowp.yaml` (C spec §6) with
-  `creusot` (`channel: 0.15/stable` once published), and
-  `rocq` / `lean` by the same rule as for C (C spec open
-  point 8). This closes C spec open point 7.
+- **`auto-wp.py --rust`** writes `.workshop/autowp.yaml` (`auto-wp.md`
+  §3.7, which supersedes C spec §6) with `creusot`, `rocq` and `lean` on
+  `channel: latest/edge` (`0.15/stable` once a stable channel is promoted)
+  and the project-local `autowp-packages`. Done 2026-11-05; this closes C
+  spec open points 7 and 8.
 - **`templates/rust/README.md`** gains the Workshop quick start next to the
   LXD one (`workshop launch`, `workshop shell`, the project at `/project`),
   with the Alt-Ergo licence line (§2.1); the LXD steps that build Creusot stay for
   hosts without Workshop. Generated projects remain stand-alone: the SDK
-  comes from the store (or `try-creusot` while it is unpublished),
-  not from a host checkout.
+  comes from the Store, not from a host checkout. Done 2026-11-05
+  (`auto-wp.md` §3.4: three quick starts, Multipass for macOS included).
 - **`creusot/references/install.md`**: a first section, "In a workshop: add
-  `creusot` to the definition"; the `./INSTALL` recipe stays.
+  `creusot` to the definition"; the `./INSTALL` recipe stays. Done
+  2026-11-05.
 - **The Rust toolchain check** (auto-wp.md, the toolchain check row; part of
   `creusot-launch` once written) accepts the SDK when `CREUSOT_SDK_SRC`
   is set and `cargo creusot config` prints `No problems found.`, records
@@ -465,9 +468,9 @@ research use only, its licence files shipped with the SDK (§2.1).
    `use-creusot` was) need another SDK revision or a hand-built Creusot;
    one SDK revision ships one commit. Whether to keep older revisions on
    their own tracks depends on how often the skills move commits.
-5. **Alt-Ergo and the SDK Store.** Whether the store accepts a component
-   under a non-commercial licence (§2.1); if not, the published revision
-   leaves Alt-Ergo out and keeps it in `try` builds.
+5. **Alt-Ergo and the SDK Store.** *Resolved 2026-11-05:* the Store
+   accepted the SDK with Alt-Ergo bundled and the licence field of §2.1;
+   `creusot` 0.15.0-f15b985 is on `latest/edge`.
 6. **arm64.** `tools_versions_urls.rs` has arm64 Linux binaries for Z3 and
    CVC5 but none for Alt-Ergo and CVC4; an arm64 build would need
    `--external` for both.
@@ -526,8 +529,14 @@ fail on the writer's SIGPIPE.
 | `creusot` on `ubuntu@26.04` | 10 passed, 0 failed (the same checks) |
 | `creusot`, `rocq`, `lean` on `ubuntu@26.04` | 15 passed, 0 failed; the `workshop refresh` of the persist check left Rocq and Lean healthy |
 
-**Not implemented yet:** the auto-wp side of §7 (`.workshop/autowp.yaml`
-for `--rust`, the Workshop quick start in `templates/rust/README.md`, the
-"In a workshop" section of `install.md`, the toolchain check accepting the
-SDK), the Workshop mode of `tests/rust/provision.sh`, and publishing (§8,
-open point 5).
+**auto-wp side (2026-11-05).** Written (`auto-wp.md` §3.7, §3.4, §4.5):
+`.workshop/autowp.yaml` for `--rust`, the Workshop and Multipass quick
+starts in `templates/rust/README.md`, the "In a workshop" section of
+`install.md`. **Not implemented yet:** the toolchain check accepting the
+SDK (it belongs to `creusot-launch`, roadmap step 1 of `auto-wp.md`
+§4.3.7, still unwritten) and the Workshop mode of `tests/rust/provision.sh`
+(planned in `tests.md` §6.1). **Published** 2026-11-05: `creusot`
+0.15.0-f15b985, amd64 for both bases, on the SDK Store at `latest/edge`,
+publisher Fabrice Derepas, licence field
+`LGPL-2.1-or-later AND LicenseRef-OCamlPro-Non-Commercial-1.0`; the arm64
+builds are not uploaded (open point 6).

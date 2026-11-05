@@ -280,6 +280,18 @@ several GB. So the toolchains cannot all be read-only:
 
 ## 6. Using them from auto-wp
 
+*Superseded on 2026-11-05 by `auto-wp.md` §3.7 and §3.4, which are the
+specification of this side; this section is kept as the original sketch.
+What changed: the project-local SDK is `.workshop/autowp-packages/`
+(listed as `project-autowp-packages`, with an `sdk.yaml`, not a
+`sdkcraft.yaml`); `rocq` and `lean` are listed by default (open point 8);
+the entries are Store names on `channel: latest/edge` until stable channels
+exist; the README has three quick starts (Workshop, Multipass for macOS,
+LXD as the fallback) with a shared harness step; and
+`bin/fetch-sources.sh`, `frama-c-launch`, `bin/framac-onboard.sh`,
+`frama-c/references/install.md` and the macsl canary were changed as §3.5
+asks (`auto-wp.md` §4.5 lists each with its status).*
+
 `auto-wp.py` writes a workshop definition into each generated project,
 `.workshop/autowp.yaml`:
 
@@ -365,9 +377,13 @@ In auto-wp:
   licence text in `$SDK/share/licenses/alt-ergo/` (from
   `files/share/licenses/alt-ergo/`), its `description` and `sdks/README.md`
   say "Alt-Ergo: research use only", and commercial users are pointed to
-  OCamlPro. Whether the SDK Store accepts a component under such a licence
-  is checked before publishing. The `license` field of
-  `sdkcraft.yaml` names the main component's.
+  OCamlPro. The `license` field of `sdkcraft.yaml` names the main
+  component's and the Alt-Ergo one as an SPDX expression. *2026-11-05:* the
+  Store accepted `creusot` with
+  `LGPL-2.1-or-later AND LicenseRef-OCamlPro-Non-Commercial-1.0`, so the
+  question of whether it accepts such a component is settled; the upload of
+  `frama-c-sdk` (same Alt-Ergo, same form of licence field) was still
+  running when this was written.
 
 ## 9. Documents to update
 
@@ -397,11 +413,11 @@ In auto-wp:
    the skill runs its "scripts + `coqc`" profile.
 6. **arm64.** All three toolchains build on arm64; the cost is CI time and
    a test host.
-7. **Creusot.** A fourth SDK, `creusot`, is specified in
-   `workshop-autowp-rust-base-spec.md`.
-8. **Default SDKs.** Whether a `--c` project lists `rocq` and
-   `lean` by default (they are common skills) or only on request
-   (they add launch time and disk).
+7. **Creusot.** *Resolved:* the fourth SDK, `creusot`, is specified in
+   `workshop-autowp-rust-base-spec.md`, built, tested and on the Store.
+8. **Default SDKs.** *Resolved 2026-11-05* (`auto-wp.md` §3.7.1): both
+   `--c` and `--rust` projects list `rocq` and `lean` by default; a user
+   who wants neither deletes two lines of `.workshop/autowp.yaml`.
 9. **Claude Code in the workshop.** The README installs it in step 2. An
    SDK or a project-local SDK could do it in `setup-project`, but the login
    must stay interactive and in the container (the rule of the current
@@ -484,8 +500,19 @@ sizes differ by less than 0.1 % between bases):
 | `frama-c-sdk` | 929 MB | launch, `ready`; `frama-c -version` 32.1; `-wp-detect` lists Alt-Ergo, Z3, Coq; WP with `-wp-rte` proves every goal of a small function; macsl loads; the switch's `coqc` is not on `PATH` |
 | all three in one workshop (24.04, and again on 26.04) | | launch, `ready`; every check above passes with the three SDKs installed together, and `coqc` is Rocq 9.2 from `rocq`, not the 8.20.1 of `frama-c-sdk` |
 
-**Not implemented yet:** the auto-wp side of §3.5 and §6 (the
-`.workshop/autowp.yaml` that `auto-wp.py` would write, the Workshop quick
-start in the READMEs, `bin/fetch-sources.sh` reusing `FRAMA_C_SDK_SRC`,
-`frama-c-launch` accepting the SDK), the Workshop mode of
-`tests/c/provision.sh`, and publishing to the SDK Store (§8).
+**auto-wp side (2026-11-05).** Written, specified in `auto-wp.md` §3.7,
+§3.4 and §4.5, and checked by its level 1 tests: `auto-wp.py` 0.2.0 writes
+`.workshop/autowp.yaml` and `.workshop/autowp-packages/`; the READMEs have
+the Workshop, Multipass and LXD quick starts; `bin/fetch-sources.sh` links
+`framac-src` to `FRAMA_C_SDK_SRC`; `frama-c-launch` and
+`bin/framac-onboard.sh` accept the SDK's switch; `install.md` has its "In a
+workshop" section; the macsl canary and catalog default to
+`FRAMA_C_SDK_MACSL`. None of it has run in a workshop yet: that is the
+planned Workshop mode of `tests/c/provision.sh` (`tests.md` §5.1), which
+is **not implemented**.
+
+**Publishing (§8), in progress on 2026-11-05.** The amd64 SDKs for both
+bases are being uploaded and released to `latest/edge`; `creusot` is
+confirmed on the Store (publisher Fabrice Derepas), `frama-c-sdk`, `rocq`
+and `lean` were still uploading and unconfirmed when this was written. The
+arm64 builds are not uploaded (open point 6).

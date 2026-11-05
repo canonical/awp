@@ -1,4 +1,4 @@
-"""Level 1 program tests for auto-wp.py (auto-wp.md section 5, tests 1-19).
+"""Level 1 program tests for auto-wp.py (auto-wp.md section 5, tests 1-22).
 
 Run from the repository root:
 
@@ -35,7 +35,7 @@ TEMPLATES = REPO / "templates"
 COMMON_SKILLS = [
     "directory-structure", "ebios-risk-manager", "ebios-sl", "lean",
     "polish-skill", "rmf-sl", "rocq", "sl-auditor", "sl-builder",
-    "sl-internal", "sl-monitoring-sl", "stride",
+    "sl-internal", "sl-monitoring-sl", "stride", "workshop",
 ]
 C_LAYER_SKILLS = [
     "frama-c", "frama-c-api", "frama-c-internals", "frama-c-launch",
@@ -48,8 +48,8 @@ RUST_LAYER_SKILLS = [
 ]
 RUST_COMMANDS = []
 
-C_SKILLS = sorted(set(COMMON_SKILLS) | set(C_LAYER_SKILLS))            # 21
-RUST_SPEC_SKILLS = sorted(set(COMMON_SKILLS) | set(RUST_LAYER_SKILLS))  # 16
+C_SKILLS = sorted(set(COMMON_SKILLS) | set(C_LAYER_SKILLS))            # 22
+RUST_SPEC_SKILLS = sorted(set(COMMON_SKILLS) | set(RUST_LAYER_SKILLS))  # 17
 
 # Rust-layer skills the roadmap has not delivered yet (auto-wp.md 4.3.7).
 PENDING_RUST = {"creusot-launch": "roadmap step 1 (auto-wp.md 4.3.7)"}
@@ -97,6 +97,33 @@ def skill_dirs(project):
 def command_names(project):
     d = Path(project) / "config" / "commands"
     return sorted(p.stem for p in d.iterdir() if p.is_file() and p.suffix == ".md")
+
+
+def parse_definition(text):
+    """Minimal reader for .workshop/autowp.yaml (no YAML module in the stdlib).
+
+    Returns (top-level scalars, [(sdk name, channel or None), ...]).
+    """
+    top, sdks, in_sdks = {}, [], False
+    for raw in text.splitlines():
+        line = re.sub(r"\s+#.*$", "", raw).rstrip()
+        if not line or line.lstrip().startswith("#"):
+            continue
+        if not line.startswith(" "):
+            in_sdks = line == "sdks:"
+            if not in_sdks and ":" in line:
+                k, v = line.split(":", 1)
+                top[k.strip()] = v.strip()
+            continue
+        if in_sdks:
+            m = re.match(r"\s*-\s*name:\s*(\S+)$", line)
+            if m:
+                sdks.append([m.group(1), None])
+                continue
+            m = re.match(r"\s+channel:\s*(\S+)$", line)
+            if m and sdks:
+                sdks[-1][1] = m.group(1).strip('"')
+    return top, [tuple(x) for x in sdks]
 
 
 class AutoWpTestCase(unittest.TestCase):
@@ -147,7 +174,7 @@ class TestAutoWp(AutoWpTestCase):
                     "config/skills/sl-internal/SKILL.md"]:
             self.assertTrue((foo / rel).is_file(), f"missing {rel}")
         skills = skill_dirs(foo)
-        self.assertEqual(len(skills), 21, skills)
+        self.assertEqual(len(skills), 22, skills)
         self.assertEqual(skills, C_SKILLS)
         self.assertEqual(command_names(foo), C_COMMANDS)
         self.assertEqual([s for s in skills if s.startswith("creusot")], [])
@@ -165,9 +192,9 @@ class TestAutoWp(AutoWpTestCase):
                             f"missing config/skills/{s}/SKILL.md")
         skills = skill_dirs(foo)
         self.assertEqual(skills, RUST_SKILLS,
-                         f"expected the 16 skills of auto-wp.md 4.3.2 minus "
+                         f"expected the 17 skills of auto-wp.md 4.3.2 minus "
                          f"{RUST_ABSENT_PENDING or 'nothing'}")
-        self.assertEqual(len(skills), 16 - len(RUST_ABSENT_PENDING))
+        self.assertEqual(len(skills), 17 - len(RUST_ABSENT_PENDING))
         self.assertEqual(command_names(foo), [])
         self.assertEqual([s for s in skills if s.startswith("frama-c")], [])
         self.assertEqual(
@@ -177,14 +204,14 @@ class TestAutoWp(AutoWpTestCase):
             foo / "config/skills/sl-internal/scripts/no_ceiling_gate.py"))
 
     def test_02b_rust_creusot_launch_installed(self):
-        """The part of test 2 that needs creusot-launch (spec count: 16)."""
+        """The part of test 2 that needs creusot-launch (spec count: 17)."""
         if RUST_ABSENT_PENDING:
             self.skipTest(pending_note(RUST_ABSENT_PENDING) +
-                          "; --rust installs %d skills instead of 16" % len(RUST_SKILLS))
+                          "; --rust installs %d skills instead of 17" % len(RUST_SKILLS))
         r = self.run_auto_wp("--rust", "foo")
         self.assertOk(r)
         self.assertTrue((self.tmp / "foo/config/skills/creusot-launch/SKILL.md").is_file())
-        self.assertEqual(len(skill_dirs(self.tmp / "foo")), 16)
+        self.assertEqual(len(skill_dirs(self.tmp / "foo")), 17)
 
     def test_02c_rust_only_pending_skills_absent(self):
         """Every Rust-layer skill of 4.3.2 that is not pending has a template."""
@@ -380,7 +407,7 @@ class TestAutoWp(AutoWpTestCase):
                 self.assertOk(self.run_auto_wp("--" + lang, foo.name))
                 m = json.loads((foo / "config/auto-wp.json").read_text())
                 self.assertEqual(m["language"], lang)
-                self.assertEqual(m["auto_wp_version"], "0.1.0")
+                self.assertEqual(m["auto_wp_version"], "0.2.0")
                 self.assertRegex(m["created"], r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$")
                 self.assertEqual(m["skills"], sorted(m["skills"]))
                 self.assertEqual(m["commands"], sorted(m["commands"]))
@@ -395,7 +422,7 @@ class TestAutoWp(AutoWpTestCase):
         elsewhere.mkdir()
         r = self.run_auto_wp("--c", "foo", cwd=elsewhere)
         self.assertOk(r)
-        self.assertEqual(len(skill_dirs(elsewhere / "foo")), 21)
+        self.assertEqual(len(skill_dirs(elsewhere / "foo")), 22)
         # absolute target path as well
         r = self.run_auto_wp("--rust", str(self.tmp / "abs"), cwd=elsewhere)
         self.assertOk(r)
@@ -408,6 +435,15 @@ class TestAutoWp(AutoWpTestCase):
         self.assertIn("git clone https://gitlab.freedesktop.org/gnu-grub/grub.git", text)
         self.assertIn("/time-loop grub 72", text)
         self.assertIn("bin/fetch-sources.sh", text)
+        # The /time-loop explanation is shared (3.4 item 2D): one code block.
+        blocks = re.findall(r"```\n(.*?)```", text, re.S)
+        self.assertEqual(sum("/time-loop grub 72" in b for b in blocks), 1, blocks)
+        # Three quick starts, in order: Workshop, Multipass, LXD.
+        self.assertLess(text.index("workshop launch"), text.index("multipass launch"))
+        self.assertLess(text.index("multipass launch"), text.index("bin/launch_lxc.sh"))
+        for needle in ("/project", "workshop shell", "workshop remove", "caffeinate",
+                       "multipass transfer"):
+            self.assertIn(needle, text, needle)
         # Stand-alone: no host checkout such as ~/git/use-frama-c is needed.
         self.assertNotIn("~/git/", text)
         self.assertNotIn("UFC", text)
@@ -428,10 +464,14 @@ class TestAutoWp(AutoWpTestCase):
         for s in d.glob("bin/*.sh"):
             self.assertTrue(os.access(s, os.X_OK), s.name)
         self.assertIn("/framac-src/", (d / ".gitignore").read_text())
+        self.assertIn("/.workshop.lock", (d / ".gitignore").read_text())
 
     def test_13c_rust_has_no_c_tools(self):
         self.assertOk(self.run_auto_wp("--rust", "foobar"))
         self.assertFalse(os.path.lexists(self.tmp / "foobar/bin"))
+        gi = self.tmp / "foobar/.gitignore"
+        self.assertTrue(gi.is_file() and not gi.is_symlink())
+        self.assertIn("/.workshop.lock", gi.read_text())
 
     def test_13d_existing_tool_kept(self):
         foo = self.tmp / "foo"
@@ -449,6 +489,9 @@ class TestAutoWp(AutoWpTestCase):
         self.assertOk(self.run_auto_wp("--rust", "foobar"))
         text = (self.tmp / "foobar/README.md").read_text()
         self.assertIn("creusot-launch", text)
+        for needle in ("workshop launch", "multipass launch", "cargo creusot"):
+            self.assertIn(needle, text, needle)
+        self.assertNotIn("bin/fetch-sources.sh", text)
         self.assertNotIn("{{", text)
         has_cmd = (TEMPLATES / "rust/commands/time-loop.md").exists()
         self.assertEqual("/time-loop mycrate 72" in text, has_cmd)
@@ -520,7 +563,7 @@ class TestAutoWp(AutoWpTestCase):
         self.assertIn("warning: git not found; run 'git init' in foo before /time-loop",
                       r.stderr)
         self.assertFalse(os.path.lexists(self.tmp / "foo/.git"))
-        self.assertEqual(len(skill_dirs(self.tmp / "foo")), 21)
+        self.assertEqual(len(skill_dirs(self.tmp / "foo")), 22)
 
     # 19 ---------------------------------------------------------------------
     def _copy_program(self):
@@ -570,7 +613,7 @@ class TestAutoWp(AutoWpTestCase):
             victim.chmod(0o644)
             r = self.run_auto_wp("--c", "foo", cwd=work, script=script)
             self.assertOk(r)
-            self.assertEqual(len(skill_dirs(work / "foo")), 21)
+            self.assertEqual(len(skill_dirs(work / "foo")), 22)
 
     def test_19b_rollback_missing_template_dir(self):
         """Missing template directory: run-time error, exit 1, nothing created."""
@@ -596,6 +639,105 @@ class TestAutoWp(AutoWpTestCase):
         self.assertFalse(os.path.lexists(self.tmp / "foo"))
 
 
+    # 20 ---------------------------------------------------------------------
+    def test_20_workshop_definition(self):
+        expected = {
+            "c": ["frama-c-sdk", "rocq", "lean", "project-autowp-packages"],
+            "rust": ["creusot", "rocq", "lean", "project-autowp-packages"],
+        }
+        for lang in ("c", "rust"):
+            with self.subTest(lang=lang):
+                foo = self.tmp / ("foo" + lang)
+                r = self.run_auto_wp("--" + lang, foo.name)
+                self.assertOk(r)
+                self.assertIn(f"copied  {foo.name}/.workshop (workshop: autowp)",
+                              r.stdout.splitlines())
+                ws = foo / ".workshop"
+                for rel in ("autowp.yaml", "autowp-packages/sdk.yaml",
+                            "autowp-packages/hooks/setup-base"):
+                    p = ws / rel
+                    self.assertTrue(p.is_file() and not p.is_symlink(), rel)
+                    self.assertEqual(p.read_bytes(),
+                                     (TEMPLATES / lang / "workshop" / rel).read_bytes(), rel)
+                    text = p.read_text()
+                    for bad in ("{{", "~/git/", "sdks/"):
+                        self.assertNotIn(bad, text, f"{rel} contains {bad!r}")
+                self.assertTrue(os.access(ws / "autowp-packages/hooks/setup-base", os.X_OK))
+                self.assertFalse(os.access(ws / "autowp.yaml", os.X_OK))
+                top, sdks = parse_definition((ws / "autowp.yaml").read_text())
+                self.assertEqual(top.get("name"), "autowp")
+                self.assertEqual(top.get("base"), "ubuntu@24.04")
+                self.assertEqual([n for n, _ in sdks], expected[lang])
+                for name, channel in sdks:
+                    if name.startswith("project-"):
+                        self.assertIsNone(channel, name)
+                    else:
+                        self.assertEqual(channel, "latest/edge", name)
+                    self.assertFalse(name.startswith("try-"), name)
+                hook = (ws / "autowp-packages/hooks/setup-base").read_text()
+                self.assertTrue(hook.startswith("#!/bin/bash\n"))
+                self.assertIn("apt-get install", hook)
+                self.assertEqual("libfuse3-dev" in hook, lang == "c")
+                sdk = (ws / "autowp-packages/sdk.yaml").read_text()
+                self.assertRegex(sdk, r"(?m)^name: autowp-packages$")
+
+    # 21 ---------------------------------------------------------------------
+    def test_21_workshop_reserved_paths(self):
+        cases = {
+            "yaml-exists": lambda d: ((d / ".workshop").mkdir(),
+                                      (d / ".workshop/autowp.yaml").write_text("x")),
+            "packages-dir-exists": lambda d: (d / ".workshop/autowp-packages").mkdir(parents=True),
+            "workshop-is-file": lambda d: (d / ".workshop").write_text("x"),
+        }
+        for name, make in cases.items():
+            with self.subTest(case=name):
+                d = self.tmp / name
+                d.mkdir()
+                (d / "keep.txt").write_text("keep\n")
+                make(d)
+                before = snapshot(d)
+                r = self.run_auto_wp("--c", name)
+                self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+                self.assertIn("auto-wp: error:", r.stderr)
+                self.assertEqual(snapshot(d), before)
+                self.assertFalse(os.path.lexists(d / "config"))
+        with self.subTest(case="other definition preserved"):
+            d = self.tmp / "other"
+            (d / ".workshop").mkdir(parents=True)
+            (d / ".workshop/other.yaml").write_text("name: other\n")
+            before = snapshot(d / ".workshop/other.yaml")
+            r = self.run_auto_wp("--c", "other")
+            self.assertOk(r)
+            self.assertEqual(snapshot(d / ".workshop/other.yaml"), before)
+            self.assertTrue((d / ".workshop/autowp.yaml").is_file())
+
+    # 22 ---------------------------------------------------------------------
+    def test_22_workshop_rollback(self):
+        if os.geteuid() == 0:
+            self.skipTest("running as root: an unreadable file is still readable")
+        prog = self._copy_program()
+        # The README is written after .workshop/ (3.6), so an unreadable
+        # README template fails the run once .workshop/ exists.
+        victim = prog / "templates/c/README.md"
+        victim.chmod(0)
+        script = prog / "auto-wp.py"
+        work = self.tmp / "work"
+        work.mkdir()
+        with self.subTest(case=".workshop created by the run"):
+            r = self.run_auto_wp("--c", "foo", cwd=work, script=script)
+            self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+            self.assertFalse(os.path.lexists(work / "foo"))
+        with self.subTest(case="pre-existing .workshop/other.yaml kept"):
+            foo = work / "existing"
+            (foo / ".workshop").mkdir(parents=True)
+            (foo / ".workshop/other.yaml").write_text("name: other\n")
+            before = snapshot(foo)
+            r = self.run_auto_wp("--c", "existing", cwd=work, script=script)
+            self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+            self.assertEqual(snapshot(foo), before)
+            self.assertEqual(os.listdir(foo / ".workshop"), ["other.yaml"])
+
+
 class TestOutputAndConstraints(AutoWpTestCase):
     """auto-wp.md 2 and 3.6 (exact output), not numbered in 5."""
 
@@ -604,13 +746,14 @@ class TestOutputAndConstraints(AutoWpTestCase):
         self.assertOk(r)
         self.assertEqual(r.stdout, (
             "created foobar/config (language: c)\n"
-            "  skills:   21\n"
+            "  skills:   22\n"
             "  commands: 3\n"
             "copied  foobar/.gitignore\n"
             "copied  foobar/bin\n"
             "copied  foobar/frama-c-patches\n"
             "copied  foobar/framac-gold\n"
             "copied  foobar/no-ceiling.md\n"
+            "copied  foobar/.workshop (workshop: autowp)\n"
             "linked  foobar/.agents          -> config\n"
             "linked  foobar/.claude/skills   -> ../config/skills\n"
             "linked  foobar/.claude/commands -> ../config/commands\n"
@@ -624,13 +767,15 @@ class TestOutputAndConstraints(AutoWpTestCase):
         self.assertEqual(lines[0], "created foobar/config (language: rust)")
         self.assertEqual(lines[1], f"  skills:   {len(RUST_SKILLS)}")
         self.assertEqual(lines[2], "  commands: 0")
+        self.assertEqual(lines[3:5], ["copied  foobar/.gitignore",
+                                      "copied  foobar/.workshop (workshop: autowp)"])
 
-    def test_rust_output_spec_count_16(self):
+    def test_rust_output_spec_count_17(self):
         if RUST_ABSENT_PENDING:
             self.skipTest(pending_note(RUST_ABSENT_PENDING) +
-                          f"; prints 'skills:   {len(RUST_SKILLS)}', spec says 16")
+                          f"; prints 'skills:   {len(RUST_SKILLS)}', spec says 17")
         r = self.run_auto_wp("--rust", "foobar")
-        self.assertIn("  skills:   16", r.stdout.splitlines())
+        self.assertIn("  skills:   17", r.stdout.splitlines())
 
     def test_script_header_and_mode(self):
         self.assertTrue(SCRIPT.read_text().startswith("#!/usr/bin/env python3\n"))

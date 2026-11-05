@@ -9,6 +9,12 @@
 #
 # Usage: bin/fetch-sources.sh      (needs curl, sha256sum, tar, git, patch, network)
 # An existing framac-src/ or macsl/ is left as it is.
+#
+# In a workshop with the frama-c-sdk SDK, FRAMA_C_SDK_SRC names the same
+# patched tree, read-only in the SDK: framac-src is then a symbolic link to
+# it instead of a download (the SDK's build applied the same patches with
+# this script). macsl/ is still cloned: the SDK ships only the built plugin
+# (FRAMA_C_SDK_MACSL), and the skills that read macsl's sources want the tree.
 set -euo pipefail
 cd "$(dirname "$0")/.."   # the project root (this script is in bin/)
 
@@ -22,6 +28,9 @@ P=frama-c-patches
 
 if [ -d framac-src ]; then
     echo "framac-src/ exists, kept"
+elif [ -n "${FRAMA_C_SDK_SRC:-}" ] && [ -d "$FRAMA_C_SDK_SRC" ]; then
+    ln -s "$FRAMA_C_SDK_SRC" framac-src
+    echo "framac-src -> $FRAMA_C_SDK_SRC (the frama-c-sdk SDK's patched sources)"
 else
     tmp=framac-src.tmp
     rm -rf "$tmp" "$tmp.tar.gz"

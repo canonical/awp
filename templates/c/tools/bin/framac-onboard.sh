@@ -55,7 +55,10 @@ if command -v frama-c >/dev/null 2>&1; then
 else
   say "frama-c: NOT on PATH — DEPENDENCY-UNMET (source the opam switch: opam switch $SWITCH)"; rc=1
 fi
-if opam switch list 2>/dev/null | grep -q "$SWITCH"; then
+if [ -n "${FRAMA_C_SDK_SWITCH:-}" ] && [ "$FRAMA_C_SDK_SWITCH" = "$SWITCH" ]; then
+  # In a workshop: the frama-c-sdk SDK's read-only switch, no opam root of the user's.
+  say "opam switch '$SWITCH': present   PASS  (frama-c-sdk SDK, $FRAMA_C_SDK_SRC; Coq escalation available)"
+elif opam switch list 2>/dev/null | grep -q "$SWITCH"; then
   say "opam switch '$SWITCH': present   PASS  (Coq escalation available)"
 else
   say "opam switch '$SWITCH': ABSENT — DEPENDENCY-UNMET (bitmask/induction residue will not close in Coq)"

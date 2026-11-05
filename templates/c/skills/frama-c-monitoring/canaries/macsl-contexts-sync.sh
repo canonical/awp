@@ -15,12 +15,14 @@ set -u
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT="$(cd "$HERE/../../../.." && pwd)"   # the project root, which holds config/ and macsl/
-CMXS="${MACSL_CMXS:-$PROJECT/macsl/_build/default/src/macsl.cmxs}"
+# The plugin: $MACSL_CMXS, else the frama-c-sdk SDK's prebuilt one (FRAMA_C_SDK_MACSL,
+# set by the SDK's profile in a workshop), else the tree built at the project root.
+CMXS="${MACSL_CMXS:-${FRAMA_C_SDK_MACSL:-$PROJECT/macsl/_build/default/src/macsl.cmxs}}"
 CATALOG="${MACSL_CATALOG:-$HERE/../../frama-c-api/references/macsl-contexts.md}"
 
 [ -f "$CATALOG" ] || { echo "FAIL: catalog not found: $CATALOG"; exit 1; }
 if ! command -v frama-c >/dev/null 2>&1 || [ ! -f "$CMXS" ]; then
-  echo "SKIP(2): macsl plugin not built ($CMXS) or frama-c absent — run bin/fetch-sources.sh and 'dune build' in macsl/ at the project root, then re-run."
+  echo "SKIP(2): macsl plugin not built ($CMXS) or frama-c absent — run bin/fetch-sources.sh and 'dune build' in macsl/ at the project root (in a workshop, the frama-c-sdk SDK sets FRAMA_C_SDK_MACSL instead), then re-run."
   exit 2
 fi
 

@@ -1,4 +1,6 @@
-# Fetched by fetch-sources.sh, not part of the project history.
+# framac-src/ and macsl/ are fetched by fetch-sources.sh; .workshop.lock is
+# written by `workshop launch`. None is part of the project history.
 /framac-src/
 /macsl/
 _build/
+/.workshop.lock

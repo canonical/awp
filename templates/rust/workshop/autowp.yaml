@@ -1,0 +1,18 @@
+# Workshop definition written by auto-wp.py. From this directory:
+#   workshop launch      builds the container (SDKs below, this directory at /project)
+#   workshop shell       opens a shell in it as the user "workshop"
+# Edit .workshop/autowp-packages/hooks/setup-base for the apt packages of
+# the crate under study, then `workshop refresh`.
+name: autowp
+base: ubuntu@24.04      # or ubuntu@26.04; the SDKs are built for both
+sdks:
+  # From the SDK Store. latest/edge is where auto-wp's builds are released
+  # first; change the channel to a stable one (for example 0.15/stable for
+  # creusot) when it exists, then `workshop refresh`.
+  - name: creusot                # Creusot f15b985, its Rust nightly, Why3, why3find, Alt-Ergo, Z3, CVC4, CVC5
+    channel: latest/edge
+  - name: rocq                   # Rocq 9.2, for the rocq skill
+    channel: latest/edge
+  - name: lean                   # Lean 4 (elan, Lake, lean-lsp-mcp), for the lean skill
+    channel: latest/edge
+  - name: project-autowp-packages   # this project's apt packages (.workshop/autowp-packages/)

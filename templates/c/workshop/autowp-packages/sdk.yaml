@@ -1,0 +1,8 @@
+name: autowp-packages
+version: "0.1"
+summary: apt packages of the code under study, next to the auto-wp SDKs
+description: |
+  Project-local SDK written by auto-wp.py. Its setup-base installs, with
+  apt, the build dependencies of the code under study (as generated: GRUB's)
+  and the tools the README's quick start uses (tmux, curl). Edit
+  hooks/setup-base for another code base, then run `workshop refresh`.

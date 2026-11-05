@@ -1,0 +1,8 @@
+#!/bin/bash
+# Runs as root when the workshop is launched or refreshed (apt is preset to
+# -y and no recommends). The Creusot toolchain comes from the creusot SDK;
+# this installs only tmux and curl for the README's quick start. Add the apt
+# packages the crate under study needs to build (for example libssl-dev for
+# a crate with OpenSSL bindings) to the line below, then `workshop refresh`.
+apt-get update
+apt-get install tmux curl

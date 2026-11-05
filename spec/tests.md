@@ -111,11 +111,16 @@ content belong on the host, not in a container:
 |---|---|
 | T1 | No file under `templates/rust/` mentions "repo-root `creusot-sl.md`" (the rewrite of `auto-wp.md` §4.3.2). |
 | T2 | `templates/rust/skills/creusot-sl/SKILL.md` starts with a YAML front matter whose `name` is `creusot-sl`. |
-| T3 | `templates/common/` has the 12 skills of `auto-wp.md` §4.1, `templates/c/` the 9 of §4.2 and the 3 commands, `templates/rust/` the skills of §4.3.2 that exist so far. |
+| T3 | `templates/common/` has the 13 skills of `auto-wp.md` §4.1, `templates/c/` the 9 of §4.2 and the 3 commands, `templates/rust/` the skills of §4.3.2 that exist so far. |
 | T4 | No editor backup (`*~`) and nothing from `use-creusot/config/foo/` in `templates/`. |
 | T5 | Both `README.md` templates contain only the placeholders `{{DIR}}` and `{{LANGUAGE}}`. |
 | T6 | The three `time-loop` changes of `auto-wp.md` §4.2.2 are in `templates/c/`: `commands/time-loop.md` no longer contains "Stop early" nor "(diminishing returns)", and contains the replacement "Stop" bullet; `skills/time-loop/SKILL.md` no longer contains "DIMINISHING-RETURNS stop fires ONLY", and its description contains "There is no diminishing-returns stop"; both files name `XXX.md` as the report file and state that a re-run keeps the stored deadline. |
 | T7 | `templates/c/tools/bin/` holds the 22 scripts (`auto-wp.md` §4.2.1), `templates/c/tools/` has no `*.sh` at its top level, and no file under `templates/` outside `tools/` names one of these scripts without its `bin/` prefix (bare or `./name.sh`). |
+| T8 | The `workshop/` layer of each language (`auto-wp.md` §3.7.1) holds exactly `autowp.yaml`, `autowp-packages/sdk.yaml` and an executable `autowp-packages/hooks/setup-base` starting with `#!/bin/bash`; `autowp.yaml` has `name: autowp`, `base: ubuntu@24.04`, and the `sdks` names `frama-c-sdk`, `rocq`, `lean`, `project-autowp-packages` (C) or `creusot`, `rocq`, `lean`, `project-autowp-packages` (Rust), the three Store entries on `channel: latest/edge`; `sdk.yaml` has `name: autowp-packages`; no file of the layer names `sdks/`, `~/git/` or a `{{` placeholder; `setup-base` passes `shellcheck` when it is installed; each layer's `tools/.gitignore` lists `/.workshop.lock`. |
+
+The program tests 20–22 of `auto-wp.md` §5 (the generated `.workshop/`
+per language, the reserved `.workshop` paths, the rollback of `.workshop/`)
+are in `test_auto_wp.py` next to tests 1–19.
 
 ### 3.3 Claude Code in the container
 
@@ -228,6 +233,27 @@ hours, mostly building the toolchain.
 itself through `frama-c-launch`, which tests that path (and needs sudo inside
 the container for the apt step; `ubuntu` has passwordless sudo in the stock
 image).
+
+**Workshop mode (planned, not implemented).** `WORKSHOP=1 provision.sh`
+would replace steps 1–3 with a workshop: generate a project with
+`auto-wp.py --c`, run `workshop launch` from it (the `frama-c-sdk`, `rocq`
+and `lean` SDKs from the SDK Store, channel `latest/edge`, and the
+project-local `autowp-packages`, `auto-wp.md` §3.7), and use that container
+as the base, so provisioning takes minutes. It is the first run of a
+generated definition and what verifies `auto-wp.md` §4.5 items 1 and 2
+(`bin/fetch-sources.sh` linking `framac-src` to `FRAMA_C_SDK_SRC`;
+`frama-c-launch` and `bin/framac-onboard.sh` accepting the SDK's switch
+without an opam root). Its checks: the workshop reaches `ready`;
+`bin/fetch-sources.sh` creates `framac-src` as a link and clones `macsl/`;
+`frama-c -wp-detect` lists Alt-Ergo, Z3 and Coq as the `workshop` user;
+`bin/framac-onboard.sh` on a small target reports the toolchain `PASS`
+without `opam` installed; the `macsl-contexts-sync.sh` canary runs with
+`FRAMA_C_SDK_MACSL`. What is not settled: how the later levels copy a
+workshop (LXD snapshots live in the `workshop.<user>` LXD project, not the
+`default` one), and whether `lxc copy` of such a container keeps the SDK
+mounts; the LXD base of steps 1–3 stays until that is known. Needs the
+Store upload of the three C SDKs to be confirmed first (`auto-wp.md` §7
+item 1).
 
 ### 5.2 `install-test.sh` — level 2
 
@@ -381,6 +407,14 @@ Builds `autowp-rust-base` and takes the snapshot `ready`:
    CVC4 and CVC5.
 3. Claude Code as in §3.3, git as in §3.4.
 4. Stop, then `lxc snapshot autowp-rust-base ready`.
+
+**Workshop mode (planned, not implemented).** As for C (§5.1): a project
+generated with `auto-wp.py --rust`, `workshop launch` with the `creusot`
+SDK (on the SDK Store since 2026-11-05, `latest/edge`), `rocq`, `lean` and
+`autowp-packages`; checks: `ready`, `cargo creusot version` lists the tools,
+`cargo creusot config` prints `No problems found.`, and the smoke project
+of `auto-wp.md` §4.3.6 case A proves. The same open question about copying
+a workshop applies.
 
 ### 6.2 `install-test.sh` — level 2
 
@@ -567,3 +601,6 @@ Found while writing these tests; they need a decision outside `tests.md`:
    folder-trust prompt; whether LXD network ACLs filter egress on this
    bridge.
 8. **Rust smoke-test crate** (§6.4): to be chosen.
+9. **Workshop mode of `provision.sh`** (§5.1, §6.1): planned only. It
+   depends on the Store publication of the C SDKs and on how a workshop is
+   copied for the later levels.

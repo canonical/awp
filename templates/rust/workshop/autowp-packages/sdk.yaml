@@ -1,0 +1,8 @@
+name: autowp-packages
+version: "0.1"
+summary: apt packages of the crate under study, next to the auto-wp SDKs
+description: |
+  Project-local SDK written by auto-wp.py. Its setup-base installs, with
+  apt, the build dependencies of the crate under study (as generated: none)
+  and the tools the README's quick start uses (tmux, curl). Edit
+  hooks/setup-base for the crate's own packages, then run `workshop refresh`.

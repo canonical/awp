@@ -15,7 +15,7 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-VERSION = "0.1.0"
+VERSION = "0.2.0"
 TEMPLATES = Path(__file__).resolve().parent / "templates"
 LANGUAGES = {"c": "C (Frama-C/WP)", "rust": "Rust (Creusot)"}
 
@@ -26,7 +26,12 @@ LINKS = [
     (".claude/commands", "../config/commands"),
 ]
 # Paths that must not exist before the run (§3.1 item 3).
-RESERVED = ["config", ".agents", ".claude/skills", ".claude/commands"]
+RESERVED = ["config", ".agents", ".claude/skills", ".claude/commands",
+            ".workshop/autowp.yaml", ".workshop/autowp-packages"]
+# Directories that may pre-exist and are then reused (§3.1 item 3, §3.7.4).
+REUSED_DIRS = [".claude", ".workshop"]
+# The workshop definition written in .workshop/ (§3.7).
+WORKSHOP_NAME = "autowp"
 
 
 class AutoWpError(Exception):
@@ -82,9 +87,10 @@ class Run:
         for rel in RESERVED:
             if os.path.lexists(t / rel):
                 raise AutoWpError(f"{self.show(rel)} already exists")
-        claude = t / ".claude"
-        if os.path.lexists(claude) and not claude.is_dir():
-            raise AutoWpError(f"{self.show('.claude')} exists and is not a directory")
+        for rel in REUSED_DIRS:
+            d = t / rel
+            if os.path.lexists(d) and not d.is_dir():
+                raise AutoWpError(f"{self.show(rel)} exists and is not a directory")
 
     def make_target(self):
         missing = []
@@ -167,6 +173,32 @@ class Run:
                 self.created.append(("file", dest))
             self.out.append(f"copied  {self.show(name)}")
 
+    def install_workshop(self):
+        """Copy the language layer's workshop/ into .workshop/ (§3.7).
+
+        Its entries are reserved (§3.1 item 3), so none exists here; an
+        existing .workshop/ directory is reused and its other entries kept.
+        """
+        src = TEMPLATES / self.language / "workshop"
+        if not src.is_dir():
+            return
+        dest_dir = self.target / ".workshop"
+        if not dest_dir.is_dir():
+            dest_dir.mkdir()
+            self.created.append(("dir", dest_dir))
+        for entry in sorted(src.iterdir()):
+            if entry.name.endswith("~"):
+                continue
+            dest = dest_dir / entry.name
+            if entry.is_dir() and not entry.is_symlink():
+                shutil.copytree(entry, dest, symlinks=True,
+                                ignore=shutil.ignore_patterns("*~"))
+                self.created.append(("tree", dest))
+            else:
+                shutil.copy2(entry, dest, follow_symlinks=False)
+                self.created.append(("file", dest))
+        self.out.append(f"copied  {self.show('.workshop')} (workshop: {WORKSHOP_NAME})")
+
     def link(self):
         claude = self.target / ".claude"
         if not claude.is_dir():
@@ -219,6 +251,7 @@ class Run:
         self.make_target()
         self.install_config()
         self.install_tools()
+        self.install_workshop()
         self.link()
         self.write_readme()
         self.init_git()

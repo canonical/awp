@@ -9,7 +9,9 @@
 > ```
 > frama-c -load-module $MACSL_CMXS -macsl-list-contexts
 > ```
-> (`MACSL_CMXS=macsl/_build/default/src/macsl.cmxs`, under the project root). The canary
+> (`MACSL_CMXS=macsl/_build/default/src/macsl.cmxs`, under the project root; in a workshop with
+> the `frama-c-sdk` SDK, `MACSL_CMXS=$FRAMA_C_SDK_MACSL`, the prebuilt plugin, which the canary
+> takes by default when it is set). The canary
 > `config/skills/frama-c-monitoring/canaries/macsl-contexts-sync.sh` diffs this table against that
 > output and FAILS on mismatch — when the tool gains/renames a context, this file must be updated in
 > the same change. Source: `macsl/src/macsl.ml` (the `context` type + `run_policy`

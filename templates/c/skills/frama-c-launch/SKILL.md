@@ -99,6 +99,24 @@ is the right call — skip the squeeze.** Reach for the full loop deliberately.
        **different slice, not a superset**. Scope it honestly.
   2. **Toolchain confirmation** — `frama-c -wp-detect` output + the `framac-coq8` switch present
      (Coq needed for the recurring bitmask/induction residue).
+     - **In a workshop with the `frama-c-sdk` SDK (`FRAMA_C_SDK_SWITCH` is set): the SDK IS the
+       conformant toolchain — do NOT build.** It is Frama-C 32.1 built from the release archive with
+       every `frama-c-patches/` patch applied by `bin/fetch-sources.sh` itself, in a read-only
+       `framac-coq8` switch under `/opt/frama-c-sdk` (no opam root of the user's: never run
+       `opam switch`/`opam env`; the wrappers `frama-c`, `why3`, `alt-ergo`, `z3` are on `PATH` and
+       `frama-c-sdk-exec <cmd>` runs any other command of the switch). Confirm it with the SDK's own
+       health checks and record the result as the TOOLCHAIN provenance (`FRAMA_C_SDK_SWITCH`,
+       `FRAMA_C_SDK_SRC`, `FRAMA_C_SDK_MACSL`, `frama-c -version`):
+       ```sh
+       frama-c -version | grep -q '^32\.1'
+       frama-c -wp-detect 2>&1 | grep -qi alt-ergo && frama-c -wp-detect 2>&1 | grep -qi z3 \
+         && frama-c -wp-detect 2>&1 | grep -qi coq
+       grep -q land_le_l "$(frama-c -print-share-path)/wp/why3/frama_c_wp/cbits.mlw"   # patch-liveness
+       frama-c -no-autoload-plugins -load-module "$FRAMA_C_SDK_MACSL" -macsl-list-contexts  # Plane H
+       ```
+       All four pass → toolchain confirmed, skip the rest of this item. `$FRAMA_C_SDK_SRC` is the
+       patched source tree (`bin/fetch-sources.sh` links `framac-src` to it) for the skills that read
+       Frama-C's source. The build recipe below is for a plain container without the SDK.
      - **MANDATORY — a GIT/SOURCE Frama-C checkout MUST exist and EVERY patch in `frama-c-patches/`
        MUST be applied to it; a plain `opam install frama-c` build is NOT a conformant toolchain.**
        The stock opam binary is missing the local WP/frontend fixes this project depends on
@@ -196,7 +214,8 @@ is the right call — skip the squeeze.** Reach for the full loop deliberately.
   1. **Parse oracle** — `frama-c [flags] file.c` preprocesses + parses with **no dropped-annotation
      warnings** (`unbound logic function` / "ignoring" reads as benign but means a stripped type
      chain → fix the force-includes), on a representative unit and ideally the whole queue.
-  2. **Toolchain oracle** — `frama-c -wp-detect` lists the provers; the `framac-coq8` switch exists.
+  2. **Toolchain oracle** — `frama-c -wp-detect` lists the provers; the `framac-coq8` switch exists
+     (in a workshop: the `frama-c-sdk` SDK's, confirmed as in §0 item 2, not an opam root of the user's).
   3. **Faithfulness round-trip** — strip-ACSL == `git HEAD` on the (in-place) clone, **per repo
      and per submodule**; `setup.sh` applies *and reverses* cleanly (`git apply --reverse --check`).
   4. **Smoke proof** — ≥1 leaf unit reaches WP all-`Valid` (the feasibility gate).
@@ -288,7 +307,10 @@ artifact before the next step builds on it.
    toolchain/modules), that is a **hard blocker** to route, not a fallback to a synthesised config.
    **If the Frama-C TOOLCHAIN ITSELF is absent** (`frama-c` not on `PATH`, or the switch is gone, or
    `-wp-detect`/`-wp-timeout` report "unknown option" = the WP plugin failed to Dynlink-load against a
-   missing switch's libs), do NOT stop at `DEPENDENCY-UNMET` — **INSTALL/BUILD it** (this is opam-local,
+   missing switch's libs), first check for the SDK: if `FRAMA_C_SDK_SWITCH` is set, the toolchain is
+   the `frama-c-sdk` SDK (§0 item 2) and a failing `frama-c` there is an SDK health problem to report
+   (`workshop info` on the host), not something to rebuild. Otherwise do NOT stop at
+   `DEPENDENCY-UNMET` — **INSTALL/BUILD it** (this is opam-local,
    reversible with `opam switch remove`, no `sudo`; verified working recipe, mbedtls 2026-07):
    - **Provers first (cheap, from opam):** `opam install alt-ergo` into the switch; `z3` is usually the
      system `/usr/bin/z3` or `opam install z3`. Then **register them with why3**: `why3 config detect`

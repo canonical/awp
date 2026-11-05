@@ -1,4 +1,4 @@
-"""Level 1 template checks T1-T6 (tests.md 3.2).
+"""Level 1 template checks T1-T8 (tests.md 3.2).
 
 auto-wp.py copies the templates byte for byte, so these check the template
 files themselves, on the host. They only read templates/ (and, for part of
@@ -17,7 +17,7 @@ USE_CREUSOT = Path(os.environ.get("USE_CREUSOT", REPO.parent / "use-creusot"))
 COMMON_SKILLS = [
     "directory-structure", "ebios-risk-manager", "ebios-sl", "lean",
     "polish-skill", "rmf-sl", "rocq", "sl-auditor", "sl-builder",
-    "sl-internal", "sl-monitoring-sl", "stride",
+    "sl-internal", "sl-monitoring-sl", "stride", "workshop",
 ]
 C_LAYER_SKILLS = [
     "frama-c", "frama-c-api", "frama-c-internals", "frama-c-launch",
@@ -96,7 +96,7 @@ class TestTemplates(unittest.TestCase):
     # T3
     def test_T3_common_layer(self):
         self.assertEqual(skills("common"), sorted(COMMON_SKILLS))
-        self.assertEqual(len(skills("common")), 12)
+        self.assertEqual(len(skills("common")), 13)
         self.assertEqual(commands("common"), [])
 
     def test_T3_c_layer(self):
@@ -233,6 +233,49 @@ class TestTemplates(unittest.TestCase):
             for m in pat.finditer(text):
                 bad.append(f"{p.relative_to(TEMPLATES)}: {m.group(0)}")
         self.assertEqual(bad, [], "script referenced without its bin/ prefix")
+
+    # T8 (auto-wp.md 3.7, 4.5): the workshop/ layer files.
+    WORKSHOP_SDKS = {
+        "c": ["frama-c-sdk", "rocq", "lean", "project-autowp-packages"],
+        "rust": ["creusot", "rocq", "lean", "project-autowp-packages"],
+    }
+
+    def test_T8_workshop_layer(self):
+        import shutil
+        import subprocess
+        for lang in ("c", "rust"):
+            with self.subTest(lang=lang):
+                ws = TEMPLATES / lang / "workshop"
+                files = sorted(str(p.relative_to(ws)) for p in all_files(ws) if p.is_file())
+                self.assertEqual(files, ["autowp-packages/hooks/setup-base",
+                                         "autowp-packages/sdk.yaml", "autowp.yaml"])
+                hook = ws / "autowp-packages/hooks/setup-base"
+                self.assertTrue(os.access(hook, os.X_OK), "setup-base not executable")
+                self.assertTrue(hook.read_text().startswith("#!/bin/bash\n"))
+                text = (ws / "autowp.yaml").read_text()
+                names = re.findall(r"(?m)^\s*-\s*name:\s*(\S+)", text)
+                self.assertEqual(names, self.WORKSHOP_SDKS[lang])
+                self.assertEqual(len(re.findall(r"(?m)^\s+channel:\s*latest/edge\s*(#.*)?$",
+                                                text)), 3)
+                self.assertRegex(text, r"(?m)^name: autowp$")
+                self.assertRegex(text, r"(?m)^base: ubuntu@24\.04\b")
+                self.assertRegex((ws / "autowp-packages/sdk.yaml").read_text(),
+                                 r"(?m)^name: autowp-packages$")
+                for p in all_files(ws):
+                    if p.is_file():
+                        t = p.read_text()
+                        self.assertNotIn("sdks/", t, p.name)
+                        self.assertNotIn("~/git/", t, p.name)
+                        self.assertNotIn("{{", t, p.name)
+                if shutil.which("shellcheck"):
+                    r = subprocess.run(["shellcheck", str(hook)], capture_output=True, text=True)
+                    self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+                # The .gitignore of each layer lists .workshop.lock (3.7.4).
+                gi = (TEMPLATES / lang / "tools/.gitignore").read_text()
+                self.assertIn("/.workshop.lock", gi)
+        for lang in ("c", "rust"):
+            readme = (TEMPLATES / lang / "README.md").read_text()
+            self.assertNotIn("~/git/use-frama-c", readme)
 
 
 if __name__ == "__main__":

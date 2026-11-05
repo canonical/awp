@@ -1,0 +1,10 @@
+#!/bin/bash
+# Runs as root when the workshop is launched or refreshed (apt is preset to
+# -y and no recommends). The Frama-C toolchain comes from the frama-c-sdk
+# SDK; this installs only what the code under study needs to configure and
+# build (as generated: GRUB), plus tmux and curl for the README's quick
+# start. Edit the list for another code base, then `workshop refresh`.
+apt-get update
+apt-get install tmux curl \
+    autoconf automake autopoint gettext bison flex libtool \
+    libdevmapper-dev libfreetype-dev libfuse3-dev liblzma-dev fonts-unifont

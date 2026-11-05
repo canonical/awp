@@ -257,7 +257,8 @@ placeholders in it and changes nothing else:
       opam switch is read-only; `bin/fetch-sources.sh` stays, and in a
       workshop, where `FRAMA_C_SDK_SRC` is set, it links `framac-src` to the
       SDK's patched Frama-C sources instead of downloading the archive, and
-      still clones `macsl/` (§4.5, pending). The login paragraph (URL and
+      still clones `macsl/` (§4.5 item 1, written but not yet run in a
+      workshop). The login paragraph (URL and
       code, never copy `~/.claude/.credentials.json`) is the same as in C.
       One line says that Alt-Ergo, bundled in the Frama-C and Creusot SDKs,
       is under the OCamlPro Non-Commercial Purpose License (research use
@@ -483,7 +484,8 @@ placeholders in it and changes nothing else:
      `/opt/frama-c-sdk`, with `frama-c`, `why3`, `alt-ergo` and `z3` on
      `PATH` and the variables `FRAMA_C_SDK_SWITCH`, `FRAMA_C_SDK_MACSL`,
      `FRAMA_C_SDK_SRC` set; `frama-c-launch` accepts it on its first run
-     (§4.5, pending). With C, `frama-c-launch` checks the toolchain on the
+     (§4.5 item 2, written but not yet run in a workshop). With C,
+     `frama-c-launch` checks the toolchain on the
      first run and builds it from `framac-src/` (fetched with
      `frama-c-patches/` applied) if it is missing.
    - Optional: `~/.local-llm-machine-ip.txt` in the container, one line with
@@ -583,7 +585,7 @@ project must be a git repository.
 
   ```
   created foobar/config (language: c)
-    skills:   21
+    skills:   22
     commands: 3
   copied  foobar/.gitignore
   copied  foobar/bin
@@ -598,7 +600,7 @@ project must be a git repository.
   git     initialized foobar
   ```
 
-  and exit 0. With `--rust` the counts are `skills: 16` and `commands: 0`
+  and exit 0. With `--rust` the counts are `skills: 17` and `commands: 0`
   (§4.3.2), and the only `copied` lines are `foobar/.gitignore` (the Rust
   layer's `tools/` holds nothing else, §4.3.2) and `foobar/.workshop`. An
   entry of `tools/` that already exists in the target is not overwritten:
@@ -754,12 +756,15 @@ first launch of a generated project (§7 item 5).
 
 **Status (2026-11-05).** The four amd64 SDKs, for `ubuntu@24.04` and
 `ubuntu@26.04`, are being uploaded to the SDK Store and released to
-`latest/edge`. At the time of writing the upload is still running and the
-Store's acceptance is unconfirmed (including of the Alt-Ergo licence, C
-base spec §8). The arm64 builds are not uploaded. Nothing in this
-specification states that the upload succeeded; the README must not either
-until it is checked (`workshop launch` of a generated project on a host
-that has only Workshop, §7 item 1).
+`latest/edge`. `creusot` 0.15.0-f15b985 is confirmed on the Store
+(publisher Fabrice Derepas, licence field
+`LGPL-2.1-or-later AND LicenseRef-OCamlPro-Non-Commercial-1.0`), which
+also settles that the Store accepts an SDK bundling Alt-Ergo under its
+non-commercial licence (C base spec §8, Rust base spec open point 5). The
+upload of `frama-c-sdk`, `rocq` and `lean` is still running and their
+acceptance is unconfirmed. The arm64 builds are not uploaded. Nothing in
+this specification states that a generated project's `workshop launch`
+succeeded; the README must not either until it is checked (§7 item 1).
 
 **Decision (2026-11-05): Store names with `channel: latest/edge`.** The
 definition is written for the published state: each SDK by its Store name,
@@ -856,9 +861,15 @@ creates do not need them either (§4.2.1).
 
 Skills: `directory-structure`, `ebios-risk-manager`, `ebios-sl`, `lean`,
 `polish-skill`, `rmf-sl`, `rocq`, `sl-auditor`, `sl-builder`, `sl-internal`,
-`sl-monitoring-sl`, `stride` (12).
+`sl-monitoring-sl`, `stride`, `workshop` (13).
 
 Commands: none.
+
+`workshop` is written for auto-wp, not seeded from a source repository: it
+documents Workshop itself (definitions, the `workshop` commands, interfaces,
+SDK authoring and publishing), so that the agent can operate the project's
+workshop (§3.7) and diagnose it. It is in the common layer because both
+languages use the same definition layout.
 
 These cover the Squeeze Loop machinery, risk studies done without reading the
 code (RMF, EBIOS, STRIDE) and the proof assistants used to discharge goals the
@@ -880,7 +891,7 @@ Skills: `frama-c`, `frama-c-api`, `frama-c-internals`, `frama-c-launch`,
 
 Commands: `ebios`, `rmf`, `time-loop`.
 
-A `--c` project therefore has 21 skills (12 common + 9) and 3 commands.
+A `--c` project therefore has 22 skills (13 common + 9) and 3 commands.
 
 `meta-penguin` is not included: it is `time-loop` specialised to two Linux
 kernel subsystems of one campaign, not reusable for a new project.
@@ -903,7 +914,7 @@ permission bits. The layer holds:
 - `frama-c-patches/`, `framac-gold/` and `no-ceiling.md`, the data the
   scripts and skills read, at the project root as in `use-frama-c`;
 - a `.gitignore`, written for auto-wp: `/framac-src/`, `/macsl/`, `_build/`
-  and, since 0.2.0, `/.workshop.lock` (§3.7.4; pending in the template).
+  and, since 0.2.0, `/.workshop.lock` (§3.7.4).
 
 The scripts are in `bin/`, not at the root as in `use-frama-c`, so the
 project root stays readable. Every caller in the skills and commands calls
@@ -1059,14 +1070,13 @@ templates/rust/
 │   └── sl-monitoring-sl/      copied from use-creusot (overrides common)
 ├── commands/                  empty
 ├── tools/
-│   └── .gitignore             one line, /.workshop.lock (§3.7.4); pending
-└── workshop/                  .workshop/ of a Rust project (§3.7.1); pending
+│   └── .gitignore             /.workshop.lock (§3.7.4)
+└── workshop/                  .workshop/ of a Rust project (§3.7.1)
     ├── autowp.yaml
     └── autowp-packages/{sdk.yaml,hooks/setup-base}
 ```
 
-`tools/` and `workshop/` are additions of 0.2.0 and do not exist yet
-(§4.5); until they do, `--rust` prints no `copied` line.
+`tools/` and `workshop/` are additions of 0.2.0 (written 2026-11-05).
 
 The `creusot-sl` packaging is done **once, when seeding the templates**;
 `auto-wp.py` only copies the result:
@@ -1100,13 +1110,13 @@ The `creusot-sl` packaging is done **once, when seeding the templates**;
   `use-creusot`.
 - Apart from these, files are copied unchanged.
 
-A `--rust` project therefore has 16 skills: the 8 skills of the Rust layer
+A `--rust` project therefore has 17 skills: the 8 skills of the Rust layer
 (`creusot`, `creusot-launch`, `creusot-monitoring`, `creusot-sl` and the four
-Creusot-flavoured `sl-*` skills) and the 8 common skills that are not
+Creusot-flavoured `sl-*` skills) and the 9 common skills that are not
 overridden (`directory-structure`, `ebios-risk-manager`, `ebios-sl`, `lean`,
-`polish-skill`, `rmf-sl`, `rocq`, `stride`). Six of those eight are not in
-`use-creusot`: `ebios-risk-manager`, `ebios-sl`, `lean`, `rmf-sl`, `rocq`,
-`stride`. `rmf-sl` and `ebios-sl` are still wired to Frama-C (§4.1).
+`polish-skill`, `rmf-sl`, `rocq`, `stride`, `workshop`). Seven of those nine
+are not in `use-creusot`: `ebios-risk-manager`, `ebios-sl`, `lean`, `rmf-sl`,
+`rocq`, `stride`, `workshop`. `rmf-sl` and `ebios-sl` are still wired to Frama-C (§4.1).
 
 #### 4.3.3 Divergent SL skills
 
@@ -1381,19 +1391,21 @@ files ship in the SDK); the READMEs say so (§3.4).
   Creusot projects there prove with Alt-Ergo, Z3 and CVC5.
 - *In progress (2026-11-05):* publication to the SDK Store (C base spec
   §8). The four amd64 SDKs, for both bases, are being uploaded and released
-  to `latest/edge`; at the time of writing the upload is still running and
-  the Store's acceptance is unconfirmed. The arm64 builds are not uploaded.
-  The generated definition is written for the published state (§3.7.3).
+  to `latest/edge`: `creusot` is confirmed on the Store with its licence
+  field accepted; `frama-c-sdk`, `rocq` and `lean` are still uploading and
+  unconfirmed. The arm64 builds are not uploaded. The generated definition
+  is written for the published state (§3.7.3).
 - *Not done:* launching a generated project's workshop and running a
   campaign in it.
 
 **What the templates must gain** for the skills to use the SDKs, from the C
-base spec §3.5 and the Rust base spec §7. None of it is implemented yet;
-each item is marked *pending* until its template changes and the
-corresponding check in `tests.md` exist. Without the SDK (quick start C),
-every behaviour stays as it is.
+base spec §3.5 and the Rust base spec §7. Each item carries its status:
+*written* once its template change exists (and is checked by the level 1
+tests where a static check is possible), *pending* otherwise; none has run
+in a workshop yet (item 5 is what verifies them). Without the SDK (quick
+start C), every behaviour stays as it is.
 
-1. *Pending.* `bin/fetch-sources.sh`: when `FRAMA_C_SDK_SRC` is set and
+1. *Written 2026-11-05, unverified in a workshop.* `bin/fetch-sources.sh`: when `FRAMA_C_SDK_SRC` is set and
    `framac-src/` is absent, create `framac-src` as a symbolic link to it
    instead of downloading and patching the archive (the SDK's tree is the
    same release with the same patches applied by the same script). For
@@ -1405,7 +1417,7 @@ every behaviour stays as it is.
    and the two files above take `FRAMA_C_SDK_MACSL` as their default when it
    is set, so nothing is built; the C base spec's "same for `macsl/`" is
    read this way.
-2. *Pending.* `frama-c-launch`'s toolchain confirmation (its §0 item 2 and
+2. *Written 2026-11-05, unverified in a workshop.* `frama-c-launch`'s toolchain confirmation (its §0 item 2 and
    the "toolchain absent" branch): when `FRAMA_C_SDK_SWITCH` is set, the SDK
    is a conformant toolchain if `frama-c -version` is `32.1`,
    `frama-c -wp-detect` lists Alt-Ergo, Z3 and Coq, the patch-liveness
@@ -1417,15 +1429,17 @@ every behaviour stays as it is.
    root of the user's). The skill mentions opam 21 times and
    `frama-c/references/install.md` 26 times; the latter gains a first
    section "In a workshop: add `frama-c-sdk` to the definition" before the
-   build recipe, which stays for quick start C.
+   build recipe, which stays for quick start C. `bin/framac-onboard.sh`,
+   the prober's oracle, reports the switch as present when
+   `FRAMA_C_SDK_SWITCH` names it, instead of asking `opam switch list`.
 3. *Pending (with roadmap step 1, §4.3.7).* `creusot-launch`'s toolchain
-   check accepts the `creusot` SDK (§4.3.5), and
-   `creusot/references/install.md` gains the same first section for
-   `creusot`.
-4. *Pending.* `templates/c/workshop/` and `templates/rust/workshop/`
+   check accepts the `creusot` SDK (§4.3.5). The first section of
+   `creusot/references/install.md` ("In a workshop: add `creusot` to the
+   definition") is written (2026-11-05).
+4. *Written 2026-11-05.* `templates/c/workshop/` and `templates/rust/workshop/`
    (§3.7.1), `templates/rust/tools/.gitignore`, the `/.workshop.lock` line
    in `templates/c/tools/.gitignore`, and the three quick starts in both
-   READMEs (§3.4).
+   READMEs (§3.4); checked by tests 13, 13b, 14, 20 and T8.
 5. *Pending.* `tests/c/provision.sh` and `tests/rust/provision.sh` gain a
    Workshop mode that launches a workshop from the generated definition
    instead of building the toolchain (`tests.md`), which is also how item
@@ -1444,10 +1458,10 @@ subprocess.
 
 1. `--c foo` creates `foo/config/skills/frama-c/SKILL.md`,
    `foo/config/commands/rmf.md` and `foo/config/skills/sl-internal/SKILL.md`,
-   21 skill directories and 3 commands, and no `creusot*` skill (in particular
+   22 skill directories and 3 commands, and no `creusot*` skill (in particular
    no `creusot-launch`).
 2. `--rust foo` creates `foo/config/skills/{creusot,creusot-launch,creusot-monitoring,creusot-sl}/SKILL.md`,
-   16 skill directories and no command, and no `frama-c*` skill.
+   17 skill directories and no command, and no `frama-c*` skill.
    `foo/config/skills/sl-builder/SKILL.md` is identical to
    `templates/rust/skills/sl-builder/SKILL.md`, and
    `foo/config/skills/sl-internal/scripts/no_ceiling_gate.py` does not exist

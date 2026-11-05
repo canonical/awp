@@ -64,19 +64,40 @@ supersedes it), so `cargo creusot new` projects use Alt-Ergo, Z3 and CVC5.
 
 ## Using them
 
-In a project, `.workshop/<name>.yaml`:
+The SDKs are published on the SDK Store, channel `latest/edge` (the amd64
+builds for both bases; started 2026-11-05: `creusot` 0.15.0-f15b985 is
+confirmed on the Store, with the licence field
+`LGPL-2.1-or-later AND LicenseRef-OCamlPro-Non-Commercial-1.0` accepted;
+`frama-c-sdk`, `rocq` and `lean` were still uploading when this was
+written; the arm64 builds are not uploaded). In a project,
+`.workshop/<name>.yaml`:
 
 ```yaml
 name: dev
 base: ubuntu@24.04             # or ubuntu@26.04
 sdks:
-  - name: try-frama-c-sdk     # or frama-c-sdk with a channel, once published
-  - name: try-rocq
-  - name: try-lean
-  - name: try-creusot   # Rust projects
+  - name: frama-c-sdk          # C projects
+    channel: latest/edge
+  - name: creusot              # Rust projects
+    channel: latest/edge
+  - name: rocq
+    channel: latest/edge
+  - name: lean
+    channel: latest/edge
 ```
 
 then `workshop launch` and `workshop shell`. The project is at `/project`.
+This is what `auto-wp.py` writes into a generated project as
+`.workshop/autowp.yaml` (`../spec/auto-wp.md` §3.7), with a project-local
+SDK for the project's own apt packages. Stable channels per track
+(`32/stable`, `0.15/stable`, `latest/stable`) come after the auto-wp
+level 3 tests pass on an edge revision.
+
+**Unpublished changes** are tested with `sdkcraft try` (the `make sdk-*`
+targets above), which puts the packed SDK in the host's try area; a
+definition then names it `try-<name>` with no channel, as `test-sdk.sh`
+does. The try route is for developing the SDKs, not for users of a
+generated project; on arm64 it is, for now, the only route (above).
 
 - `frama-c`, `frama-c-gui`, `why3`, `alt-ergo`, `z3`, `dune` and
   `ocamlfind` are wrappers in `/opt/frama-c-sdk/bin` that run the tool in
