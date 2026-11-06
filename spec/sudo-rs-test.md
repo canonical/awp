@@ -97,7 +97,10 @@ Two modes, sharing the steps and the checks:
 
 In both, the checkpoint remote is `~/remote.git`, and the test builds sudo-rs
 once as shipped (INFO), so a build failure caused by the environment is told
-apart from one caused by the overlay. `SETUP_ONLY=1` stops after S.0 (and
+apart from one caused by the overlay. It builds a throwaway copy
+(`/tmp/sudors-baseline`), not `sudo-rs/` itself: the `creusot` SDK sets a
+global `[patch]` for `creusot-std`, and with it any `cargo` command in the
+crate appends `[[patch.unused]]` to `Cargo.lock` (seen 2026-11-06, §7). `SETUP_ONLY=1` stops after S.0 (and
 W.1–W.3), without the token.
 
 ## 5. Checks
@@ -106,7 +109,7 @@ W.1–W.3), without the token.
 |---|---|
 | S.0 | The clone is commit `e4cfa9c…` with the layout of §2. Failing here exits 2 before the token is moved in. INFO: whether sudo-rs builds as shipped. |
 | S.1 | K4: `creusot-monitoring` was loaded within 10 minutes. |
-| S.2 | K1: `sudo-rs/` is still the pinned commit, with no tracked change; and no `why3find.json`, `.gitignore` or `.coma` file was created inside it. |
+| S.2 | K1: `sudo-rs/` is still the pinned commit, with no tracked change; and no `why3find.json`, `.gitignore` or `.coma` file was created inside it. A `Cargo.lock` whose only change is added `[[patch.unused]]` entries passes with an INFO line (the global `[patch]` above, not a change to the code); any other change to it, a new `[[package]]` included, fails. |
 | S.3 | The overlay `sudo-rs-creusot/` exists, its `Cargo.toml` has a `[workspace]` table, and it (or a member) depends on `creusot-std`. |
 | S.4 | **The test runs `cargo creusot` in the overlay itself** (30-minute limit) and at least one `Proved` line comes out. The exit status and the counts of proved and failed or unknown goals are INFO. This is the objective gate: it does not rely on what the agent reports. |
 | S.5 | `sudo-rs.md` exists and is not empty. INFO: the files that look like the Phase 0 architecture report, and the number of new files under `creusot-monitoring`'s `getting-better/` and `bugs-to-report/`. |
@@ -120,9 +123,12 @@ Creusot's view of a crate full of FFI.
 
 ## 6. Open points
 
-1. **Budget.** Two hours is a guess: enough for Phase 0 and the first
-   sudoers-parser files, not for the crate. Raise `SUDORS_HOURS` once a first
-   run shows the pace.
+1. **Budget, and nothing to keep the session going.** With
+   `SUDORS_HOURS=6` the agent ended its turn after about 3.5 hours, and the
+   test stopped it 30 idle minutes later (§7): without a `/time-loop` for
+   Rust nothing re-invokes the session until the budget is spent. A larger
+   budget does not help until `creusot-launch` and a Rust `time-loop` exist
+   (`auto-wp.md` §4.3.7), or the request asks for a heartbeat explicitly.
 2. **Overlay without `creusot-launch`.** The mission asks
    `creusot-monitoring` to create the overlay, which is `creusot-launch`'s
    job. S.3 may fail for that reason alone until roadmap step 1 is done.
@@ -133,7 +139,8 @@ Creusot's view of a crate full of FFI.
    of the same `SUDORS_HOURS`; in the C gzip run the `rmf-sl` phase took a
    large part of the first hour. If S.4 suffers from it, raise the budget
    rather than drop the study: an endogenous ranking is what the study is
-   there to replace. S.8 has not run yet.
+   there to replace. In the 2026-11-06 run (§7) the study was written first
+   and passed S.8.
 
 ## 7. Results
 
@@ -148,3 +155,39 @@ Creusot's view of a crate full of FFI.
   the Store (`latest/edge`): 4 passed, 0 failed. W.2 launched in 1105 s with
   `creusot` 0.15.0-f15b985, `rocq` 9.2.0 and `lean` 4.35.0 from the Store,
   `ready`. `WORKSHOP_TRY` is no longer needed on 24.04.
+- 2026-11-06, the first campaign, `WORKSHOP=1 SUDORS_HOURS=6` on
+  `ubuntu@24.04`, every SDK from the Store, Claude Code 2.1.318: 10 passed,
+  1 failed. A first attempt failed S.1 because the harness did not recognise
+  Claude Code 2.1.318's prompt (a no-break space after `❯`; fixed in
+  `tests/lib/harness.sh`). Then:
+  - S.2 failed: `sudo-rs/Cargo.lock` gained a `[[patch.unused]]` entry for
+    `creusot-std`, written by the test's own as-shipped build at S.0 through
+    the `creusot` SDK's global `[patch]` (the agent's report notes the diff
+    was there before it started, and that every other file matched a
+    checksum taken before and after). Fixed: the baseline builds a copy, and
+    K1 accepts that diff alone (§5).
+  - S.3, S.5, S.6, S.8 passed. S.4: the test's own `cargo creusot` in
+    `sudo-rs-creusot/` exited 0 with no failed or unknown goal (the agent's
+    three `--no-cache` runs end `Proved (328 files)`). S.5 INFO: the report
+    `sudo-rs.md` and `sudo-rs-creusot/audit/{architecture,system}.md`; 6 new
+    files routed to `creusot-monitoring`'s `getting-better/` and
+    `bugs-to-report/`. S.7 INFO: only Claude Code's own launcher files.
+  - The run: a code-blind RMF study (15 risk scenarios), a read-only Phase 0
+    (3 agents), then four proof loops on overlay crates `lexcore`, `policy`,
+    `cli`, `syspure`. Proved, on adapted copies (strings as `Vec<char>`, maps
+    as lists, std helpers re-implemented): no panic, overflow or
+    out-of-bounds access in the sudoers lexer and parser skeleton (the
+    "internal parser error" `panic!` unreachable), the alias lookups against
+    `proofs/sudoers.mlw`, the `sudo`/`su`/`visudo` argument parsers, the
+    environment filter, the ring buffer and the timestamp codec. Only `cli`
+    was checked against the real code (random differential testing, 0
+    differences).
+  - Findings, reported and not patched: F-S1 an on-disk timestamp overflows
+    `SystemTime::new` (`system/time.rs:17`; panics in debug, wraps in
+    release); F-S2 `checked_add`/`checked_sub` can overflow in the carry;
+    F-S3 a slice at `log/syslog.rs:93` panics after an exact-fit 960-byte
+    append; F-S4 an `unwrap` on an interior NUL, also in `Drop`; F-S5
+    `dynamic_fill` can loop forever or panic.
+  - Not attempted: most `ast.rs` parsers and the `Hostname`, `Meta`,
+    `Username` tokens. The agent ended its turn after about 3.5 of the 6
+    hours (§6 point 1).

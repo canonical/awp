@@ -279,6 +279,15 @@ k1() {
     if autowp_exec_user "$c" "cd '$dir' && [ \"\$(git rev-parse HEAD)\" = '$commit' ] \
         && git diff --quiet HEAD && [ -z \"\$(git status --porcelain --untracked-files=no)\" ]"; then
         pass "$id"
+    elif autowp_exec_user "$c" "cd '$dir' && [ \"\$(git rev-parse HEAD)\" = '$commit' ] \
+        && [ \"\$(git status --porcelain --untracked-files=no)\" = ' M Cargo.lock' ] \
+        && ! git diff -U0 HEAD -- Cargo.lock | grep -E '^[-+]' | grep -vE '^(\+\+\+|---) ' \
+            | grep -vqxE '\+(\[\[patch\.unused\]\]|name = \"[^\"]*\"|version = \"[^\"]*\"|)'"; then
+        # Only [[patch.unused]] entries added to Cargo.lock: any cargo command
+        # in the crate does that when a global [patch] (the creusot SDK's, for
+        # creusot-std) does not apply to it. Not a change to the code.
+        pass "$id"
+        info "$id" "Cargo.lock only gained [[patch.unused]] entries (a global cargo [patch]); no source change"
     else
         fail "$id" "$dir changed: $(autowp_exec_user "$c" "cd '$dir' && git status --porcelain --untracked-files=no | head -5 | tr '\n' ' '")"
     fi

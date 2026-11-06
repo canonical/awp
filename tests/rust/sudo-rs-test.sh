@@ -123,7 +123,10 @@ else
 fi
 s0 "$C"
 # sudo-rs builds here, as shipped (libpam found): the baseline for the overlay.
-if out=$(autowp_exec_user "$C" "$CARGO_ENV cd '$D/sudo-rs' && cargo build -q --target-dir /tmp/sudors-target 2>&1 | tail -3"); then
+# In a throwaway copy: the creusot SDK's global [patch] for creusot-std makes
+# any cargo build append [[patch.unused]] to Cargo.lock, which S.2 would see.
+if out=$(autowp_exec_user "$C" "$CARGO_ENV rm -rf /tmp/sudors-baseline && cp -a '$D/sudo-rs' /tmp/sudors-baseline \
+        && cd /tmp/sudors-baseline && cargo build -q --target-dir /tmp/sudors-target 2>&1 | tail -3"); then
     info S.0 "sudo-rs builds as shipped"
 else
     info S.0 "sudo-rs does not build as shipped: $(tr '\n' ' ' <<<"$out")"
