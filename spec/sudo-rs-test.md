@@ -124,8 +124,8 @@ Creusot's view of a crate full of FFI.
 ## 6. Open points
 
 1. **Budget, and nothing to keep the session going.** With
-   `SUDORS_HOURS=6` the agent ended its turn after about 3.5 hours, and the
-   test stopped it 30 idle minutes later (§7): without a `/time-loop` for
+   `SUDORS_HOURS=6` the agent ended its turn after 2 h 34 min (10:46 to
+   13:20 UTC), and the test stopped it about 30 idle minutes later (§7): without a `/time-loop` for
    Rust nothing re-invokes the session until the budget is spent. A larger
    budget does not help until `creusot-launch` and a Rust `time-loop` exist
    (`auto-wp.md` §4.3.7), or the request asks for a heartbeat explicitly.
@@ -189,5 +189,6 @@ Creusot's view of a crate full of FFI.
     append; F-S4 an `unwrap` on an interior NUL, also in `Drop`; F-S5
     `dynamic_fill` can loop forever or panic.
   - Not attempted: most `ast.rs` parsers and the `Hostname`, `Meta`,
-    `Username` tokens. The agent ended its turn after about 3.5 of the 6
-    hours (§6 point 1).
+    `Username` tokens. The agent worked 2 h 34 min of the 6 hours (task
+    typed 10:46, report written and turn ended 13:20 UTC); the test as a whole,
+    from W.1 to the cleanup, took 3 h 34 min (§6 point 1).
