@@ -26,7 +26,7 @@ HARNESS_SESSION=${HARNESS_SESSION:-autowp}
 # and the status line, which stays once text is typed.
 case $HARNESS in
     opencode) HARNESS_PROMPT_RE=${HARNESS_PROMPT_RE:-'Ask anything|shift\+tab agents'} ;;
-    *)        HARNESS_PROMPT_RE=${HARNESS_PROMPT_RE:-'(^|[│ ])(>|❯)( | )|\? for shortcuts'} ;;
+    *)        HARNESS_PROMPT_RE=${HARNESS_PROMPT_RE:-$'(^|[│ ])(>|❯)( |\u00a0)|\\? for shortcuts'} ;;
 esac
 
 # Writes the launcher that reads the credential into the environment and
