@@ -8,7 +8,7 @@
 #                                          the toolchain from the creusot SDK
 #   KEEP=1                                 keeps the container, or the
 #                                          workshop and its project
-#   SUDORS_HOURS=<n>                       the budget (default 2): the run is
+#   SUDORS_HOURS=<n>                       the budget (default 96): the run is
 #                                          stopped at n hours + 30 min
 #   SETUP_ONLY=1                           stops after S.0 (and W.1-W.3): no
 #                                          token, minutes instead of hours
@@ -32,7 +32,8 @@ SUDORS_COMMIT=e4cfa9cf7b71e287dd5046633c0f5276072d147d   # v0.2.15^{}, read 2026
 
 WORKSHOP=${WORKSHOP:-0}
 SETUP_ONLY=${SETUP_ONLY:-0}
-HOURS=${SUDORS_HOURS:-2}
+HOURS=${SUDORS_HOURS:-96}
+HARD_LIMIT=$(( HOURS * 3600 + 1800 ))   # the budget plus 30 min for the report
 CAMPAIGN_PROJECT=sudo-rs-analyze
 if [ "$WORKSHOP" = 1 ]; then
     # shellcheck source=../lib/workshop.sh
@@ -98,7 +99,10 @@ w3() {
 
 # --- setup ---------------------------------------------------------------------
 
-[ "$SETUP_ONLY" = 1 ] || secret_check_file || exit 1
+if [ "$SETUP_ONLY" != 1 ]; then
+    secret_check_file || exit 1
+    secret_check_expiry $(( HARD_LIMIT / 3600 + 1 )) || exit 1
+fi
 if [ "$WORKSHOP" = 1 ]; then
     C=$WS
     ws_generate rust creusot || { autowp_summary; exit 1; }
@@ -140,6 +144,20 @@ fi
 # --- the campaign ----------------------------------------------------------------
 
 secret_push "$C"
+# A fixed deadline and a heartbeat: there is no /time-loop for Rust yet, so
+# without one the agent ends its turn after a few hours and the session goes
+# idle (sudo-rs-test.md 6, point 1). Same mechanism as time-loop/SKILL.md:
+# ScheduleWakeup re-invokes the session; the report is rewritten every cycle,
+# so a stop at any time leaves one.
+DEADLINE=$(( $(date +%s) + HOURS * 3600 ))
+DEADLINE_UTC=$(date -u -d "@$DEADLINE" +%FT%TZ)
+REQUEST="$REQUEST \
+Deadline: $DEADLINE_UTC (epoch $DEADLINE). Work in cycles until then, and keep the session alive: \
+before ending every turn, if \$(date +%s) is below $DEADLINE, call ScheduleWakeup with delaySeconds 300 and \
+the prompt 'Continue the sudo-rs Creusot audit until epoch $DEADLINE: pick the next unproved item from \
+sudo-rs.md, prove it in $OVERLAY/, then update sudo-rs.md.' At the end of every cycle rewrite \
+sudo-rs.md so it is complete at any moment. Once the deadline has passed, write the final sudo-rs.md and \
+stop without re-arming."
 if ! harness_start "$C" "$D" "$REQUEST"; then
     fail S.1 "harness did not start"
     autowp_summary
@@ -150,7 +168,7 @@ else fail S.1 "creusot-monitoring not loaded within 10 minutes (K4)"; fi
 
 # No time-loop for Rust: stop at the budget plus 30 minutes for the report,
 # or earlier when the transcript has been idle for IDLE_S (default 1800 s).
-wait_loop_stopped "$C" "$D/sudo-rs.md" $(( HOURS * 3600 + 1800 )) || true
+wait_loop_stopped "$C" "$D/sudo-rs.md" "$HARD_LIMIT" || true
 harness_pane "$C" | tail -15 | sed 's/^/    | /'
 harness_stop "$C"
 

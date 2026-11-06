@@ -96,11 +96,11 @@ configuration, and check K2 (G.8, S.6) verifies it was written nowhere.
 
 ```bash
 make smoke-c-gzip-ws                       # gzip: 96-hour /time-loop, stopped after 98 h at most
-make sudo-rs-rust-ws SUDORS_HOURS=6        # sudo-rs: 6 hours + 30 min for the report
+make sudo-rs-rust-ws                       # sudo-rs: 96 hours + 30 min for the report
 ```
 
 or directly, `WORKSHOP=1 tests/c/gzip-test.sh` and
-`WORKSHOP=1 SUDORS_HOURS=6 tests/rust/sudo-rs-test.sh`. The `make` targets
+`WORKSHOP=1 tests/rust/sudo-rs-test.sh`. The `make` targets
 keep a log in `tests/out/`. Both can run at the same time (each has its own
 workshop); 16 GB of RAM is tight for two, 32 GB is comfortable.
 
@@ -108,7 +108,7 @@ workshop); 16 GB of RAM is tight for two, 32 GB is comfortable.
 |---|---|
 | `SETUP_ONLY=1` | Stop after the setup checks: no token, no Claude Code, a few minutes. Use it first on a new host. |
 | `GZIP_HOURS=<n>` | gzip budget in hours (default 96; stopped at n + 2 h) |
-| `SUDORS_HOURS=<n>` | sudo-rs budget in hours (default 2) |
+| `SUDORS_HOURS=<n>` | sudo-rs budget in hours (default 96; stopped at n + 30 min, or after 30 idle minutes) |
 | `KEEP=1` | Keep the workshop and the project at the end, to inspect them |
 | `WORKSHOP_DIR=<dir>` | Generate the project in `<dir>` instead of a new directory under `~/.awp` |
 | `WORKSHOP_BASE=ubuntu@26.04` | Rewrite the definition's `base:` (default as generated, `ubuntu@24.04`) |

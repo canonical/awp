@@ -507,7 +507,7 @@ is added, mirroring §5.4.
 ### 6.5 `sudo-rs-test.sh` — level 3, sudo-rs
 
 The full specification is `sudo-rs-test.md` (added 2026-11-05). The Rust
-counterpart of §5.5: a time-boxed Creusot campaign (default 2 hours,
+counterpart of §5.5: a time-boxed Creusot campaign (default 96 hours,
 `SUDORS_HOURS`) on sudo-rs v0.2.15, pinned by commit, driven by
 `creusot-monitoring` through the harness, in a copy of
 `autowp-rust-base/ready` or, with `WORKSHOP=1`, in the generated project's

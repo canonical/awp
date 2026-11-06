@@ -16,8 +16,9 @@ setup has run (§7).
 3. Start the agent harness (`HARNESS`: Claude Code by default, or OpenCode)
    and give it the mission of §3, which
    asks for a code-blind RMF risk study of sudo-rs (`rmf-sl`) and then
-   drives `creusot-monitoring` on the crate for a fixed budget (default 2
-   hours, `SUDORS_HOURS`).
+   drives `creusot-monitoring` on the crate for a fixed budget (default 96
+   hours since 2026-11-06, 2 before; `SUDORS_HOURS`). The test refuses to
+   start when the token would expire before the budget plus 30 minutes.
 4. Stop the harness at the budget plus 30 minutes, or when the transcript
    has been idle for 30 minutes, then check the results (§5).
 
@@ -76,6 +77,14 @@ When `creusot-launch` exists, the request becomes "onboard … with
 `creusot-launch`, then analyze it with `creusot-monitoring`", and S.3 checks
 its onboarding package as `smoke-test.sh` R4.4 does.
 
+The test appends a fixed deadline (start + `SUDORS_HOURS`, as UTC and epoch)
+and a heartbeat to the request: before ending every turn, if the deadline has
+not passed, call `ScheduleWakeup` (300 s) with a prompt to continue; rewrite
+`sudo-rs.md` at the end of every cycle so a stop at any time leaves a
+complete report; after the deadline, write the final report and stop without
+re-arming. This is what `time-loop/SKILL.md` does for C, until a Rust
+`time-loop` exists.
+
 ## 4. Where it runs
 
 Two modes, sharing the steps and the checks:
@@ -129,6 +138,9 @@ Creusot's view of a crate full of FFI.
    Rust nothing re-invokes the session until the budget is spent. A larger
    budget does not help until `creusot-launch` and a Rust `time-loop` exist
    (`auto-wp.md` §4.3.7), or the request asks for a heartbeat explicitly.
+   Since 2026-11-06 it does (§3): with the 96-hour default, the request
+   gives a fixed deadline and asks the agent to re-arm `ScheduleWakeup`
+   (300 s) before ending each turn and to rewrite `sudo-rs.md` every cycle.
 2. **Overlay without `creusot-launch`.** The mission asks
    `creusot-monitoring` to create the overlay, which is `creusot-launch`'s
    job. S.3 may fail for that reason alone until roadmap step 1 is done.
