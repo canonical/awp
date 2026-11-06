@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Level 3, C (gzip-test.md, tests.md 5.5): a one-hour `/time-loop gzip-1.9 1`
-# run on GNU gzip 1.9 through the interactive harness.
+# Level 3, C (gzip-test.md, tests.md 5.5): a `/time-loop gzip-1.9 <hours>`
+# run on GNU gzip 1.9 through the interactive harness, 96 hours by default.
 #
 #   tests/c/gzip-test.sh               in a copy of autowp-c-base/ready (LXD)
 #   WORKSHOP=1 tests/c/gzip-test.sh    in the generated project's workshop
@@ -8,6 +8,8 @@
 #                                      from the frama-c-sdk SDK, not the base
 #   KEEP=1                             keeps the container, or the workshop
 #                                      and its project directory
+#   GZIP_HOURS=<n>                     the /time-loop budget (default 96); the
+#                                      run is stopped at n + 2 hours at most
 #
 # Workshop mode: WORKSHOP_BASE, WORKSHOP_TRY, WORKSHOP_DIR (tests/lib/workshop.sh,
 # gzip-test.md 7.1).
@@ -17,7 +19,8 @@
 #
 # Needs the harness credential (tests.md 7, AUTOWP_TOKEN_FILE). Downloads and checks
 # gzip-1.9.zip (G.0) before the token is moved in, waits for the loop to stop,
-# at most 3 hours, then runs G.1-G.11 (and W.1-W.4 in workshop mode).
+# at most GZIP_HOURS + 2 hours, then runs G.1-G.11 (and W.1-W.4 in workshop
+# mode). The token must not expire before then (secret_check_expiry).
 set -euo pipefail
 HERE=$(cd "$(dirname "$0")" && pwd)
 # shellcheck source=../lib/lxc.sh
@@ -40,8 +43,10 @@ CAMPAIGN_LINT=1
 # shellcheck source=../lib/harness.sh
 . "$HERE/../lib/harness.sh"
 
-HOURS=1
-HARD_LIMIT=$((3 * 3600))
+HOURS=${GZIP_HOURS:-96}
+# The deadline is only checked between cycles, and a cycle can run past it
+# (gzip-test.md 3): 2 hours of margin, 3 hours in all for a 1-hour budget.
+HARD_LIMIT=$(( (HOURS + 2) * 3600 ))
 CMD="/time-loop $CAMPAIGN_SRC $HOURS"
 
 # g11 <container> <id>: at least one unit with PROVED goals (gzip-test.md 5),
@@ -111,7 +116,10 @@ ws_sdk_reuse() {
 # --- setup -------------------------------------------------------------------
 
 SETUP_ONLY=${SETUP_ONLY:-0}
-[ "$SETUP_ONLY" = 1 ] || secret_check_file || exit 1
+if [ "$SETUP_ONLY" != 1 ]; then
+    secret_check_file || exit 1
+    secret_check_expiry $(( HARD_LIMIT / 3600 )) || exit 1
+fi
 if [ "$WORKSHOP" = 1 ]; then
     C=$WS
     ws_generate c frama-c-sdk || { autowp_summary; exit 1; }

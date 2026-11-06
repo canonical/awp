@@ -19,7 +19,7 @@ tests/
 │   ├── provision.sh         builds the reusable C base container (§5.1)
 │   ├── install-test.sh      level 2: auto-wp.py --c + git clone grub (§5.2)
 │   ├── smoke-test.sh        level 3: 3-hour /time-loop run (§5.3)
-│   ├── gzip-test.sh         level 3: 1-hour /time-loop run on gzip 1.9, LXD or Workshop (§5.5)
+│   ├── gzip-test.sh         level 3: /time-loop run on gzip 1.9 (96 h by default), LXD or Workshop (§5.5)
 │   └── acceptance.sh        level 4: /time-loop grub 72 (§5.4)
 └── rust/
     ├── provision.sh         builds the reusable Rust base container (§6.1)
@@ -382,8 +382,8 @@ must already be built: a one-hour budget leaves no time to build it).
    keyring, signing key pinned by fingerprint), unzip it, run
    `bin/fetch-sources.sh`, and commit `gzip-1.9/` once in `gzip-analyze` as
    the baseline for K1. `gzip-1.9/` is a release tree, not a clone.
-3. Start the harness in `~/gzip-analyze` and type `/time-loop gzip-1.9 1`.
-   Hard limit 3 hours.
+3. Start the harness in `~/gzip-analyze` and type `/time-loop gzip-1.9 N`,
+   N = `GZIP_HOURS` (default 96). Hard limit N + 2 hours.
 
 | # | Check |
 |---|---|
@@ -391,8 +391,8 @@ must already be built: a one-hour budget leaves no time to build it).
 | G.1 | K4. |
 | G.2 | K1 for a tracked source: `git diff --quiet <import commit> -- gzip-1.9`; untracked build output allowed. |
 | G.3 | `gzip-1.9-analysis-rmf-report.md` exists, is not empty, and passes `bin/rmf-lint.sh`. |
-| G.4 | As C3.4, with a 1-hour deadline. |
-| G.5 | *Informational.* The number of wakes (one hour may hold a single cycle). |
+| G.4 | As C3.4, with an N-hour deadline. |
+| G.5 | *Informational.* The number of wakes (a 1-hour budget may hold a single cycle). |
 | G.6, G.7 | As C3.6 and C3.7. |
 | G.8 | K2. |
 | G.9 | *Informational.* K3, with `~/gzip-analyze` in the allowlist. |

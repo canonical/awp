@@ -66,7 +66,7 @@ provision-rust: | $(OUT) ## Build autowp-rust-base (hours)
 smoke-c: | $(OUT) ## Level 3, C: 3-hour /time-loop run (token)
 	tests/c/smoke-test.sh 2>&1 | tee $(OUT)/c-smoke-$(STAMP).log
 
-smoke-c-gzip: | $(OUT) ## Level 3, C: 1-hour /time-loop run on gzip 1.9 (token)
+smoke-c-gzip: | $(OUT) ## Level 3, C: /time-loop run on gzip 1.9, 96 h by default (GZIP_HOURS) (token)
 	tests/c/gzip-test.sh 2>&1 | tee $(OUT)/c-gzip-$(STAMP).log
 
 smoke-c-gzip-ws: | $(OUT) ## Level 3, C: the gzip run in a generated project's workshop (token)

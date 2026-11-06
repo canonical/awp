@@ -125,12 +125,14 @@ small: they then hold only the analysis files and whatever the run changed.
 Without it, the first checkpoint would add the whole gzip tree, and nothing
 could tell a changed gzip file from an original one.
 
-**Timing.** Budget 1 hour, on purpose: the test checks that the loop starts,
-honours its deadline and writes its report on a new code base, and G.11
-asks for one proof, not for coverage. The hard limit is 3 hours: the deadline is only
+**Timing.** Budget `GZIP_HOURS`, 96 hours by default (2026-11-06; it was 1
+hour, which checked that the loop starts, honours its deadline and writes its
+report, but left most of gzip unverified). `GZIP_HOURS=1` still gives the
+short run. The hard limit is the budget plus 2 hours: the deadline is only
 checked between cycles (`time-loop/SKILL.md` §4 step 0), and one cycle on a
 first run includes the code-blind risk study and the onboarding, which can
-by itself run past the hour. `wait_loop_stopped` returns when the session
+by itself run past an hour. The test refuses to start when the token would
+expire before the hard limit (`secret_check_expiry`). `wait_loop_stopped` returns when the session
 has been idle for `IDLE_S` (default 30 minutes) or at the hard limit.
 
 **Make target.** `make smoke-c-gzip`, logging to

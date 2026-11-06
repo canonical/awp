@@ -95,7 +95,7 @@ configuration, and check K2 (G.8, S.6) verifies it was written nowhere.
 ### 3. Run
 
 ```bash
-make smoke-c-gzip-ws                       # gzip: 1-hour /time-loop, stopped after 3 h at most
+make smoke-c-gzip-ws                       # gzip: 96-hour /time-loop, stopped after 98 h at most
 make sudo-rs-rust-ws SUDORS_HOURS=6        # sudo-rs: 6 hours + 30 min for the report
 ```
 
@@ -107,6 +107,7 @@ workshop); 16 GB of RAM is tight for two, 32 GB is comfortable.
 | Variable | Effect |
 |---|---|
 | `SETUP_ONLY=1` | Stop after the setup checks: no token, no Claude Code, a few minutes. Use it first on a new host. |
+| `GZIP_HOURS=<n>` | gzip budget in hours (default 96; stopped at n + 2 h) |
 | `SUDORS_HOURS=<n>` | sudo-rs budget in hours (default 2) |
 | `KEEP=1` | Keep the workshop and the project at the end, to inspect them |
 | `WORKSHOP_DIR=<dir>` | Generate the project in `<dir>` instead of a new directory under `~/.awp` |
