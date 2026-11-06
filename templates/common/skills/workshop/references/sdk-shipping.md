@@ -602,7 +602,8 @@ sdkcraft whoami
 sdkcraft register hello                        # once per SDK, ever
 sdkcraft upload hello_amd64_ubuntu@24.04.sdk                     # prints the revision
 sdkcraft upload hello_amd64_ubuntu@22.04.sdk --release latest/edge
-sdkcraft revisions hello                       # channels and revisions
+sdkcraft revisions hello                       # channels and revisions (no base column)
+sdk info hello                                 # what users get: version and revision per base
 sdkcraft release hello 8 latest/stable         # promote an existing revision
 sdkcraft release hello 9 beta,edge             # comma-separated channels
 sdkcraft logout

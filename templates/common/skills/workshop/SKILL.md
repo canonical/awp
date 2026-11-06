@@ -151,7 +151,22 @@ workshop launch --verbose --wait-on-error
 sdkcraft test                         # spread suite in fresh LXD VMs
 sdkcraft login && sdkcraft register hello
 sdkcraft upload hello_amd64_ubuntu@24.04.sdk --release latest/edge
+sdk info hello                        # what the Store serves: version, base, rev
 ```
+
+**Is it on the Store?** After an upload, check what users will get with
+`sdk info`, not `sdkcraft revisions`: its CHANNELS table gives one line per
+base (`ubuntu@24.04`, `ubuntu@26.04`) with version and revision, while
+`sdkcraft revisions` has no base column and needs a keyring. For several
+SDKs at once:
+
+```bash
+for i in rocq lean creusot frama-c-sdk; do sdk info $i; done
+```
+
+A definition whose `base:` has no line under its channel fails at launch with
+`"<SDK>" SDK: Revision not found`. Right after an upload, the new revision
+can take a while to show up; `sdk info` tells you when it has.
 
 ## Best practices (from the upstream guidance)
 
