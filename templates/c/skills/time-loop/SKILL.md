@@ -412,7 +412,12 @@ class (esp. the A-vs-C call) is set by the monitor's probe, from a base the veri
 ## 4. The N-hour loop (resumable, idempotent, deadline-aware) — THE CORE LOGIC IS STEP 1 (triage)
 State lives in `XXX-analysis-acsl/time-loop.state` (campaign start, `deadline = start + N·3600 s`, the
 unit/residue work-list with status + class, the next-wake time, cumulative coverage counts, the
-per-cycle self-justification log). Each wake:
+per-cycle self-justification log). **Pinned lines** (`key=value`, one per line, epoch seconds from
+`date +%s`; tests and resumes parse them, so never reword them): `start=<epoch>` and
+`deadline=<epoch>` once, written on the first invocation and never changed; then **`wake=<epoch>`
+appended as the first action of every wake** (heartbeat or report-driven), never rewritten or
+removed; and each cycle's log entry starts `cycle <n>: ` (a space before the number). Free text goes
+on other lines. Each wake:
 
 0. **Reconcile (Phase-0, idempotent).** Load state; if a state file exists, keep its stored start and
    deadline (never recompute them from this invocation's `N`, §0). If `now > deadline` → terminus (step 6). Else
@@ -539,7 +544,10 @@ per-cycle self-justification log). Each wake:
    internals — keeps the next code-blind `rmf-sl` re-run exogenous).
 5. **Gates B/C/S → checkpoint (commit + push) + persist.** Update `verdicts.tsv`, the consolidated
    gaps/found-issues, the coverage ledger, and `time-loop.state`. **This IS a crash-safe checkpoint:**
-   commit + push every cycle (rebase-before-push; never stage SMT caches `.lia/.nia.cache`; keep
+   **invoking `/time-loop` is the user's standing request to commit and push to `origin` at every
+   cycle boundary**: do it without asking, and do not skip it on the general rule of committing only
+   when asked (a run with no pushed commit per cycle is a loop-behaviour bug; the level 3 tests check
+   it). Commit + push every cycle (rebase-before-push; never stage SMT caches `.lia/.nia.cache`; keep
    `XXX/` pristine; kill stray solver/`verify.sh` processes you spawned). Never clobber a committed
    artifact (full redo only under `--fresh`). **RE-ARM the self-firing `ScheduleWakeup`** (the same
    `delaySeconds: 120, prompt: "/time-loop XXX N"` call from Invocation) so the heartbeat persists to the
@@ -617,7 +625,13 @@ with the supplied antecedent / applied lever); and the **Plane-H macsl HAPPY ora
 -no-autoload-plugins -load-module <macsl>/macsl.cmxs -macsl -wp -wp-rte <real TU>` returning the
 `\prop` discharge IN-SITU (not on a driver) plus the attack-suite catch. A "verdict" is the per-goal
 WP discharge status + the per-`\prop` `HAPPY-WITNESSED(in-situ)|HAPPY-DRIVER-ONLY(class-C)|RESIDUE` row
-+ the per-unit `VERIFIED|PARSE-BLOCKED|RESIDUE(class)` row. **NO EVA** — every Plane-W verdict is pure
++ the per-unit `VERIFIED|PARSE-BLOCKED|RESIDUE(class)` row. **`verdicts.tsv` schema (pinned;
+`bin/crosswalk-gen.sh` and the tests read it by column name):** tab-separated, first line the header
+`unit	SA#	function	verdict	goals	notes`, one row per unit or per function. `verdict` is one of
+`VERIFIED` (every goal of the row Valid), `PARSE-BLOCKED`, `RESIDUE(A)`, `RESIDUE(B)`, `RESIDUE(C)`;
+`goals` is `<valid>/<total>` for that row (e.g. `131/136`), or empty when WP did not run; `SA#` names
+the code-blind report's assets the row covers (`SA1/SA3`), or `-`. Never rename a column or add a
+status word; put everything else in `notes`. **NO EVA** — every Plane-W verdict is pure
 WP+SMT (+ audited admit-free Coq); Plane-H is macsl (never MetAcsl/HILARE). **Pilot first** is already
 done by the base `/rmf` campaign (its smoke proof); time-loop reconciles that state rather than
 re-piloting.

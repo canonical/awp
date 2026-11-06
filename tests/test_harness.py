@@ -108,5 +108,78 @@ class K1(unittest.TestCase):
         self.assertIn("FAIL: S.2", self.run_k1(m))
 
 
+def embedded_python(path, start_pattern, arg_dir, *args):
+    """Run the Python heredoc that follows start_pattern in a shell file."""
+    import re
+    with open(os.path.join(REPO, path)) as f:
+        lines = f.read().split("\n")
+    i = next(n for n, l in enumerate(lines) if re.search(start_pattern, l))
+    j = next(n for n in range(i, len(lines)) if re.search(r"<<'PY'$", lines[n]))
+    k = next(n for n in range(j + 1, len(lines)) if lines[n] == "PY")
+    code = "\n".join(lines[j + 1:k])
+    r = subprocess.run(["python3", "-I", "-", *args], input=code, text=True,
+                       capture_output=True, cwd=arg_dir, check=True)
+    return r.stdout
+
+
+class StateFile(unittest.TestCase):
+    """state_json (G.4-G.7): the pinned lines of time-loop/SKILL.md §4."""
+
+    def parse(self, text):
+        import json, tempfile
+        with tempfile.TemporaryDirectory() as d:
+            put(os.path.join(d, "s"), text)
+            return json.loads(embedded_python("tests/lib/harness.sh", r"^state_json\(\)", d,
+                                              os.path.join(d, "s")))
+
+    def test_pinned(self):
+        s = self.parse("start=1793967699\ndeadline=1793971299\nwake=1793967700\n"
+                       "cycle 1: x\nwake=1793968900\ncycle 2: y (deadline 1793971299)\n")
+        self.assertEqual(s["deadline"], 1793971299)
+        self.assertEqual(s["wakes"], [1793967700, 1793968900])
+        self.assertEqual(s["cycles"], [1, 2])
+
+    def test_deadline_on_cycle_line_is_not_a_wake(self):
+        s = self.parse("start=1793967699\ndeadline=1793971299\n"
+                       "cycle2 plan: inflate; ~18min budget (deadline 1793971299).\n")
+        self.assertEqual(s["wakes"], [])
+        self.assertEqual(s["cycles"], [2])
+
+    def test_gate_t(self):
+        self.assertTrue(self.parse("Gate T: six items PASS\n")["gate_t_pass"])
+        self.assertFalse(self.parse("Gate T not run; deadline already passed\n")["gate_t_pass"])
+        self.assertFalse(self.parse("PAUSE. Gate T not run; items 1-4 expected FAIL. PASS later\n")["gate_t_pass"])
+
+
+class Verdicts(unittest.TestCase):
+    """g11 (G.11): verdicts.tsv as time-loop/SKILL.md §5 pins it, and older words."""
+
+    def counts(self, tsv):
+        import tempfile
+        with tempfile.TemporaryDirectory() as d:
+            os.makedirs(os.path.join(d, "gzip-1.9-analysis-acsl"))
+            put(os.path.join(d, "gzip-1.9-analysis-acsl", "verdicts.tsv"), tsv)
+            out = embedded_python("tests/c/gzip-test.sh", r"^g11\(\)", d, "gzip-1.9")
+            return [int(x) for x in out.split()]
+
+    def test_pinned_schema(self):
+        units, proved, goals, _ = self.counts(
+            "unit\tSA#\tfunction\tverdict\tgoals\tnotes\n"
+            "unlzh\tSA2\tinit_getbits\tVERIFIED\t7/7\t\n"
+            "unzip\tSA1\t-\tRESIDUE(C)\t131/136\t5 open\n"
+            "unlzw\t-\t-\tRESIDUE(A)\t\tnon-natural loop\n")
+        self.assertEqual((units, proved, goals), (3, 2, 138))
+
+    def test_nothing_proved(self):
+        _, proved, _, _ = self.counts(
+            "unit\tSA#\tfunction\tverdict\tgoals\tnotes\n"
+            "unlzw\t-\t-\tRESIDUE(A)\t0/0\tWP aborts\n")
+        self.assertEqual(proved, 0)
+
+    def test_old_words_without_header(self):
+        _, proved, _, _ = self.counts("inflate\tValid\n")
+        self.assertEqual(proved, 1)
+
+
 if __name__ == "__main__":
     unittest.main()

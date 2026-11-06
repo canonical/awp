@@ -117,13 +117,14 @@ if os.path.exists(verdicts_p):
             try: return r[hdr.index(name)].strip()
             except (ValueError, IndexError): return ""
         for r in rows[1:]:
-            sa = col(r,"sa"); vd = col(r,"verdict"); unit = col(r,"unit")
+            sa = col(r,"sa"); vd = col(r,"verdict") or col(r,"status"); unit = col(r,"unit")
             verds.append(dict(sa=sa, fn=col(r,"function") or unit,
                               verdict=vd, goals=col(r,"goals"), note=col(r,"notes")))
             for s in re.split(r'[/,]', sa):
                 s=s.strip()
                 if not s: continue
-                if re.search(r'\b(Valid|PROVED|GREEN)\b', vd, re.I): proved_sa.add(s)
+                # VERIFIED is time-loop's per-unit word (time-loop/SKILL.md §5 schema)
+                if re.search(r'\b(Valid|PROVED|GREEN|VERIFIED)\b', vd, re.I): proved_sa.add(s)
                 if unit and not re.fullmatch(r'SA\d+', unit):   # skip SA# placeholders used by BLOCKED rows
                     sa_units.setdefault(s, [])
                     if unit not in sa_units[s]: sa_units[s].append(unit)

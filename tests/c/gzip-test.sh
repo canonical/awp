@@ -56,23 +56,33 @@ g11() {
     counts=$(autowp_exec_user "$c" "cd '$CAMPAIGN_DIR' && python3 - '$CAMPAIGN_SRC'" <<'PY'
 import os, re, sys
 src = sys.argv[1]
-ok = re.compile(r"\b(Valid|PROVED|GREEN)\b")
+# time-loop/SKILL.md §5 pins verdicts.tsv: unit, SA#, function, verdict, goals,
+# notes; verdict VERIFIED when every goal is Valid, goals "<valid>/<total>".
+# Older words (Valid, PROVED, GREEN) are still read.
+ok = re.compile(r"\b(Valid|PROVED|GREEN|VERIFIED)\b")
+frac = re.compile(r"\b(\d+)/(\d+)\b")
 units, proved, goals = set(), set(), 0
 for root, dirs, files in os.walk("."):
     dirs[:] = [d for d in dirs if d not in (".git", src, "framac-src", "macsl")]
     for f in files:
         if not f.endswith("verdicts.tsv"):
             continue
+        hdr = None
         for line in open(os.path.join(root, f), errors="replace"):
             if not line.strip() or line.lstrip().startswith("#"):
                 continue
-            cells = line.rstrip("\n").split("\t")
-            if cells[0].strip().lower() in ("unit", "function", "sa#", "vo#"):
+            cells = [c.strip() for c in line.rstrip("\n").split("\t")]
+            if cells[0].lower() in ("unit", "function", "sa#", "vo#"):
+                hdr = [c.lower().rstrip("#") for c in cells]
                 continue
-            units.add(cells[0].strip())
-            if any(ok.search(x) for x in cells[1:]):
-                proved.add(cells[0].strip())
-                goals += 1
+            col = lambda name: cells[hdr.index(name)] if hdr and name in hdr and hdr.index(name) < len(cells) else ""
+            units.add(cells[0])
+            n = sum(int(a) for a, b in frac.findall(col("goals")))
+            if any(ok.search(x) for x in (col("verdict") or col("status"),) if x) \
+                    or (not hdr and any(ok.search(x) for x in cells[1:])):
+                proved.add(cells[0]); goals += max(n, 1)
+            elif n > 0:
+                proved.add(cells[0]); goals += n
 issues = 0
 p = src + "-analysis-found-issues.md"
 if os.path.exists(p):
@@ -81,7 +91,7 @@ print(len(units), len(proved), goals, issues)
 PY
     ) || counts="0 0 0 0"
     read -r units proved_units goals issues <<<"$counts"
-    info "$id" "units in verdicts: $units; units with PROVED goals: $proved_units; PROVED rows: $goals; found-issues entries: $issues"
+    info "$id" "units in verdicts: $units; units with PROVED goals: $proved_units; PROVED goals: $goals; found-issues entries: $issues"
     proved=$proved_units
     if [ "${proved:-0}" -ge 1 ]; then pass "$id"
     else fail "$id" "no unit has PROVED goals; read the pane transcript before blaming the skills (rate limits, slow onboarding)"; fi

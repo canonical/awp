@@ -350,8 +350,12 @@ start = field("START_EPOCH", "START_UTC", "start", "campaign start")
 deadline = field("DEADLINE_EPOCH", "DEADLINE_UTC", "deadline")
 wakes, cycles, changes = [], set(), set()
 for line in text.splitlines():
-    if re.search(r"(?i)\b(wake|cycle)\b", line):
-        for t in re.findall(TS, line):
+    # time-loop/SKILL.md §4 pins `wake=<epoch>`; older runs wrote "cycle 2 …"
+    # or "cycle2 …" with a time on the line
+    if re.search(r"(?i)\b(wake|cycle)(\b|\d)", line):
+        # a deadline or start quoted on a cycle line is not a wake
+        bare = re.sub(r"(?i)\b(deadline|start)\b\D{0,4}" + TS, "", line)
+        for t in re.findall(TS, bare):
             v = ts(t)
             if v:
                 wakes.append(v)
@@ -361,11 +365,16 @@ for line in text.splitlines():
         cycles.add(int(m.group(1)))
         if re.search(r"(?i)verdict[ -]*(change|delta)", line):
             changes.add(int(m.group(1)))
+pinned = [int(x) for x in re.findall(r"(?im)^\s*wake\s*=\s*(\d{9,11})\s*$", text)]
+if pinned:                      # the pinned form wins over times found in prose
+    wakes = pinned
 scope = re.search(r"(?im)^\s*scope\s*[=:]\s*(\S+)", text)
 print(json.dumps({
     "start": start, "deadline": deadline, "wakes": sorted(set(wakes)),
     "cycles": sorted(cycles),
-    "gate_t_pass": bool(re.search(r"(?i)gate[- ]?t\b.*\bpass", text)),
+    # "Gate T ... PASS" in one sentence, PASS in capitals ("deadline passed"
+    # later on the line, or "Gate T not run", must not count)
+    "gate_t_pass": bool(re.search(r"(?i:gate[- ]?t)\b(?![^.\n]*\bnot run\b)[^.\n]*\bPASS\b", text)),
     "scope": scope.group(1) if scope else None,
     "verdict_change_cycles": sorted(changes),
 }))

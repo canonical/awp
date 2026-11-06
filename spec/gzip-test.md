@@ -152,13 +152,13 @@ report is `gzip-1.9.md`.
 | G.2 | K1, source untouched: `git diff --quiet <import commit> -- gzip-1.9` succeeds, and `git status --porcelain --untracked-files=no -- gzip-1.9` is empty. Untracked build output inside `gzip-1.9/` (`config.status`, `Makefile`, object files, `compile_commands.json`) is allowed, as for GRUB. |
 | G.3 | `gzip-1.9-analysis-rmf-report.md` exists, is not empty, and `bin/rmf-lint.sh` on it exits 0. |
 | G.4 | `gzip-1.9-analysis-acsl/time-loop.state` exists, and its deadline is 1 h after its start (± 5 min). |
-| G.5 | *Informational.* The number of wakes the state file records. A one-hour budget may hold a single cycle, so fewer than two wakes is reported, not failed (unlike C3.5). |
+| G.5 | *Informational.* The number of wakes the state file records: its `wake=<epoch>` lines (`time-loop/SKILL.md` §4), or, in a state file without them, times on lines that name a wake or a cycle (a quoted start or deadline excluded). A one-hour budget may hold a single cycle, so fewer than two wakes is reported, not failed (unlike C3.5). |
 | G.6 | Every cycle the state file records has a commit in `~/remote.git` (C3.6). |
 | G.7 | Stopped on time: the last wake is not later than the deadline plus the longest recorded cycle (C3.7). With a single wake, the check is that no new cycle started after the deadline. |
 | G.8 | K2: the token was not written anywhere. |
 | G.9 | *Informational.* K3: files changed outside the allowlist, with `~/gzip-analyze` in place of `~/foobar`. |
 | G.10 | Report file: `~/gzip-analyze/gzip-1.9.md` exists, is not empty, and is the interim report (the one-hour run pauses at its deadline). No other report file was created in `~/gzip-analyze` or inside `gzip-1.9/`. |
-| G.11 | **At least one unit has `PROVED` goals**, read from the overlay's `verdicts.tsv` (a `Valid`/`PROVED`/`GREEN` verdict, as `crosswalk-gen.sh` reads it). The check also prints, as INFO, the number of units onboarded, of goals `PROVED`, and of entries in `gzip-1.9-analysis-found-issues.md`. This makes the test a regression gate for the skills; the risk, accepted, is a failure on an hour lost to rate limits or to a slow onboarding, so a G.11 failure is read with the pane transcript before it is blamed on the skills. |
+| G.11 | **At least one unit has `PROVED` goals**, read from the overlay's `verdicts.tsv` in the schema `time-loop/SKILL.md` §5 pins (`unit`, `SA#`, `function`, `verdict`, `goals`, `notes`): a row whose `verdict` is `VERIFIED`, or whose `goals` is `n/m` with n ≥ 1. The older words `Valid`, `PROVED` and `GREEN` (what `crosswalk-gen.sh` read alone before 2026-11-06) are still accepted. The check also prints, as INFO, the number of units onboarded, of goals `PROVED`, and of entries in `gzip-1.9-analysis-found-issues.md`. This makes the test a regression gate for the skills; the risk, accepted, is a failure on an hour lost to rate limits or to a slow onboarding, so a G.11 failure is read with the pane transcript before it is blamed on the skills. |
 
 ## 6. Changes to the shared helpers
 
@@ -263,6 +263,34 @@ subscription.
   5 passed, 0 failed (W.1, W.2 with the launch in 2439 s, downloads
   included, W.3, G.0, W.4). Neither `WORKSHOP_BASE` nor `WORKSHOP_TRY` is
   needed any more.
+
+- 2026-11-06, the first campaigns in Workshop (`dell`, Claude Code 2.1.318,
+  `WORKSHOP=1`, every SDK from the Store, one-hour budget), twice, the second
+  with `KEEP=1`: 11 passed, 3 failed both times (G.6, G.7, G.11). A first
+  attempt had failed G.1 on Claude Code 2.1.318's prompt (fixed in
+  `tests/lib/harness.sh`). The kept project showed the causes:
+  - G.6: no commit beyond the import over 3 cycles. The agent wrote "I did
+    not commit or push, since you didn't ask for it": Claude Code's default
+    of committing only when asked won over the skill's per-cycle checkpoint.
+    The skill now says `/time-loop` is the standing request to commit and
+    push every cycle (§4 step 5).
+  - G.5, G.7: `start=` and `deadline=` were there, but no wake was recorded
+    (`cycle2 DELIVERED …`, no time), and the parser took a deadline quoted on
+    a cycle line for a wake. The skill now pins `wake=<epoch>` per wake and
+    `cycle <n>: ` entries; the parser prefers `wake=` lines and ignores a
+    quoted start or deadline (`tests/test_harness.py`).
+  - G.11: `verdicts.tsv` had a `status` column with `RESIDUE`/`VERIFIED` and
+    `goals` like `131/136`: the words `time-loop/SKILL.md` §5 itself defines,
+    which `crosswalk-gen.sh` and G.11 did not read. With the pinned schema
+    and the new parser the same file gives 6 units with proved goals, 672
+    goals in all, instead of none. `crosswalk-gen.sh` now also reads
+    `VERIFIED` and a `status` column.
+  - What the hour did: 12 units onboarded, none fully proved; `unlzw.c` is
+    class A (WP: "Non-natural loop detected", a `goto`); findings: a signed
+    shift at `unlzh.c:105` (low) and an unsigned 16-bit wrap in
+    `make_table`; no violation.
+- 2026-11-06, started: `GZIP_HOURS=96` (the new default), `KEEP=1`, in
+  Workshop on `dell`, with the skill as generated before the fixes above.
 
 ## 8. Documents to update
 
