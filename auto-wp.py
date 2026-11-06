@@ -15,7 +15,7 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-VERSION = "0.2.0"
+VERSION = "0.3.0"
 TEMPLATES = Path(__file__).resolve().parent / "templates"
 LANGUAGES = {"c": "C (Frama-C/WP)", "rust": "Rust (Creusot)"}
 
@@ -151,25 +151,33 @@ class Run:
         return sorted(Path(n).stem for n in chosen)
 
     def install_tools(self):
-        """Copy each layer's tools/ entries to the project root; keep existing ones."""
-        chosen = {}
+        """Copy each layer's tools/ entries to the project root; keep existing ones.
+
+        A directory present in several layers (bin/, §4.1) is merged: the
+        language layer's files are added to the common layer's and replace
+        those with the same name. A file entry is the language layer's.
+        """
+        chosen = {}  # entry name -> its entries, one per layer that has it
         for layer in self.layers:
             src = layer / "tools"
             if src.is_dir():
                 for entry in src.iterdir():
                     if not entry.name.endswith("~"):
-                        chosen[entry.name] = entry
+                        chosen.setdefault(entry.name, []).append(entry)
         for name in sorted(chosen):
             dest = self.target / name
             if os.path.lexists(dest):
                 self.out.append(f"kept    {self.show(name)} (already exists)")
                 continue
-            if chosen[name].is_dir() and not chosen[name].is_symlink():
-                shutil.copytree(chosen[name], dest, symlinks=True,
-                                ignore=shutil.ignore_patterns("*~"))
+            entries = chosen[name]
+            if entries[-1].is_dir() and not entries[-1].is_symlink():
                 self.created.append(("tree", dest))
+                for entry in entries:
+                    if entry.is_dir() and not entry.is_symlink():
+                        shutil.copytree(entry, dest, symlinks=True, dirs_exist_ok=True,
+                                        ignore=shutil.ignore_patterns("*~"))
             else:
-                shutil.copy2(chosen[name], dest, follow_symlinks=False)
+                shutil.copy2(entries[-1], dest, follow_symlinks=False)
                 self.created.append(("file", dest))
             self.out.append(f"copied  {self.show(name)}")
 

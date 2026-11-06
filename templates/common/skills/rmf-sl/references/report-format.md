@@ -89,19 +89,23 @@ Adapt the wording to the org, but keep the level *names* (`Lo/Mod/Hi`, `L1..L4`,
 verbatim — they are the linter's tokens.
 
 ## Rule 5 — endogeneity (R1-R4 are code-blind)
-R1-R4 prose must contain **no code artifacts**: no source filenames (`*.c`/`*.h`/`*.cpp`/`*.cc`/`*.rs`),
-no `#include`/`#define`, no `0x`-hex, no `::` or `->`. The linter **FAILs** (C8) on any — their
-presence means the author saw the source, which voids the exogenous bound. Name supporting assets by
-their *role* ("X.509 certificate parser"), never by file or function.
+R1-R4 prose must contain **no code artifacts**, whatever the language of the code under study:
+no source filenames (`*.c`/`*.h`/`*.cpp`/`*.cc`/`*.rs`), no `#include`/`#define`, no `0x`-hex, no `::`
+or `->` (C); no `fn name(`, `impl X`, `unsafe {`, `#[attribute]`, `&mut`, `Vec<`/`Option<`/`Result<`/
+`Box<`, `macro!(` or `.unwrap()` (Rust). The linter **FAILs** (C8) on any — their presence means the
+author saw the source, which voids the exogenous bound. Name supporting assets by their *role*
+("X.509 certificate parser", "sudoers policy parser"), never by file, module, crate path or function.
 
 **Endogeneity nuance — don't over-sanitize scope language.** A 800-53 control ID (`SI-7`, `AC-6`) and
 a configuration token (`CONFIG_PIPES`) are legitimate **scope/baseline/control** language in R1/R5,
-**not** code artifacts — C8 only flags source artifacts (`.c`/`.h`/.../`#include`/`0x...`/`::`/`->`).
-What stays banned in R1-R4: translation-unit names, function names, ACSL, WP goal counts. (R5 is *not*
-scanned by C8 — control IDs and config tokens live there freely.)
+**not** code artifacts — C8 only flags source artifacts (`.c`/`.h`/`.rs`/.../`#include`/`0x...`/`::`/
+`->`/`fn name(`/`unsafe {`/...). What stays banned in R1-R4: translation-unit, module or crate-path
+names, function names, ACSL or Pearlite, goal counts. (R5 is *not* scanned by C8 — control IDs and
+config tokens live there freely.)
 
 **Arrow caution:** in R1-R4 prose use the unicode arrow `→` or the word "then", never the
-ASCII `->` — C8 flags `->` as the C arrow operator. R5 prose may use `->` freely (not scanned).
+ASCII `->` — C8 flags `->` as the C arrow / Rust return-type operator. R5 prose may use `->` freely
+(not scanned). Likewise write "a Rust function" or "the parsing routine", never `fn parse(`.
 
 ## Minimal conformant skeleton (also the linter's known-good fixture)
 ~~~markdown

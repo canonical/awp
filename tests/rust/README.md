@@ -13,6 +13,7 @@ token.
 | `provision.sh` | — | `provision-rust` | an hour or more | no |
 | `workspace-test.sh` | 3 | `workspace-rust` | minutes | no |
 | `smoke-test.sh` | 3 | `smoke-rust` | up to 4 h | yes |
+| `sudo-rs-test.sh` | 3 | `sudo-rs-rust`, `sudo-rs-rust-ws` | 2–3 h | yes (not with `SETUP_ONLY=1`) |
 
 ## `install-test.sh` — level 2
 
@@ -79,3 +80,27 @@ and be pinned by URL and commit.
 
 There is no level 4 for Rust: there is no `/time-loop` command for Rust
 yet.
+
+## `sudo-rs-test.sh` — level 3, sudo-rs
+
+A time-boxed Creusot campaign on sudo-rs v0.2.15 (`../../spec/sudo-rs-test.md`,
+`tests.md` §6.5): a code-blind NIST RMF risk study of the crate is written
+first with `rmf-sl` (`sudo-rs-analysis-rmf-report.md`), then
+`creusot-monitoring` is asked to audit the crate, ranked by that study and
+sudoers parser first, in an overlay `sudo-rs-creusot/` next to the untouched
+clone, and to write `sudo-rs.md`. In a copy of `autowp-rust-base/ready`, or
+with `WORKSHOP=1` in the generated project's workshop (the `creusot` SDK;
+options as for `../c/gzip-test.sh`).
+
+- S.0 — the clone is the pinned commit with the expected layout.
+- S.1–S.3 — K4; `sudo-rs/` unchanged; the overlay is a workspace depending
+  on `creusot-std`.
+- S.4 — the test runs `cargo creusot` in the overlay: at least one goal
+  proved.
+- S.5–S.7 — the report `sudo-rs.md`; K2; K3 (INFO).
+- S.8 — `sudo-rs-analysis-rmf-report.md` exists, is not empty, and
+  `bin/rmf-lint.sh` exits 0 on it (as G.3 of the gzip test).
+
+```
+WORKSHOP=1 SETUP_ONLY=1 tests/rust/sudo-rs-test.sh
+```

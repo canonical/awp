@@ -146,6 +146,24 @@ three things the rest of the loop runs on:
    input (the attack surface) are proven first, and coverage is reported as a fraction of the
    *high-value* surface, not of the whole tree.
 
+**Exogenous ranking from a risk study (when the mission asks for one, or
+`<target>-analysis-rmf-report.md` already exists).** The `rmf-sl` skill
+(`config/skills/rmf-sl/SKILL.md`) authors a **code-blind** NIST RMF risk assessment of the
+target, `<target>-analysis-rmf-report.md` at the project root, whose R4 risk levels
+(likelihood x impact) and R5 controls give the ranking of item 3 an **exogenous** origin
+instead of "input-exposure read off the code". Rules: (a) the study is written **before**
+the audit, by a **fresh sub-agent that never sees the crate** — give it only the mission,
+the threat model and the crate's public documentation, never a source path (`rmf-sl` §4b:
+the delegation boundary is the barrier); (b) it must pass `bin/rmf-lint.sh
+<target>-analysis-rmf-report.md` (exit 0), whose C8 tripwire fails on any Rust or C code
+artifact in R1-R4; (c) the architect then reads the report and refines the value/risk
+ranking with it: a file is ranked by the highest-risk `RS#` whose supporting asset it
+implements, and the scope map records, per `RS#`, whether its control is amenable to
+Creusot (panic/overflow/bounds freedom, functional contracts) or out of reach (FFI, PAM,
+process state), as a named residual. Record the mapping file -> `RS#` in the architecture
+report, so that the proofs can be read back as control-effectiveness evidence (the RMF
+Monitor step). The audit's own, endogenous ranking stays the fallback when no study exists.
+
 **Gate A_top** then judges the audit + the resulting `U`/scope/ranking before any file is
 delegated. The architecture report is a first-class output (alongside the verdicts).
 

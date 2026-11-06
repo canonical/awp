@@ -407,7 +407,7 @@ class TestAutoWp(AutoWpTestCase):
                 self.assertOk(self.run_auto_wp("--" + lang, foo.name))
                 m = json.loads((foo / "config/auto-wp.json").read_text())
                 self.assertEqual(m["language"], lang)
-                self.assertEqual(m["auto_wp_version"], "0.2.0")
+                self.assertEqual(m["auto_wp_version"], "0.3.0")
                 self.assertRegex(m["created"], r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$")
                 self.assertEqual(m["skills"], sorted(m["skills"]))
                 self.assertEqual(m["commands"], sorted(m["commands"]))
@@ -459,16 +459,28 @@ class TestAutoWp(AutoWpTestCase):
                     "frama-c-patches/apply.sh", "framac-gold"):
             self.assertTrue(os.path.lexists(d / rel), rel)
             self.assertFalse((d / rel).is_symlink(), rel)
+        # bin/ merges the common layer (rmf-lint.sh) and the C layer (21): 4.1, 4.2.1.
         self.assertEqual(len(list(d.glob("bin/*.sh"))), 22)
+        self.assertEqual((d / "bin/rmf-lint.sh").read_bytes(),
+                         (TEMPLATES / "common/tools/bin/rmf-lint.sh").read_bytes())
         self.assertEqual(list(d.glob("*.sh")), [], "scripts belong in bin/, not the root")
         for s in d.glob("bin/*.sh"):
             self.assertTrue(os.access(s, os.X_OK), s.name)
         self.assertIn("/framac-src/", (d / ".gitignore").read_text())
         self.assertIn("/.workshop.lock", (d / ".gitignore").read_text())
 
-    def test_13c_rust_has_no_c_tools(self):
+    def test_13c_rust_has_only_common_tools(self):
+        """--rust gets bin/ with the common layer's rmf-lint.sh only (4.1), no C tool."""
         self.assertOk(self.run_auto_wp("--rust", "foobar"))
-        self.assertFalse(os.path.lexists(self.tmp / "foobar/bin"))
+        d = self.tmp / "foobar"
+        self.assertEqual(sorted(p.name for p in (d / "bin").iterdir()), ["rmf-lint.sh"])
+        lint = d / "bin/rmf-lint.sh"
+        self.assertTrue(lint.is_file() and not lint.is_symlink())
+        self.assertTrue(os.access(lint, os.X_OK))
+        self.assertEqual(lint.read_bytes(),
+                         (TEMPLATES / "common/tools/bin/rmf-lint.sh").read_bytes())
+        for rel in ("frama-c-patches", "framac-gold", "no-ceiling.md"):
+            self.assertFalse(os.path.lexists(d / rel), rel)
         gi = self.tmp / "foobar/.gitignore"
         self.assertTrue(gi.is_file() and not gi.is_symlink())
         self.assertIn("/.workshop.lock", gi.read_text())
@@ -767,7 +779,8 @@ class TestOutputAndConstraints(AutoWpTestCase):
         self.assertEqual(lines[0], "created foobar/config (language: rust)")
         self.assertEqual(lines[1], f"  skills:   {len(RUST_SKILLS)}")
         self.assertEqual(lines[2], "  commands: 0")
-        self.assertEqual(lines[3:5], ["copied  foobar/.gitignore",
+        self.assertEqual(lines[3:6], ["copied  foobar/.gitignore",
+                                      "copied  foobar/bin",
                                       "copied  foobar/.workshop (workshop: autowp)"])
 
     def test_rust_output_spec_count_17(self):

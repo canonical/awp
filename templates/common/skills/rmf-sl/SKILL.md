@@ -3,8 +3,9 @@ name: rmf-sl
 description: >-
   A squeeze loop that AUTHORS a NIST Risk Management Framework (RMF) risk
   assessment as a trustworthy, code-disjoint deliverable — the upstream risk
-  study that frama-c-launch consumes as its exogenous upper bound, the faithful
-  sibling of ebios-sl. Its upper bound U is NIST RMF doctrine itself (the
+  study that the verification launch loop (frama-c-launch for C, creusot-launch
+  / creusot-monitoring for Rust) consumes as its exogenous upper bound, the
+  faithful sibling of ebios-sl. Its upper bound U is NIST RMF doctrine itself (the
   published standards: SP 800-30 assessment mechanics, SP 800-37 the 7-step
   lifecycle Prepare/Categorize/Select/Implement/Assess/Authorize/Monitor, SP
   800-53 the control catalog) plus STRIDE as the threat-identification engine,
@@ -18,21 +19,27 @@ description: >-
   EBIOS, 800-30 weights accidental and environmental threat origins alongside
   adversarial ones, so the report must cover all three. The single load-bearing
   invariant is that the assessment author is physically BARRIERED FROM THE CODE
-  (R1-R4 code-blind), which makes the output a valid exogenous U for
-  frama-c-launch / frama-c-monitoring. Use to produce a NIST RMF risk assessment
-  for a system under verification, to run a risk study whose ranking will drive
-  frama-c-launch, or to author/audit RMF sections R1-R4 independently of the
-  implementation. Built with sl-builder, monitored with sl-monitoring-sl,
+  (R1-R4 code-blind), which makes the output a valid exogenous U for the launch
+  and monitoring loops (frama-c-launch / frama-c-monitoring, creusot-launch /
+  creusot-monitoring). Use to produce a NIST RMF risk assessment for a system
+  under verification, in C or in Rust, to run a risk study whose ranking will
+  drive the launch loop, or to author/audit RMF sections R1-R4 independently of
+  the implementation. Built with sl-builder, monitored with sl-monitoring-sl,
   grounded in sl-internal, audited with sl-auditor; the method content is the
   NIST corpus (nist/800-30.txt, nist/800-37.txt, nist/800-53.txt).
 ---
 
 # rmf-sl — author a NIST RMF risk assessment as a code-disjoint squeeze loop
 
-`rmf-sl` produces the **NIST Risk Management Framework** risk assessment that `frama-c-launch`
-consumes as its **exogenous upper bound** (the risk-level ranking). It is a **peer that runs first and
-code-disjoint** — *not* a child of `frama-c-launch`. Authoring the risk study and consuming it must
-live in **different, barriered** loops, or the bound collapses back to endogenous (self-certifying).
+`rmf-sl` produces the **NIST Risk Management Framework** risk assessment that the **launch loop**
+consumes as its **exogenous upper bound** (the risk-level ranking). The launch loop is the
+language's onboarding/verification entry: `frama-c-launch` (then `frama-c-monitoring`) for C,
+`creusot-launch` / `creusot-monitoring` (its Phase 0) for Rust; below, `frama-c-launch` stands for
+whichever is installed. The report is language-neutral: the same `<target>-analysis-rmf-report.md`,
+the same format contract and the same linter (`bin/rmf-lint.sh`, shipped in every project) serve
+both. It is a **peer that runs first and code-disjoint** — *not* a child of the launch loop.
+Authoring the risk study and consuming it must live in **different, barriered** loops, or the bound
+collapses back to endogenous (self-certifying).
 The RMF method content is the **NIST corpus** (`nist/800-30.txt` assessment mechanics, `nist/800-37.txt`
 the 7-step lifecycle / ATO governance, `nist/800-53.txt` the control catalog) with **STRIDE** as the
 threat engine (`nist/sp-800-stride-link.txt`); this skill is the *squeeze* that makes the report
@@ -142,8 +149,9 @@ the linter.
    code) -> `gap-N` -> re-plan (re-author code-blind).
 7. **Capitalize (Gate S):** reusable risk-analysis heuristics, audited by a disjoint monitor
    (`sl-monitoring-sl`) and the Gate-S audit (`sl-auditor`).
-8. **Handoff:** approved R1-R5 -> `frama-c-launch` consumes them (the `rmf-crosswalk.md` ranking);
-   later `frama-c-monitoring` verdicts -> the **Monitor** step (its §8e-style feedback), the AO
+8. **Handoff:** approved R1-R5 -> the launch loop consumes them (`frama-c-launch`: the
+   `rmf-crosswalk.md` ranking; `creusot-monitoring`: the Phase-0 value/risk ranking and scope map);
+   later the monitoring loop's verdicts -> the **Monitor** step (its §8e-style feedback), the AO
    - **`--linux` / `--full-tu` (spec: repo-root `linux-analysis.md`).** Accepted on the `/rmf`
      invocation when the target is Linux kernel code. They do **not** affect the code-blind risk
      study (R1–R4 stay barriered; at most set `system-type=linux-kernel` for the threat model).
@@ -179,12 +187,15 @@ provers; the same `sl-monitoring-sl` rule that the observed loop runs one delega
 **Endogeneity nuance — don't over-sanitize scope/control language.** A 800-53 control ID (`SI-7`,
 `AC-6`) or a build-config token (`CONFIG_PIPES`) is legitimate *scope/baseline/control* language in R1
 /R5, **not** a code artifact; the `bin/rmf-lint.sh` endogeneity tripwire correctly passes it (C8 flags
-`.c`/`.h`/`.cpp`/`.cc`/`.rs`/`#include`/`#define`/`0x...`/`::`/`->`, i.e. source artifacts, not control
-or config tokens; and R5 is not scanned at all). What stays banned in R1-R4: translation-unit names,
-function names, ACSL, WP goal counts. In R1-R4 prose use the unicode arrow `→` or "then", never `->`.
+source artifacts of either language — C: `.c`/`.h`/`.cpp`/`.cc`/`#include`/`#define`/`0x...`/`::`/`->`;
+Rust: `.rs`, `fn name(`, `impl X`, `unsafe {`, `#[attr]`, `&mut`, `Vec<`/`Option<`/..., `macro!(`,
+`.unwrap()` — not control or config tokens; and R5 is not scanned at all). What stays banned in R1-R4:
+translation-unit, module or crate-path names, function names, ACSL or Pearlite, goal counts. In R1-R4
+prose use the unicode arrow `→` or "then", never `->`.
 
 ## 5. Executable oracle setup
-- **`bin/rmf-lint.sh REPORT.md`** (repo root) — the mechanical `L`. Parses a report written to the
+- **`bin/rmf-lint.sh REPORT.md`** (project root; installed for both C and Rust projects) — the
+  mechanical `L`. Parses a report written to the
   **pinned format contract** (`references/report-format.md`) and checks the §1 invariants + the
   endogeneity tripwire; exit 0 = pass, 1 = violations, 2 = usage/format. **Content realism is *not* in
   scope — that is the human terminus.** The author writes to the same pinned contract, so the report
@@ -218,9 +229,12 @@ PENDING until then). No self-report ends the study.
 
 ## 8. Execution order & topology
 - **Pilot** `bin/rmf-lint.sh` on a known-good report first.
-- Run `rmf-sl` as a **code-disjoint PEER that precedes `frama-c-launch`** — *not* a child of it.
-  Orchestration: a thin top driver, **or** the `frama-c-launch` *coordinator* (itself code-barriered)
-  spawns it with a **threat-model-only context** — never the architect, never the source.
+- Run `rmf-sl` as a **code-disjoint PEER that precedes the launch loop** (`frama-c-launch`, or
+  `creusot-launch` / `creusot-monitoring` for Rust) — *not* a child of it. Orchestration: a thin top
+  driver, **or** the launch loop's *coordinator* (itself code-barriered) spawns it with a
+  **threat-model-only context** — never the architect, never the source. For Rust there is no `/rmf`
+  command yet: the mission asks for the study by name, and `creusot-monitoring` delegates it to a
+  fresh agent before its Phase-0 audit reads the crate.
 - **Cadence:** author on RMF's strategic / ongoing-authorization cycle; **consume across many
   verification runs** — don't regenerate per onboarding.
 - Within: R1->R2->R3->R4->R5 chained; iterate R3/R4 ≤ 2x.
@@ -233,6 +247,7 @@ PENDING until then). No self-report ends the study.
      |  exogenous risk bound + STRIDE->800-53->property crosswalk
      v
   frama-c-launch -> frama-c-monitoring  (verify the risk-ranked queue; verdicts)
+  [Rust: creusot-launch -> creusot-monitoring, the same two halves]
      |  feedback: verdicts -> control-effectiveness signals (rmf-feedback.md)
      v
   RMF Monitor step (800-37 step 7, ongoing authorization) --> PREFIX-monitor-feedback-NN.md
@@ -275,11 +290,13 @@ PENDING until then). No self-report ends the study.
   This loop is the *squeeze* around them, the way `ebios-sl` defers method to `ebios-risk-manager`.
 - `references/report-format.md` — the **pinned** report-format tag convention (the linter's contract +
   the author's spec; one source of truth).
-- `bin/rmf-lint.sh` (repo root) — the mechanical `L` (structure + coverage + endogeneity linter), parses
-  the pinned format.
-- Downstream consumer: `../frama-c-launch/SKILL.md` + `../frama-c-launch/templates/rmf-crosswalk.md`
+- `bin/rmf-lint.sh` (project root, C and Rust projects alike) — the mechanical `L` (structure +
+  coverage + endogeneity linter), parses the pinned format.
+- Downstream consumer, C: `../frama-c-launch/SKILL.md` + `../frama-c-launch/templates/rmf-crosswalk.md`
   (the report becomes the ranking `U`) and `../frama-c-launch/references/rmf-feedback.md` (verdicts ->
   the Monitor step, the cycle's downstream half).
+- Downstream consumer, Rust: `../creusot-monitoring/SKILL.md` Phase 0 (the report's risk levels
+  refine the value/risk ranking and the scope map; no crosswalk template yet).
 - Methodology: **`sl-builder`** (design the loop), **`sl-monitoring-sl`** (monitor + the endogenous-`U`
   discipline), **`sl-internal`** (the (U,L) theory), **`sl-auditor`** (the Gate-S disjoint audit).
 - Sibling: `../ebios-sl/SKILL.md` — the EBIOS RM twin (W1-W5); `rmf-sl` mirrors it 1:1, NIST-instantiated.

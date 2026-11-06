@@ -73,18 +73,18 @@ secret_check_expiry() {
 }
 
 # secret_push <container> [<name>]: stream the token into /run/autowp/<name>
-# (default: token) as ubuntu, mode 600.
+# (default: token) as the user (ubuntu, or workshop), mode 600.
 secret_push() {
     local c=$1 name=${2:-token}
     secret_check_file || return 1
-    lxc exec "$c" -- install -d -m 700 -o ubuntu -g ubuntu /run/autowp
-    lxc exec "$c" --user 1000 --group 1000 -- \
+    autowp_exec_root "$c" install -d -m 700 -o "$AUTOWP_USER" -g "$AUTOWP_USER" /run/autowp
+    autowp_exec_user_argv "$c" \
         sh -c "umask 077; cat > /run/autowp/$name" < "$AUTOWP_TOKEN_FILE"
 }
 
 secret_remove() {
     local c=$1 name=${2:-token}
-    lxc exec "$c" -- rm -f "/run/autowp/$name"
+    autowp_exec_root "$c" rm -f "/run/autowp/$name"
 }
 
 # secret_k2 <container> <id>: K2 of tests.md 4. The pattern comes from a file,
@@ -93,7 +93,7 @@ secret_k2() {
     local c=$1 id=${2:-K2} hits rc=0
     secret_push "$c" k2pattern || { fail "$id" "could not stream the token for the check"; return; }
     hits=$(autowp_exec_user "$c" \
-        'grep -rlF -f /run/autowp/k2pattern ~ /tmp 2>/dev/null; true')
+        "grep -rlF -f /run/autowp/k2pattern ~ /tmp '${CAMPAIGN_DIR:-$AUTOWP_HOME}' 2>/dev/null | sort -u; true")
     if [ -n "$hits" ]; then
         fail "$id" "token found in $(echo "$hits" | head -5 | tr '\n' ' ')"
         rc=1

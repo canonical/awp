@@ -15,7 +15,7 @@ STAMP   = $(shell date -u +%Y%m%d-%H%M%S)
 SCRIPTS := $(wildcard tests/lib/*.sh tests/c/*.sh tests/rust/*.sh sdks/*.sh sdks/*/prepare.sh)
 
 .PHONY: help test test-l2 test-c-l2 test-rust-l2 check-scripts \
-        provision-c provision-rust smoke-c smoke-c-gzip smoke-rust workspace-rust \
+        provision-c provision-rust smoke-c smoke-c-gzip smoke-c-gzip-ws smoke-rust sudo-rs-rust sudo-rs-rust-ws workspace-rust \
         sdk-lean sdk-rocq sdk-framac sdk-creusot test-sdks clean clean-lxc
 
 help: ## Show this help
@@ -68,6 +68,15 @@ smoke-c: | $(OUT) ## Level 3, C: 3-hour /time-loop run (token)
 
 smoke-c-gzip: | $(OUT) ## Level 3, C: 1-hour /time-loop run on gzip 1.9 (token)
 	tests/c/gzip-test.sh 2>&1 | tee $(OUT)/c-gzip-$(STAMP).log
+
+smoke-c-gzip-ws: | $(OUT) ## Level 3, C: the gzip run in a generated project's workshop (token)
+	WORKSHOP=1 tests/c/gzip-test.sh 2>&1 | tee $(OUT)/c-gzip-ws-$(STAMP).log
+
+sudo-rs-rust: | $(OUT) ## Level 3, Rust: a Creusot campaign on sudo-rs (token)
+	tests/rust/sudo-rs-test.sh 2>&1 | tee $(OUT)/rust-sudo-rs-$(STAMP).log
+
+sudo-rs-rust-ws: | $(OUT) ## Level 3, Rust: the sudo-rs campaign in a generated project's workshop (token)
+	WORKSHOP=1 tests/rust/sudo-rs-test.sh 2>&1 | tee $(OUT)/rust-sudo-rs-ws-$(STAMP).log
 
 workspace-rust: | $(OUT) ## Level 3, Rust: why3find.json workspace cases A-H
 	tests/rust/workspace-test.sh 2>&1 | tee $(OUT)/rust-workspace-$(STAMP).log

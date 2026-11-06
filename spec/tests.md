@@ -19,7 +19,7 @@ tests/
 │   ├── provision.sh         builds the reusable C base container (§5.1)
 │   ├── install-test.sh      level 2: auto-wp.py --c + git clone grub (§5.2)
 │   ├── smoke-test.sh        level 3: 3-hour /time-loop run (§5.3)
-│   ├── gzip-test.sh         level 3: 1-hour /time-loop run on gzip 1.9 (§5.5)
+│   ├── gzip-test.sh         level 3: 1-hour /time-loop run on gzip 1.9, LXD or Workshop (§5.5)
 │   └── acceptance.sh        level 4: /time-loop grub 72 (§5.4)
 └── rust/
     ├── provision.sh         builds the reusable Rust base container (§6.1)
@@ -115,7 +115,7 @@ content belong on the host, not in a container:
 | T4 | No editor backup (`*~`) and nothing from `use-creusot/config/foo/` in `templates/`. |
 | T5 | Both `README.md` templates contain only the placeholders `{{DIR}}` and `{{LANGUAGE}}`. |
 | T6 | The three `time-loop` changes of `auto-wp.md` §4.2.2 are in `templates/c/`: `commands/time-loop.md` no longer contains "Stop early" nor "(diminishing returns)", and contains the replacement "Stop" bullet; `skills/time-loop/SKILL.md` no longer contains "DIMINISHING-RETURNS stop fires ONLY", and its description contains "There is no diminishing-returns stop"; both files name `XXX.md` as the report file and state that a re-run keeps the stored deadline. |
-| T7 | `templates/c/tools/bin/` holds the 22 scripts (`auto-wp.md` §4.2.1), `templates/c/tools/` has no `*.sh` at its top level, and no file under `templates/` outside `tools/` names one of these scripts without its `bin/` prefix (bare or `./name.sh`). |
+| T7 | `templates/common/tools/bin/` holds `rmf-lint.sh` and `templates/c/tools/bin/` the other 21 scripts (`auto-wp.md` §4.1, §4.2.1; 22 in all, no name in both), neither `tools/` has a `*.sh` at its top level, `templates/rust/tools/` holds only `.gitignore`, and no file under `templates/` outside the two `tools/` names one of these scripts without its `bin/` prefix (bare or `./name.sh`). |
 | T8 | The `workshop/` layer of each language (`auto-wp.md` §3.7.1) holds exactly `autowp.yaml`, `autowp-packages/sdk.yaml` and an executable `autowp-packages/hooks/setup-base` starting with `#!/bin/bash`; `autowp.yaml` has `name: autowp`, `base: ubuntu@24.04`, and the `sdks` names `frama-c-sdk`, `rocq`, `lean`, `project-autowp-packages` (C) or `creusot`, `rocq`, `lean`, `project-autowp-packages` (Rust), the three Store entries on `channel: latest/edge`; `sdk.yaml` has `name: autowp-packages`; no file of the layer names `sdks/`, `~/git/` or a `{{` placeholder; `setup-base` passes `shellcheck` when it is installed; each layer's `tools/.gitignore` lists `/.workshop.lock`. |
 
 The program tests 20–22 of `auto-wp.md` §5 (the generated `.workshop/`
@@ -386,6 +386,17 @@ campaign from `CAMPAIGN_PROJECT`, `CAMPAIGN_SRC`, `CAMPAIGN_SRC_KIND`,
 (`tests/lib/harness.sh`); the defaults are the GRUB campaign, so
 `smoke-test.sh` and `acceptance.sh` are unchanged.
 
+**Workshop mode** (`gzip-test.md` §7, added 2026-11-05). `WORKSHOP=1`
+generates the project on the host and runs the same steps and checks in its
+workshop (`workshop launch autowp`; the toolchain from `frama-c-sdk`), plus
+W.1 (the generated definition), W.2 (launch, `ready`), W.3 (`frama-c` 32.1
+from the SDK) and W.4 (`framac-src` linked to the SDK's sources,
+`framac-onboard.sh` accepts the SDK). `WORKSHOP_BASE`, `WORKSHOP_TRY` and
+`WORKSHOP_DIR` adapt it; `SETUP_ONLY=1` stops before the campaign (no
+token). The helpers run in a workshop through `autowp_use_workshop`
+(`tests/lib/lxc.sh`), and the campaign's directory is `CAMPAIGN_DIR`
+(`/project`).
+
 ## 6. Rust tests (`tests/rust/`)
 
 ### 6.1 `provision.sh` — Rust base container
@@ -473,6 +484,25 @@ tests.
 
 When `/time-loop` exists for Rust (roadmap step 5), a Rust `acceptance.sh`
 is added, mirroring §5.4.
+
+### 6.5 `sudo-rs-test.sh` — level 3, sudo-rs
+
+The full specification is `sudo-rs-test.md` (added 2026-11-05). The Rust
+counterpart of §5.5: a time-boxed Creusot campaign (default 2 hours,
+`SUDORS_HOURS`) on sudo-rs v0.2.15, pinned by commit, driven by
+`creusot-monitoring` through the harness, in a copy of
+`autowp-rust-base/ready` or, with `WORKSHOP=1`, in the generated project's
+workshop with the `creusot` SDK (W.1–W.3, shared with §5.5 through
+`tests/lib/workshop.sh`). The mission also asks for a code-blind NIST RMF
+risk study of sudo-rs (`rmf-sl`), written first by a sub-agent that never
+sees the crate and used by `creusot-monitoring` to rank what to prove.
+Checks: S.0 the pinned clone; S.1 K4; S.2 K1 on
+`sudo-rs/`; S.3 the overlay `sudo-rs-creusot/` is a workspace depending on
+`creusot-std`; S.4 `cargo creusot`, run by the test in the overlay, proves at
+least one goal; S.5 the report `sudo-rs.md`; S.6 K2; S.7 K3 (INFO); S.8
+`sudo-rs-analysis-rmf-report.md` exists, is not empty, and `bin/rmf-lint.sh`
+on it exits 0 (the Rust counterpart of G.3, §5.5). `SETUP_ONLY=1` stops
+after S.0, without the token.
 
 ## 7. Giving Claude Code access inside the container
 

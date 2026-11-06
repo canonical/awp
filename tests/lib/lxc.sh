@@ -19,6 +19,10 @@
 #   AUTOWP_POOL_SIZE   size of a new zfs pool (default 40GiB)
 #   AUTOWP_NET=<name>  managed bridge (default autowp-net)
 #   AUTOWP_OUT=<dir>   where scripts write logs/artifacts (default tests/out)
+#   AUTOWP_BACKEND     (not from the environment) lxc: <container> is an LXD container, the
+#                      user is ubuntu; workshop: <container> is a workshop of
+#                      the project $AUTOWP_WS_PROJECT, the user is workshop
+#                      (autowp_use_workshop sets the three)
 #
 # Never touches containers, networks, profiles or pools it did not create,
 # except that it creates the pool `autowp` and the network `autowp-net` when
@@ -34,6 +38,10 @@ AUTOWP_CONTAINERS=()
 AUTOWP_PASS=0
 AUTOWP_FAIL=0
 AUTOWP_SKIP=0
+AUTOWP_BACKEND=lxc
+AUTOWP_USER=ubuntu
+AUTOWP_HOME=/home/ubuntu
+AUTOWP_WS_PROJECT=
 
 # --- reporting -------------------------------------------------------------
 
@@ -203,15 +211,47 @@ autowp_egress_check() {
 
 # --- running and copying ---------------------------------------------------
 
-autowp_exec_root() { local c=$1; shift; lxc exec "$c" -- "$@"; }
+# autowp_use_workshop <project-dir>: run the in-guest helpers below in the
+# workshops of <project-dir> (workshop exec) instead of LXD containers.
+autowp_use_workshop() {
+    AUTOWP_BACKEND=workshop
+    AUTOWP_WS_PROJECT=$1
+    AUTOWP_USER=workshop
+    AUTOWP_HOME=/home/workshop
+}
 
-# autowp_exec_user <container> '<shell code>': as ubuntu, login environment.
+# autowp_exec_root <container> <argv...>: as root.
+autowp_exec_root() {
+    local c=$1; shift
+    if [ "$AUTOWP_BACKEND" = workshop ]; then
+        workshop -p "$AUTOWP_WS_PROJECT" exec -I --uid 0 --gid 0 --cwd / "$c" -- "$@"
+    else
+        lxc exec "$c" -- "$@"
+    fi
+}
+
+# autowp_exec_user <container> '<shell code>': as the user, login environment.
 autowp_exec_user() {
     local c=$1
     shift
-    lxc exec "$c" --user 1000 --group 1000 --cwd /home/ubuntu \
-        --env HOME=/home/ubuntu --env USER=ubuntu --env LOGNAME=ubuntu \
-        -- bash -lc "$*"
+    if [ "$AUTOWP_BACKEND" = workshop ]; then
+        workshop -p "$AUTOWP_WS_PROJECT" exec -I --cwd "$AUTOWP_HOME" "$c" -- bash -lc "$*"
+    else
+        lxc exec "$c" --user 1000 --group 1000 --cwd /home/ubuntu \
+            --env HOME=/home/ubuntu --env USER=ubuntu --env LOGNAME=ubuntu \
+            -- bash -lc "$*"
+    fi
+}
+
+# autowp_exec_user_argv <container> <argv...>: as the user, no login shell
+# (tmux send-keys, stdin pipes).
+autowp_exec_user_argv() {
+    local c=$1; shift
+    if [ "$AUTOWP_BACKEND" = workshop ]; then
+        workshop -p "$AUTOWP_WS_PROJECT" exec -I --cwd "$AUTOWP_HOME" "$c" -- "$@"
+    else
+        lxc exec "$c" --user 1000 --group 1000 --env HOME=/home/ubuntu -- "$@"
+    fi
 }
 
 # autowp_push <container> <src-dir> <dst-dir> [tar options/files...]

@@ -3,7 +3,7 @@
 This document specifies a container test that runs the C campaign on a
 second, real code base, GNU gzip 1.9. It is a level 3 test in the sense of
 `tests.md` §2: it costs about an hour of the Claude subscription, needs the
-Claude token, and is run by hand. Nothing here is implemented yet. The
+Claude token, and is run by hand (`tests/c/gzip-test.sh`; §7 adds a Workshop mode). The
 review answers of 2026-10-30 are integrated: the budget stays one hour, gnulib
 is in scope, the archive's GPG signature is verified, G.11 has a pass
 threshold, and the download falls back to other mirrors.
@@ -175,7 +175,90 @@ The gzip test needs them parameterized:
 - G.5 and G.7 differ from C3.5 and C3.7 (§5), so `campaign_checks_c` takes a
   flag that makes the wake count informational.
 
-## 7. Documents to update
+## 7. Workshop mode
+
+`WORKSHOP=1 tests/c/gzip-test.sh` runs the same campaign and the same checks
+G.0–G.11 in the workshop of a generated project instead of a copy of
+`autowp-c-base/ready`: it is the level 3 test of quick start A of
+`auto-wp.md` §3.4 and of the SDK support of §4.5 (added 2026-11-05). The
+toolchain comes from the `frama-c-sdk` SDK, so `frama-c-launch` should skip
+the hours-long build and the hour goes to verification.
+
+### 7.1 What changes
+
+- **The project is generated on the host**, as the README says: `auto-wp.py
+  --c <tmp>/gzip-analyze`, then `workshop launch autowp` there. Unlike §3,
+  the test writes into a host directory, a new one under `${TMPDIR:-/tmp}`
+  (or `WORKSHOP_DIR`), removed at the end unless `KEEP=1`.
+- **The guest** is the workshop: the user is `workshop`, the home
+  `/home/workshop`, the project `/project`, and every in-guest step goes
+  through `workshop exec` (`autowp_use_workshop` in `tests/lib/lxc.sh`).
+  The token still goes through stdin into `/run/autowp/token`
+  (`workshop exec` passes stdin, checked 2026-11-05), and the `tmux`
+  session survives between two `workshop exec` calls (checked the same day).
+- **The test edits the generated files** in three ways, each printed as
+  INFO: `unzip` is added to `.workshop/autowp-packages/hooks/setup-base`
+  (the archive is a zip, and the base image has no `unzip`; the README tells
+  users to edit that hook for their code base); `WORKSHOP_BASE` rewrites
+  `base:`; `WORKSHOP_TRY="rocq lean"` replaces those Store entries with
+  `try-<name>` for SDKs packed with `sdkcraft try` on the host but not
+  released yet.
+- **Claude Code** is installed in the workshop by step 2 of quick start A
+  (`curl -fsSL https://claude.ai/install.sh | bash`).
+- **The checkpoint remote** is `~/remote.git` in the workshop's home. K2
+  (G.8) also searches `/project`, which is outside the home.
+
+### 7.2 Extra checks
+
+| # | Check |
+|---|---|
+| W.1 | `auto-wp.py --c` on the host succeeds, and `.workshop/autowp.yaml` names the workshop `autowp` and lists `frama-c-sdk`, `rocq`, `lean` and `project-autowp-packages`, with an executable `setup-base`. |
+| W.2 | `workshop launch autowp` succeeds and `workshop info` says `status: ready`, i.e. every SDK's `check-health` passed. The launch time is INFO. |
+| W.3 | Before the campaign: `frama-c -version` is 32.1, `frama-c` is `/opt/frama-c-sdk/bin/frama-c`, and `FRAMA_C_SDK_SWITCH`/`FRAMA_C_SDK_SRC` are set. |
+| W.4 | After the setup: `bin/fetch-sources.sh` made `framac-src` a link to `/opt/frama-c-sdk/src/frama-c-32.1` (no download), and `bin/framac-onboard.sh` reports the switch present through the SDK. |
+
+`SETUP_ONLY=1` stops after G.0 (and W.1–W.4): no token, no Claude Code
+session, a few minutes. It checks the Workshop route without spending the
+subscription.
+
+### 7.3 Results
+
+- 2026-11-05, `WORKSHOP=1 WORKSHOP_BASE=ubuntu@26.04 SETUP_ONLY=1`, all
+  SDKs from the Store: W.1 passed; W.2 failed with `"rocq" SDK: Revision not
+  found - "lean" SDK: Revision not found`. `frama-c-sdk` resolved: its
+  `ubuntu@26.04` revision was uploaded that day; `rocq` and `lean` had no
+  revision released on `latest/edge` yet.
+- 2026-11-05, the same with `WORKSHOP_TRY="rocq lean"`: W.1, W.2 (launch
+  in 1899 s, `frama-c-sdk` 32.1 from the Store, `ready`), W.3 and G.0
+  passed. W.4 failed because the test called `bin/framac-onboard.sh` without
+  its target directory (usage error); `framac-src` was correctly linked to
+  `/opt/frama-c-sdk/src/frama-c-32.1`. Fixed in the test (it now passes
+  `gzip-1.9 --sample 1`).
+- 2026-11-05, rerun after the fix (and with the steps moved to
+  `tests/lib/workshop.sh`): 5 passed, 0 failed (W.1, W.2 with the launch in
+  186 s now that the SDKs were cached, W.3, G.0, W.4). The campaign itself
+  has not run in a workshop yet.
+- 2026-11-06, `WORKSHOP=1 WORKSHOP_BASE=ubuntu@26.04 SETUP_ONLY=1`, all
+  SDKs from the Store after `rocq` and `lean` were released: W.1 passed, W.2
+  failed again with `"rocq" SDK: Revision not found - "lean" SDK: Revision
+  not found`. The same day, on `ubuntu@24.04`, `rocq` 9.2.0 and `lean`
+  4.35.0 resolved from the Store (`sudo-rs-test.md` §7): their `ubuntu@26.04`
+  revisions are not released on `latest/edge`. Until they are, the 26.04 run
+  keeps `WORKSHOP_TRY="rocq lean"`.
+- 2026-11-06, `WORKSHOP=1 SETUP_ONLY=1` with the definition as generated
+  (base `ubuntu@24.04`), all from the Store: W.1 passed, W.2 failed with
+  `"frama-c-sdk" SDK: Revision not found`. So a `--c` project launches from
+  the Store on neither base yet: 24.04 lacks `frama-c-sdk`, 26.04 lacks
+  `rocq` and `lean`.
+- 2026-11-06, later: `sdk info` showed all four SDKs with an `ubuntu@24.04`
+  and an `ubuntu@26.04` revision on `latest/edge` (the earlier failures were
+  the Store catching up after the uploads). `WORKSHOP=1 SETUP_ONLY=1` with
+  the definition as generated (`ubuntu@24.04`, every SDK from the Store):
+  5 passed, 0 failed (W.1, W.2 with the launch in 2439 s, downloads
+  included, W.3, G.0, W.4). Neither `WORKSHOP_BASE` nor `WORKSHOP_TRY` is
+  needed any more.
+
+## 8. Documents to update
 
 - `tests.md`: a new §5.5 with §1–§5 of this document in short, and a row in
   the layout of §1 and the table of §2.

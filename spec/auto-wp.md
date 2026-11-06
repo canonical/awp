@@ -5,7 +5,12 @@ pre-loaded with the agent configuration (skills and slash commands) needed to
 drive a formal-verification campaign on C or Rust code. The configuration is
 modelled on `../use-frama-c/config/` (C) and `../use-creusot/config/` (Rust).
 
-Version described: **0.2.0**. Compared with 0.1.0, the generated project
+Version described: **0.3.0**. Compared with 0.2.0, the common layer has a
+`tools/` directory of its own, merged with the language layer's (§3.6, §4.1):
+`bin/rmf-lint.sh`, the machine gate of the `rmf-sl` risk study, is installed
+in Rust projects too, its endogeneity tripwire recognises Rust code as well
+as C, and `rmf-sl` names its Rust consumer, `creusot-monitoring` (§4.3.4).
+Compared with 0.1.0, the 0.2.0 generated project
 also carries a Workshop definition (`.workshop/`, §3.7), so that its
 toolchain can come from the SDKs of `sdks/` (§4.5) instead of being built in
 the container; the README's quick start gains the matching Workshop and
@@ -124,7 +129,7 @@ Symbolic links in the templates are copied as links.
 ```json
 {
   "language": "c",
-  "auto_wp_version": "0.2.0",
+  "auto_wp_version": "0.3.0",
   "created": "2026-10-27T21:30:00Z",
   "skills": ["directory-structure", "ebios-risk-manager", "..."],
   "commands": ["ebios", "rmf", "time-loop"]
@@ -539,7 +544,10 @@ differences:
   template change only; the program does not change.
 - *Other commands.* While `config/commands/` is empty for Rust, this item says
   there are no slash commands yet and lists the skills to ask for by name:
-  `creusot-launch`, `creusot-monitoring`, `creusot-sl`, `creusot`.
+  `creusot-launch`, `creusot-monitoring`, `creusot-sl`, `creusot`, and
+  `rmf-sl` (the code-blind risk study, `mycrate-analysis-rmf-report.md`,
+  checked by `bin/rmf-lint.sh`, which `creusot-monitoring` uses to rank what
+  to prove; the item gives the request that asks for both).
 - *Prerequisites.* On the host, the same three options as for C. In the
   container, Creusot
   (`cargo creusot`), Why3, why3find, the solvers (Alt-Ergo, Z3, CVC4, CVC5),
@@ -551,7 +559,8 @@ differences:
   with C the Creusot checkout must stay where it was installed from (§4.3.6). No
   `use-frama-c` checkout is needed. The optional
   `~/.local-llm-machine-ip.txt` line is the same as for C.
-- *What is in this directory.* No `bin/`; `.workshop/` as for C, with
+- *What is in this directory.* `bin/` holds only `bin/rmf-lint.sh` (§4.1),
+  run from the project root; `.workshop/` as for C, with
   `autowp-packages/hooks/setup-base` holding only `tmux` and `curl` and a
   comment where to add the crate's own apt packages (§3.7.2).
 - One extra line says that the generated directory should not be inside a
@@ -602,10 +611,14 @@ project must be a git repository.
 
   and exit 0. With `--rust` the counts are `skills: 17` and `commands: 0`
   (§4.3.2), and the only `copied` lines are `foobar/.gitignore` (the Rust
-  layer's `tools/` holds nothing else, §4.3.2) and `foobar/.workshop`. An
-  entry of `tools/` that already exists in the target is not overwritten:
-  the program prints `kept    foobar/<name> (already exists)` instead of
-  its `copied` line. The `.workshop` entries have no `kept` case: they are
+  layer's `tools/` holds nothing else, §4.3.2), `foobar/bin` (the common
+  layer's `bin/rmf-lint.sh`, §4.1) and `foobar/.workshop`. An entry of
+  `tools/` present in both layers is merged when it is a directory (`bin/`:
+  the C project's `bin/` holds the common script and the 21 C ones; the
+  language layer's file wins on a same-named file) and is the language
+  layer's when it is a file. An entry of `tools/` that already exists in
+  the target is not overwritten: the program prints
+  `kept    foobar/<name> (already exists)` instead of its `copied` line. The `.workshop` entries have no `kept` case: they are
   reserved (§3.1 item 3), so an existing one is a run-time error. The `git`
   line reads `git     foobar is already in a git work tree` when nothing
   was done.
@@ -865,6 +878,16 @@ Skills: `directory-structure`, `ebios-risk-manager`, `ebios-sl`, `lean`,
 
 Commands: none.
 
+Tools (since 0.3.0): `tools/bin/rmf-lint.sh`, the structure, coverage and
+endogeneity linter that is the machine gate of `rmf-sl`, moved here from
+`templates/c/tools/bin/` so that both languages install it as
+`bin/rmf-lint.sh` (§3.6: `tools/` directories are merged across layers). Its
+C8 endogeneity tripwire fails on C source artifacts (`.c`/`.h`, `#include`,
+`#define`, `0x` hex, `::`, `->`) and on Rust ones (`.rs`, `fn name(`,
+`impl X`, `unsafe {`, `#[attr]`, `&mut`, `Vec<`/`Option<`/`Result<`/`Box<`,
+`macro!(`, `.unwrap()`) in R1–R4, whatever the language of the project; the
+pinned format (`rmf-sl/references/report-format.md`, Rule 5) says so.
+
 `workshop` is written for auto-wp, not seeded from a source repository: it
 documents Workshop itself (definitions, the `workshop` commands, interfaces,
 SDK authoring and publishing), so that the agent can operate the project's
@@ -876,13 +899,17 @@ code (RMF, EBIOS, STRIDE) and the proof assistants used to discharge goals the
 automatic provers cannot close. **They are not all language-independent
 yet**: they were written for the Frama-C flow and still mention it (Frama-C,
 ACSL or WP mentions per `SKILL.md`: `rmf-sl` 82, `sl-monitoring-sl` 61,
-`ebios-sl` 48, `sl-builder` 47, `rocq` 10, `sl-internal` 10). `rmf-sl` and
-`ebios-sl` hand their result to `frama-c-launch` and use `rmf-lint.sh` /
-`ebios-lint.sh` from `use-frama-c` as their machine gate. For `sl-builder`,
+`ebios-sl` 48, `sl-builder` 47, `rocq` 10, `sl-internal` 10; counted before
+0.3.0). `ebios-sl` hands its result to `frama-c-launch` and uses
+`ebios-lint.sh` from the C layer as its machine gate. Since 0.3.0 `rmf-sl`
+names both consumers — "the launch loop": `frama-c-launch` for C,
+`creusot-launch` / `creusot-monitoring` (its Phase 0) for Rust — and its
+gate `bin/rmf-lint.sh` ships with both languages (above); its Frama-C
+examples and the C crosswalk references are kept. For `sl-builder`,
 `sl-internal` and `sl-monitoring-sl` the mentions are examples and the method
-applies to any language. For `rmf-sl` and `ebios-sl` they are wiring, which
-roadmap steps 2 and 3 (§4.3.7) make language-independent. The four `sl-*`
-skills are replaced in the Rust layer by the `use-creusot` versions (§4.3.3).
+applies to any language. For `ebios-sl` they are wiring, which roadmap step 3
+(§4.3.7) makes language-independent. The four `sl-*` skills are replaced in
+the Rust layer by the `use-creusot` versions (§4.3.3).
 
 ### 4.2 `templates/c/` — C with Frama-C/WP
 
@@ -904,13 +931,15 @@ is stand-alone, so they ship in `templates/c/tools/`, and `auto-wp.py` copies
 every entry of a layer's `tools/` to the project root (§3.6), keeping
 permission bits. The layer holds:
 
-- `bin/`, with every script: the 20 `*.sh` scripts at the root of
-  `use-frama-c`, each referenced from `config/` (`rmf-lint.sh` and
-  `ebios-lint.sh`, the machine gates of `rmf-sl` and `ebios-sl`;
-  `framac-onboard.sh`, `framac-gen-report.sh`, `framac-squeeze-audit.sh`,
-  `framac-monitor-check.sh`, `ledger-ratchet.sh`, `crosswalk-gen.sh` and the
-  other `framac-*.sh`), plus `fetch-sources.sh` and `launch_lxc.sh`
-  (step 1 of the README quick start), written for auto-wp;
+- `bin/`, with every C script: 19 of the 20 `*.sh` scripts at the root of
+  `use-frama-c`, each referenced from `config/` (`ebios-lint.sh`, the
+  machine gate of `ebios-sl`; `framac-onboard.sh`, `framac-gen-report.sh`,
+  `framac-squeeze-audit.sh`, `framac-monitor-check.sh`, `ledger-ratchet.sh`,
+  `crosswalk-gen.sh` and the other `framac-*.sh`), plus `fetch-sources.sh`
+  and `launch_lxc.sh` (step 1 of the README quick start), written for
+  auto-wp: 21 scripts. The twentieth `use-frama-c` script, `rmf-lint.sh`,
+  is in the common layer since 0.3.0 (§4.1) and merged into the same
+  `bin/`, so a C project still has 22;
 - `frama-c-patches/`, `framac-gold/` and `no-ceiling.md`, the data the
   scripts and skills read, at the project root as in `use-frama-c`;
 - a `.gitignore`, written for auto-wp: `/framac-src/`, `/macsl/`, `_build/`
@@ -1070,7 +1099,8 @@ templates/rust/
 │   └── sl-monitoring-sl/      copied from use-creusot (overrides common)
 ├── commands/                  empty
 ├── tools/
-│   └── .gitignore             /.workshop.lock (§3.7.4)
+│   └── .gitignore             /.workshop.lock (§3.7.4); bin/rmf-lint.sh comes
+│                              from templates/common/tools/ (§4.1, 0.3.0)
 └── workshop/                  .workshop/ of a Rust project (§3.7.1)
     ├── autowp.yaml
     └── autowp-packages/{sdk.yaml,hooks/setup-base}
@@ -1116,7 +1146,8 @@ Creusot-flavoured `sl-*` skills) and the 9 common skills that are not
 overridden (`directory-structure`, `ebios-risk-manager`, `ebios-sl`, `lean`,
 `polish-skill`, `rmf-sl`, `rocq`, `stride`, `workshop`). Seven of those nine
 are not in `use-creusot`: `ebios-risk-manager`, `ebios-sl`, `lean`, `rmf-sl`,
-`rocq`, `stride`, `workshop`. `rmf-sl` and `ebios-sl` are still wired to Frama-C (§4.1).
+`rocq`, `stride`, `workshop`. `ebios-sl` is still wired to Frama-C; `rmf-sl`
+names both consumers and its linter is installed since 0.3.0 (§4.1).
 
 #### 4.3.3 Divergent SL skills
 
@@ -1146,8 +1177,16 @@ faithful copies until then.
   (§4.3.5) closes this gap.
 - There is no `/rmf` or `/time-loop` command, so a Rust campaign is started by
   asking the agent to apply the `creusot-monitoring` skill to a crate.
-- There is no risk study wired into the Creusot loop. `rmf-sl` and `ebios-sl`
-  are installed, but they hand their result to `frama-c-launch` only.
+- The RMF risk study is wired into the Creusot loop since 0.3.0: `rmf-sl`
+  names `creusot-monitoring` as its Rust consumer, `creusot-monitoring`'s
+  Phase 0 says how a code-blind `<target>-analysis-rmf-report.md` (written
+  first, by a fresh sub-agent that never sees the crate, and passing
+  `bin/rmf-lint.sh`) refines its value/risk ranking and scope map, and the
+  linter is installed. What is still missing: a Rust counterpart of
+  `frama-c-launch/templates/rmf-crosswalk.md` and of the Monitor-step
+  feedback, and the `/rmf` command (roadmap step 4); the mission has to ask
+  for the study by name. `ebios-sl` is installed but still hands its result
+  to `frama-c-launch` only.
 - There is no runnable faithfulness check: `monitor-check.sh` depends on a
   `strip-creusot` binary whose source is not in `use-creusot`.
 - Installing Creusot itself (`cargo creusot`, Why3, solvers, the pinned
@@ -1295,17 +1334,24 @@ path with the toolchain versions.
 
 #### 4.3.7 Roadmap for the Rust layer
 
-Each step adds or changes template files; `auto-wp.py` itself does not change.
+Each step adds or changes template files; `auto-wp.py` itself does not
+change, with one exception so far: step 2 made it merge the `tools/`
+directories of the two layers (0.3.0, §3.6).
 
 1. **`creusot-launch`** (§4.3.5), in `templates/rust/skills/`, including its
    faithfulness (stripping) script and the toolchain check that accepts
    the `creusot` SDK (§4.5). Installed with `--rust` only.
-2. **Make `rmf-sl` language-independent.** Its `SKILL.md` mentions Frama-C or
-   ACSL 34 times (37 counting WP), mostly to say that the risk study is
-   handed to `frama-c-launch` and checked by `rmf-lint.sh`. Rewrite them to
-   name "the launch loop (`frama-c-launch` or `creusot-launch`)", and make the
-   lint gate available to both languages. The skill stays in
-   `templates/common/`.
+2. **Make `rmf-sl` language-independent.** *Done in 0.3.0 (2026-11-06),
+   minimally:* the description, the opening, the handoff, the topology and
+   the reference list of `SKILL.md` name "the launch loop" (`frama-c-launch`
+   for C, `creusot-launch` / `creusot-monitoring` for Rust) and the Rust
+   consumer; the lint gate `rmf-lint.sh` moved to `templates/common/tools/bin/`
+   and is installed with both languages, its C8 tripwire catching Rust code
+   artifacts too (§4.1); `report-format.md` Rule 5 lists them;
+   `creusot-monitoring` Phase 0 consumes the report (§4.3.4). The remaining
+   Frama-C mentions in `rmf-sl` are examples (the STRIDE → property table,
+   the `--linux` profile, the C crosswalk and feedback references), kept as
+   they are. The skill stays in `templates/common/`.
 3. **Make `ebios-sl` language-independent**, in the same way: it hands its
    result to `frama-c-launch` (16 mentions) and uses `ebios-lint.sh` as its
    gate.
@@ -1503,9 +1549,12 @@ subprocess.
     (22 `bin/*.sh` and no `*.sh` at the root, `frama-c-patches/apply.sh`,
     `framac-gold/`, `no-ceiling.md`, `.gitignore` listing `/framac-src/`
     and `/.workshop.lock`),
-    with the executable bit on every script; `--rust` creates no `bin/` and
-    a `.gitignore` listing `/.workshop.lock`; an existing `foo/.gitignore` is kept and
-    reported with `kept`.
+    with the executable bit on every script, `bin/rmf-lint.sh` identical to
+    `templates/common/tools/bin/rmf-lint.sh` (§4.1); `--rust` creates a
+    `bin/` holding only that same `rmf-lint.sh` (a regular, executable
+    file), none of the C data (`frama-c-patches/`, `framac-gold/`,
+    `no-ceiling.md`), and a `.gitignore` listing `/.workshop.lock`; an
+    existing `foo/.gitignore` is kept and reported with `kept`.
 14. `--rust foobar` writes a README that contains `creusot-launch`,
     `workshop launch`, `multipass launch` and `cargo creusot`, no
     `bin/fetch-sources.sh`, and
@@ -1555,7 +1604,7 @@ of §3.7.1 and an executable `setup-base` that passes `shellcheck` when it is
 installed; no file under `templates/*/workshop/` names `sdks/`; and no file
 under `templates/*/workshop/` or either README names a path under `~/git/`.
 
-## 6. Out of scope for version 0.2.0
+## 6. Out of scope for version 0.3.0
 
 - Updating an existing project from newer templates (`--update`), including
   moving `.workshop/autowp.yaml` from `latest/edge` to a stable channel in
@@ -1582,6 +1631,14 @@ under `templates/*/workshop/` or either README names a path under `~/git/`.
    quick start A is unverified at its first command, and §3.7.3 keeps the
    `try-` route as the developer's fallback. Promotion to stable channels
    follows the level 3 tests (C base spec §8).
+   Status 2026-11-06: the generated `--rust` definition (base
+   `ubuntu@24.04`) reaches `ready` with `creusot`, `rocq` and `lean` all
+   from the Store (`sudo-rs-test.md` §7). `rocq` and `lean` have no
+   `ubuntu@26.04` revision released, and `frama-c-sdk` has no
+   `ubuntu@24.04` revision released (`gzip-test.md` §7.3). Later the same
+   day `sdk info` showed all four SDKs on both bases, and the generated
+   `--c` definition reached `ready` from the Store too (`gzip-test.md`
+   §7.3). Left to check: a host without `sdkcraft` and without a try area.
 2. **Publication, arm64, and prebuilt `.sdk` files.** The arm64 SDKs are
    not uploaded, so quick start B depends on building them in the VM from
    this repository (§3.7.3), a temporary exception to the stand-alone rule.

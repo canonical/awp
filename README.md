@@ -30,7 +30,7 @@ campaign on GRUB). Python 3.10 or later, standard library only.
 - [`spec/tests.md`](spec/tests.md): the test plan
 - [`spec/workshop-autowp-c-base-spec.md`](spec/workshop-autowp-c-base-spec.md),
   [`spec/workshop-autowp-rust-base-spec.md`](spec/workshop-autowp-rust-base-spec.md): the Workshop SDKs
-- [`spec/gzip-test.md`](spec/gzip-test.md): the GNU gzip 1.9 campaign test
+- [`spec/gzip-test.md`](spec/gzip-test.md), [`spec/sudo-rs-test.md`](spec/sudo-rs-test.md): the GNU gzip 1.9 (C) and sudo-rs (Rust) campaign tests
 - [`spec/fips-skill-spec.md`](spec/fips-skill-spec.md): the `fips-sl` skill (FIPS 140-3), draft
 - [`spec/`](spec/): all of them, with review reports
 

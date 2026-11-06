@@ -23,7 +23,8 @@
 #   C5  coverage: every Hi-impact IM is carried into a downstream RS that also names a CTL
 #   C6  origin coverage (WARN): all three threat-source classes ADV/ACC/ENV present (the 800-30 DNA)
 #   C7  volume sanity (WARN): information assets 5-10 ; threat sources 3-6
-#   C8  endogeneity tripwire (FAIL): no code artifacts (.c/.h, #include, 0xHEX, ::, ->) in R1-R4
+#   C8  endogeneity tripwire (FAIL): no code artifacts in R1-R4 — C (.c/.h, #include, #define,
+#       0xHEX, ::, ->) or Rust (.rs, fn name(, impl, unsafe {, #[attr], &mut, Vec<, macro!( ...)
 #   C9  STRIDE coverage ledger (SKIP-honest): SKIP when absent; else validate the §3.3 matrix
 #       structure — each S/T/R/I/D/E cell holds one lifecycle token (UNMODELED|PROVED|TRUSTED-PENDING|
 #       TRUSTED|N/A[(RR#)]) and every Hi/High SA/IA has a row. Single-file only; the cross-run ratchet
@@ -165,9 +166,12 @@ else:   add('SKIP', 'C7', 'no IA# ids')
 nts = len(ID['TS'])
 if nts: add('PASS' if 3 <= nts <= 6 else 'WARN', 'C7', 'threat sources: %d %s [3,6]' % (nts, 'in' if 3 <= nts <= 6 else 'outside'))
 
-# C8 — endogeneity tripwire: no code artifacts in R1-R4
+# C8 — endogeneity tripwire: no code artifacts in R1-R4 (C and Rust source artifacts; the report
+# is language-neutral, so both families are scanned whatever the code under study is written in).
 r1234 = rtext([1, 2, 3, 4])
-code = re.compile(r'(?:\b\w+\.(?:c|h|cpp|cc|rs)\b|#include|#define|\b0x[0-9a-fA-F]+\b|::|->)')
+code = re.compile(r'(?:\b\w+\.(?:c|h|cpp|cc|rs)\b|#include|#define|\b0x[0-9a-fA-F]+\b|::|->'
+                  r'|\bfn\s+\w+\s*[(<]|\bimpl(?:\s+\w|\s*<)|\bunsafe\s*\{|#\[\w+|&mut\b'
+                  r'|\b(?:Vec|Option|Result|Box|Rc|Arc)<|\b\w+!\(|\.unwrap\(\))')
 hits = sorted(set(m.group(0) for m in code.finditer(r1234)))
 if r1234.strip():
     add('FAIL' if hits else 'PASS', 'C8',

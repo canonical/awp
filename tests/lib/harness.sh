@@ -96,11 +96,9 @@ harness_start() {
         return 1
     fi
     # 3. type literally, wait for slash-command completion, then Enter
-    lxc exec "$c" --user 1000 --group 1000 --env HOME=/home/ubuntu -- \
-        tmux send-keys -t "$HARNESS_SESSION" -l "$cmd"
+    autowp_exec_user_argv "$c" tmux send-keys -t "$HARNESS_SESSION" -l "$cmd"
     sleep 2
-    lxc exec "$c" --user 1000 --group 1000 --env HOME=/home/ubuntu -- \
-        tmux send-keys -t "$HARNESS_SESSION" Enter
+    autowp_exec_user_argv "$c" tmux send-keys -t "$HARNESS_SESSION" Enter
     return 0
 }
 
@@ -144,16 +142,22 @@ harness_stop() {
 #   CAMPAIGN_COMMIT_FILE  file holding the K1 baseline commit
 #   CAMPAIGN_WAKES     strict: fewer than two wakes fails C3.5; info: reported only
 #   CAMPAIGN_LINT      1: the report check also runs bin/rmf-lint.sh on the report
+#   CAMPAIGN_DIR       absolute path of the project in the guest (default
+#                      $AUTOWP_HOME/$CAMPAIGN_PROJECT; /project in a workshop)
+#   CAMPAIGN_GENERATED 1: the project already exists (generated on the host
+#                      for a workshop); the setup does not run auto-wp.py
 CAMPAIGN_PROJECT=${CAMPAIGN_PROJECT:-foobar}
 CAMPAIGN_SRC=${CAMPAIGN_SRC:-grub}
 CAMPAIGN_SRC_KIND=${CAMPAIGN_SRC_KIND:-repo}
 CAMPAIGN_COMMIT_FILE=${CAMPAIGN_COMMIT_FILE:-.autowp-grub-commit}
 CAMPAIGN_WAKES=${CAMPAIGN_WAKES:-strict}
 CAMPAIGN_LINT=${CAMPAIGN_LINT:-0}
+CAMPAIGN_DIR=${CAMPAIGN_DIR:-$AUTOWP_HOME/$CAMPAIGN_PROJECT}
+CAMPAIGN_GENERATED=${CAMPAIGN_GENERATED:-0}
 
 # The state file of the campaign's time-loop.
 campaign_state_file() {
-    echo "/home/ubuntu/$CAMPAIGN_PROJECT/$CAMPAIGN_SRC-analysis-acsl/time-loop.state"
+    echo "$CAMPAIGN_DIR/$CAMPAIGN_SRC-analysis-acsl/time-loop.state"
 }
 
 # campaign_setup_c <container>: the level 2 steps, bin/fetch-sources.sh as the
@@ -179,16 +183,16 @@ GZIP_SHA256=6dbd6307d88d866bea0d0b39aa14506a6a092eee5bcdc62f0c070ef8ea47e99c
 GZIP_SIGNER=155D3FC500C834486D1EEA677FD9FCCB000BEEEE
 GNU_KEYRING_URL=https://ftp.gnu.org/gnu/gnu-keyring.gpg
 
-# campaign_setup_c_gzip <container>: gzip-test.md 4. Generates gzip-analyze,
+# campaign_setup_c_gzip <container>: gzip-test.md 4. Generates gzip-analyze
+# (unless CAMPAIGN_GENERATED=1: then works in $CAMPAIGN_DIR as it is),
 # downloads gzip-1.9.zip from the first mirror that answers, checks its sha256
 # and its GPG signature (G.0), unzips it, commits it as the K1 baseline, and
 # adds a local bare origin. Prints "mirror: <url>"; exits 2 on a check failure.
 campaign_setup_c_gzip() {
     local c=$1
     autowp_exec_user "$c" "set -e; touch ~/.autowp-t0; sleep 1
-        cd ~
-        python3 auto-wp/auto-wp.py gzip-analyze --c >/dev/null
-        cd gzip-analyze
+        if [ $CAMPAIGN_GENERATED = 1 ]; then cd '$CAMPAIGN_DIR'
+        else cd ~ && python3 auto-wp/auto-wp.py gzip-analyze --c >/dev/null && cd gzip-analyze; fi
         got=
         for m in $GZIP_MIRRORS; do
             if curl -fsSL --max-time 300 -o gzip-1.9.zip \"\$m/gzip-1.9.zip\" &&
@@ -241,7 +245,7 @@ k1_tracked() {
 k3() {
     local c=$1 id=$2 out
     out=$(autowp_exec_user "$c" 'find ~ /tmp -xdev -newer ~/.autowp-t0 -type f 2>/dev/null \
-        | grep -vE "^/home/ubuntu/('"$CAMPAIGN_PROJECT"'|toolchain|\.claude|\.claude\.json|\.cache|\.opam|\.local/share/claude|\.config|\.bash_history|\.gitconfig|remote\.git|\.autowp-)|^/tmp/" \
+        | grep -vE "^'"$AUTOWP_HOME"'/('"$CAMPAIGN_PROJECT"'|toolchain|\.claude|\.claude\.json|\.cache|\.opam|\.elan|\.cargo|\.rustup|\.local/share/creusot|\.local/share/claude|\.local/state/claude|\.config|\.bash_history|\.gitconfig|remote\.git|\.autowp-)|^/tmp/" \
         | head -30' || true)
     info "$id" "outside the allowlist: ${out:-nothing}" 
     info "$id" "writes into ~/toolchain: $(autowp_exec_user "$c" 'find ~/toolchain -xdev -newer ~/.autowp-t0 -type f 2>/dev/null | head -10 | tr "\n" " "')"
@@ -331,17 +335,17 @@ wait_loop_stopped() {
 # C3.10 is report_check_c).
 campaign_checks_c() {
     local c=$1 hours=$2 p=$3 st S start deadline wakes ncyc longest last n missing=""
-    local F P=$CAMPAIGN_PROJECT X=$CAMPAIGN_SRC base
+    local F D=$CAMPAIGN_DIR X=$CAMPAIGN_SRC base
     F=$(campaign_state_file)
     base=$(autowp_exec_user "$c" "cat ~/$CAMPAIGN_COMMIT_FILE")
     if [ "$CAMPAIGN_SRC_KIND" = tracked ]; then
-        k1_tracked "$c" "/home/ubuntu/$P" "$X" "$base" "${p}2"
+        k1_tracked "$c" "$D" "$X" "$base" "${p}2"
     else
-        k1 "$c" "/home/ubuntu/$P/$X" "$base" "${p}2"
+        k1 "$c" "$D/$X" "$base" "${p}2"
     fi
-    if ! autowp_exec_user "$c" "test -s ~/$P/$X-analysis-rmf-report.md"; then
+    if ! autowp_exec_user "$c" "test -s '$D/$X-analysis-rmf-report.md'"; then
         fail "${p}3" "$X-analysis-rmf-report.md missing or empty"
-    elif [ "$CAMPAIGN_LINT" = 1 ] && ! autowp_exec_user "$c" "cd ~/$P && bin/rmf-lint.sh $X-analysis-rmf-report.md >/dev/null 2>&1"; then
+    elif [ "$CAMPAIGN_LINT" = 1 ] && ! autowp_exec_user "$c" "cd '$D' && bin/rmf-lint.sh $X-analysis-rmf-report.md >/dev/null 2>&1"; then
         fail "${p}3" "bin/rmf-lint.sh fails on $X-analysis-rmf-report.md"
     else
         pass "${p}3"
@@ -400,11 +404,11 @@ campaign_checks_c() {
 
 # report_check_c <container> <id> <interim|final>: C3.10 / C4.5.
 report_check_c() {
-    local c=$1 id=$2 kind=$3 others P=$CAMPAIGN_PROJECT X=$CAMPAIGN_SRC inside
-    if ! autowp_exec_user "$c" "test -s ~/$P/$X.md"; then
-        fail "$id" "~/$P/$X.md missing or empty"; return
+    local c=$1 id=$2 kind=$3 others D=$CAMPAIGN_DIR X=$CAMPAIGN_SRC inside
+    if ! autowp_exec_user "$c" "test -s '$D/$X.md'"; then
+        fail "$id" "$D/$X.md missing or empty"; return
     fi
-    if ! autowp_exec_user "$c" "grep -qi '$kind' ~/$P/$X.md"; then
+    if ! autowp_exec_user "$c" "grep -qi '$kind' '$D/$X.md'"; then
         fail "$id" "$X.md does not say it is the $kind report"; return
     fi
     if [ "$CAMPAIGN_SRC_KIND" = tracked ]; then
@@ -412,7 +416,7 @@ report_check_c() {
     else
         inside="git -C '$X' status --porcelain --untracked-files=all"
     fi
-    others=$(autowp_exec_user "$c" "cd ~/$P; find . -maxdepth 1 -name '*.md' -newer ~/.autowp-t0 \
+    others=$(autowp_exec_user "$c" "cd '$D'; find . -maxdepth 1 -name '*.md' -newer ~/.autowp-t0 \
             ! -name '$X.md' ! -name '$X-analysis-*' ! -name README.md; \
         $inside | grep -iE 'report|\.md\$'" || true)
     if [ -n "$others" ]; then fail "$id" "other report files: $(echo "$others" | tr '\n' ' ')"

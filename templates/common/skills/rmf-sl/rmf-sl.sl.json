@@ -16,7 +16,7 @@
     { "id": "reviewer_critique", "name": "Independent completeness + realism critique and verdicts", "type": "artifact", "provenance": "internal", "produced_by": "reviewer" },
     { "id": "ao_decision", "name": "AO acceptance/refusal of residual risk; grant/withhold ATO", "type": "human_judgment", "provenance": "human", "produced_by": "ao" },
     { "id": "impl_source", "name": "The implementation source / codebase under study", "type": "artifact", "provenance": "exogenous", "produced_by": null, "notes": "The load-bearing barrier: every content actor is barriered from this (author ⊥ code). Reading it collapses the study to endogenous self-certification." },
-    { "id": "verification_scope_map", "name": "The downstream verification scope map (from frama-c-launch)", "type": "artifact", "provenance": "exogenous", "produced_by": null, "notes": "Enters from the downstream loop; barriered from the author so the study stays exogenous." },
+    { "id": "verification_scope_map", "name": "The downstream verification scope map (from the launch loop: frama-c-launch, or creusot-launch / creusot-monitoring for Rust)", "type": "artifact", "provenance": "exogenous", "produced_by": null, "notes": "Enters from the downstream loop; barriered from the author so the study stays exogenous." },
     { "id": "probe_claim", "name": "One design/method claim under test (per probe)", "type": "soft_authority", "provenance": "authored", "produced_by": null, "notes": "A question posed to the loop, not authored by the probe — keeps the probe non-self-certifying (F4 lesson: probe ids stay distinct from the reviewer's)." },
     { "id": "probe_verdict", "name": "One recorded probe verdict (linter's actual behaviour)", "type": "artifact", "provenance": "internal", "produced_by": "probe" }
   ],
@@ -25,7 +25,7 @@
       "id": "coordinator",
       "name": "RMF coordinator",
       "role": "coordinator",
-      "builds": "Framing (object/goal → RMF step subset), sequencing, Gate-A, gap adjudication, the handoff to frama-c-launch",
+      "builds": "Framing (object/goal → RMF step subset), sequencing, Gate-A, gap adjudication, the handoff to the launch loop (frama-c-launch, or creusot-launch / creusot-monitoring for Rust)",
       "produces": [],
       "upper_bound": { "text": "NIST doctrine + the mission/scope", "sources": ["nist_doctrine", "mission_scope"] },
       "lower_bound": { "text": "The linter output + reviewer/AO verdicts", "sources": ["rmf_lint", "reviewer_critique", "ao_decision"], "executable": false },

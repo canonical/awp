@@ -11,7 +11,7 @@ objects and the Claude token.
 | `install-test.sh` | 2 | `test-c-l2` | minutes | no |
 | `provision.sh` | — | `provision-c` | hours | no |
 | `smoke-test.sh` | 3 | `smoke-c` | 3–5 h | yes |
-| `gzip-test.sh` | 3 | `smoke-c-gzip` | 1–3 h | yes |
+| `gzip-test.sh` | 3 | `smoke-c-gzip`, `smoke-c-gzip-ws` | 1–3 h | yes (not with `SETUP_ONLY=1`) |
 | `acceptance.sh` | 4 | none | 72 h + 6 h | yes |
 
 ## `install-test.sh` — level 2
@@ -75,6 +75,23 @@ harness. Hard limit 3 hours.
 - G.11 — at least one unit has `PROVED` goals; the counts of units, proofs
   and found issues are printed. A failure can come from an hour lost to rate
   limits: read the pane transcript first.
+
+**Workshop mode** (`make smoke-c-gzip-ws`, `gzip-test.md` §7): with
+`WORKSHOP=1`, the project is generated on the host and the campaign runs in
+its workshop, the toolchain coming from the `frama-c-sdk` SDK instead of
+`autowp-c-base`. Extra checks W.1 (the generated `.workshop/autowp.yaml`),
+W.2 (launch, `ready`), W.3 (`frama-c` 32.1 from the SDK), W.4
+(`framac-src` linked to the SDK's sources). Options:
+
+- `WORKSHOP_BASE=ubuntu@26.04` — the base of the definition;
+- `WORKSHOP_TRY="rocq lean"` — use `try-<name>` (packed here with
+  `sdkcraft try`) for SDKs not released on the Store for that base
+  (`sdk info <name>` lists the bases released per channel);
+- `SETUP_ONLY=1` — stop after G.0 and W.1–W.4: no token, a few minutes.
+
+```
+WORKSHOP=1 SETUP_ONLY=1 tests/c/gzip-test.sh
+```
 
 ## `acceptance.sh` — level 4
 

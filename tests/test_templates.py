@@ -215,16 +215,24 @@ class TestTemplates(unittest.TestCase):
                          f"{name}: does not say the stored deadline is reused")
         self.assertIn("--fresh", text, f"{name}: no --fresh for a new budget")
 
-    # T7 (auto-wp.md 4.2.1): the root scripts live in bin/ and are called there.
+    # T7 (auto-wp.md 4.1, 4.2.1): the root scripts live in bin/ and are called there.
     def test_T7_scripts_in_bin(self):
-        tools = TEMPLATES / "c/tools"
-        names = sorted(p.name for p in (tools / "bin").glob("*.sh"))
+        tools = [TEMPLATES / "common/tools", TEMPLATES / "c/tools"]
+        common = sorted(p.name for p in (tools[0] / "bin").glob("*.sh"))
+        self.assertEqual(common, ["rmf-lint.sh"])
+        c_only = sorted(p.name for p in (tools[1] / "bin").glob("*.sh"))
+        self.assertEqual(len(c_only), 21)
+        names = sorted(common + c_only)
         self.assertEqual(len(names), 22)
-        self.assertEqual(sorted(p.name for p in tools.glob("*.sh")), [])
+        self.assertEqual(len(set(names)), 22, "a script in both layers")
+        for t in tools:
+            self.assertEqual(sorted(p.name for p in t.glob("*.sh")), [])
+        self.assertEqual(sorted(p.name for p in (TEMPLATES / "rust/tools").iterdir()),
+                         [".gitignore"])
         pat = re.compile(r"(?<![\w/.-])(?:\./)?(" + "|".join(map(re.escape, names)) + r")")
         bad = []
         for p in TEMPLATES.rglob("*"):
-            if not p.is_file() or tools in p.parents:
+            if not p.is_file() or any(t in p.parents for t in tools):
                 continue
             try:
                 text = p.read_text()

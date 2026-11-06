@@ -302,6 +302,13 @@ for these skills by name instead:
 - `creusot-monitoring` — verify a whole crate, file by file, leaf files first.
 - `creusot-sl` — verify one `*.rs` file.
 - `creusot` — the Pearlite reference used by the other skills.
+- `rmf-sl` — a NIST RMF risk study of the crate, written without reading its
+  code, to `mycrate-analysis-rmf-report.md`; `bin/rmf-lint.sh
+  mycrate-analysis-rmf-report.md` checks its structure and that no code
+  leaked into it. `creusot-monitoring` uses its risk levels to rank what to
+  prove first, so ask for it in the same request: "write a code-blind RMF
+  risk study of mycrate with rmf-sl, then analyze it with
+  creusot-monitoring".
 
 ## Prerequisites
 
@@ -344,6 +351,9 @@ for these skills by name instead:
   project-local SDK `autowp-packages/`, whose `hooks/setup-base` installs
   `tmux` and `curl` and is where the crate's own apt packages go (then
   `workshop refresh`).
+- `bin/` — `bin/rmf-lint.sh`, the lint check of `rmf-sl`'s risk study, run
+  from the project root. The other scripts of a C project (the Frama-C
+  campaign scripts) are not needed here.
 - `.gitignore` — keeps `.workshop.lock`, written by `workshop launch`, out
   of the project history.
 
