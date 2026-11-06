@@ -3,7 +3,8 @@
 
 Usage: ./auto-wp.py [--c|--rust] <directory-name>
 
-See spec/auto-wp.md for the specification.
+The generated project works with Claude Code and with OpenCode: both find the
+same skills and commands through the links of §3.3. See spec/auto-wp.md.
 """
 
 import argparse
@@ -15,21 +16,27 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-VERSION = "0.3.0"
+VERSION = "0.4.0"
 TEMPLATES = Path(__file__).resolve().parent / "templates"
 LANGUAGES = {"c": "C (Frama-C/WP)", "rust": "Rust (Creusot)"}
 
 # Links created in the project: (path relative to the project, link target).
+# The first two harnesses are wired the same way: `config/` holds the skills
+# and commands once, and each harness's directories link to it. `.agents`
+# stays for the harnesses that look there (§3.3).
 LINKS = [
     (".agents", "config"),
     (".claude/skills", "../config/skills"),
     (".claude/commands", "../config/commands"),
+    (".opencode/skills", "../config/skills"),
+    (".opencode/commands", "../config/commands"),
 ]
 # Paths that must not exist before the run (§3.1 item 3).
 RESERVED = ["config", ".agents", ".claude/skills", ".claude/commands",
+            ".opencode/skills", ".opencode/commands",
             ".workshop/autowp.yaml", ".workshop/autowp-packages"]
 # Directories that may pre-exist and are then reused (§3.1 item 3, §3.7.4).
-REUSED_DIRS = [".claude", ".workshop"]
+REUSED_DIRS = [".claude", ".opencode", ".workshop"]
 # The workshop definition written in .workshop/ (§3.7).
 WORKSHOP_NAME = "autowp"
 
@@ -208,13 +215,13 @@ class Run:
         self.out.append(f"copied  {self.show('.workshop')} (workshop: {WORKSHOP_NAME})")
 
     def link(self):
-        claude = self.target / ".claude"
-        if not claude.is_dir():
-            claude.mkdir()
-            self.created.append(("dir", claude))
         width = len(self.show(max((rel for rel, _ in LINKS), key=len)))
         for rel, dest in LINKS:
             path = self.target / rel
+            parent = path.parent
+            if not parent.is_dir():
+                parent.mkdir()
+                self.created.append(("dir", parent))
             path.symlink_to(dest)
             self.created.append(("file", path))
             self.out.append(f"linked  {self.show(rel).ljust(width)} -> {dest}")

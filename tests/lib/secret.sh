@@ -1,17 +1,25 @@
 #!/usr/bin/env bash
-# Moves the Claude token into a container (tests.md 7.1), and the K2 check.
+# Moves the harness credential into a container (tests.md 7.1), and the K2 check.
 #
-# Source it after lib/lxc.sh. The token never appears on a command line, in a
-# process list, in LXD's configuration, or in this script's output: it is
+# Source it after lib/lxc.sh. The credential never appears on a command line,
+# in a process list, in LXD's configuration, or in this script's output: it is
 # streamed through stdin into a tmpfs file (/run/autowp/token) that the
 # launcher (lib/harness.sh) reads into its environment and deletes.
 #
 # Environment:
+#   HARNESS             claude (default) or opencode: which credential the
+#                       default file holds
 #   AUTOWP_TOKEN_FILE   default ~/.config/auto-wp/claude-oauth-token
-#                       (created once with `claude setup-token`, mode 600)
+#                       (created once with `claude setup-token`, mode 600);
+#                       with HARNESS=opencode, the provider API key the
+#                       launcher exports (AUTOWP_OPENCODE_KEY_ENV, default
+#                       ANTHROPIC_API_KEY), same mode
 #   ACCEPT_TOKEN_EXPIRY=1  accept an unknown token lifetime (acceptance.sh)
 
-AUTOWP_TOKEN_FILE=${AUTOWP_TOKEN_FILE:-$HOME/.config/auto-wp/claude-oauth-token}
+case ${HARNESS:-claude} in
+    opencode) AUTOWP_TOKEN_FILE=${AUTOWP_TOKEN_FILE:-$HOME/.config/auto-wp/opencode-provider-key} ;;
+    *)        AUTOWP_TOKEN_FILE=${AUTOWP_TOKEN_FILE:-$HOME/.config/auto-wp/claude-oauth-token} ;;
+esac
 
 # secret_check_file: the token file exists, is a non-empty regular file, and
 # is readable only by its owner. Never reads its content.
@@ -19,7 +27,11 @@ secret_check_file() {
     local f=$AUTOWP_TOKEN_FILE mode
     if [ ! -e "$f" ]; then
         echo "ERROR: token file $f not found." >&2
-        echo "       Create it once on the host with 'claude setup-token' (tests.md 7.1)." >&2
+        case ${HARNESS:-claude} in
+            opencode) echo "       Write the provider API key the launcher exports into it," >&2
+                      echo "       once on the host, with mode 600 (tests.md 7.1)." >&2 ;;
+            *)        echo "       Create it once on the host with 'claude setup-token' (tests.md 7.1)." >&2 ;;
+        esac
         return 1
     fi
     if [ ! -f "$f" ] || [ ! -s "$f" ]; then

@@ -4,8 +4,8 @@ Container tests for a project generated with `auto-wp.py --rust`, which
 verifies Rust code with Creusot. Every check is specified in
 `../../spec/tests.md` §6; the IDs below are those of that section. Run the
 scripts from any directory, or through the `make` targets at the repository
-root. See `../README.md` for the levels, the LXD objects and the Claude
-token.
+root. See `../README.md` for the levels, the LXD objects and the harness
+credential.
 
 | Script | Level | `make` target | Duration | Token |
 |---|---|---|---|---|
@@ -41,7 +41,7 @@ README, the AppArmor fix for opam, opam, rustup, and Creusot built with its
 
 ## `workspace-test.sh` — level 3
 
-A regression test of Creusot itself, with no Claude run: where
+A regression test of Creusot itself, with no harness run: where
 `cargo creusot new` writes `why3find.json`, in the layouts A–H of
 `auto-wp.md` §4.3.6 (a crate inside or next to another Cargo project, with
 or without `[workspace]`).

@@ -29,7 +29,9 @@ To install them in Claude Code:
 `/plugin install use-workshop@canonical`. Without plugins, copy the skill
 directories from the repository's `.github/skills/` into `.claude/skills/`.
 Always copy `use-workshop/` as well, because the other two read its
-references.
+references. In OpenCode, copying them into `.claude/skills/` also works —
+it reads that directory for compatibility (or `.opencode/skills/`, which
+this project links to the same `config/skills/`).
 
 Behaviours worth copying from those skills:
 

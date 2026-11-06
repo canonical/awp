@@ -13,7 +13,8 @@ setup has run (§7).
 1. Generate the project `sudo-rs-analyze` with `auto-wp.py --rust`.
 2. In it, clone sudo-rs at the pinned release (§2), next to where the
    Creusot overlay will go.
-3. Start Claude Code in the harness and give it the mission of §3, which
+3. Start the agent harness (`HARNESS`: Claude Code by default, or OpenCode)
+   and give it the mission of §3, which
    asks for a code-blind RMF risk study of sudo-rs (`rmf-sl`) and then
    drives `creusot-monitoring` on the crate for a fixed budget (default 2
    hours, `SUDORS_HOURS`).

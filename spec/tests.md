@@ -13,8 +13,8 @@ tests/
 ├── test_templates.py        level 1: template-seeding checks (§3.2)
 ├── lib/
 │   ├── lxc.sh               shared LXD helpers: pool, network, launch, push, exec, cleanup
-│   ├── harness.sh           starts Claude Code in tmux and types a command (§3.5)
-│   └── secret.sh            moves the Claude token into a container (§7)
+│   ├── harness.sh           starts the agent harness in tmux and types a command (§3.5)
+│   └── secret.sh            moves the harness credential into a container (§7)
 ├── c/
 │   ├── provision.sh         builds the reusable C base container (§5.1)
 │   ├── install-test.sh      level 2: auto-wp.py --c + git clone grub (§5.2)
@@ -42,17 +42,18 @@ script.
 |---|---|---|---|---|
 | 1 | program and template tests | host | seconds | Python 3.10+, git |
 | 2 | README quick start up to the harness, on a stock image | fresh LXD container | minutes | LXD, network |
-| 3 | a short campaign in the harness, or a tool-level regression | container copied from a provisioned base | 1–4 h | level 2, Claude token |
+| 3 | a short campaign in the harness, or a tool-level regression | container copied from a provisioned base | 1–4 h | level 2, a harness credential |
 | 4 | `/time-loop grub 72`, plus a resume run | container copied from a provisioned base | 72 h + 4 h | level 3 |
 
 Levels 1 and 2 run on every change to `auto-wp.py` or the templates. Level 3
 runs before a release and after a change to the skills. Level 4 runs by hand.
 
-**Cost.** Levels 3 and 4 run on the same Claude subscription as the host
-session, and share its usage limits (rolling and weekly). A 72-hour run will
+**Cost.** Levels 3 and 4 run on the same harness session as the host (a
+Claude subscription, or the provider account behind OpenCode), and share its
+usage limits (rolling and weekly). A 72-hour run will
 reach those limits, and so will the host if it is used at the same time.
 `acceptance.sh start` refuses to start unless `ACCEPT_COST=1` is set, and the
-run is best scheduled when the host session is idle. While the subscription
+run is best scheduled when the host session is idle. While the session
 is rate-limited, the harness waits: `acceptance.sh status` reports the time
 spent waiting (from the tmux pane), and check C4.2 accounts for it.
 
@@ -89,7 +90,8 @@ belong to other projects; the `default` storage pool uses the `dir` driver;
   `lxc exec "$C" --user 1000 --group 1000 --cwd /home/ubuntu --env HOME=/home/ubuntu -- bash -lc '...'`.
   A plain `su ubuntu -c` would miss `~/.local/bin` on the `PATH` and the opam
   environment. Running as root is not an option anyway: Claude Code refuses
-  `--dangerously-skip-permissions` as root.
+  `--dangerously-skip-permissions` as root, and an agent running as root in
+  the container would defeat the confinement the tests check (K3).
 - **Copying files in.** Through a tar pipe, never a bind mount, so a test
   cannot change the host:
   `tar -C <src> -cf - <files> | lxc exec "$C" -- tar -C <dst> -xf -`,
@@ -122,16 +124,23 @@ The program tests 20–22 of `auto-wp.md` §5 (the generated `.workshop/`
 per language, the reserved `.workshop` paths, the rollback of `.workshop/`)
 are in `test_auto_wp.py` next to tests 1–19.
 
-### 3.3 Claude Code in the container
+### 3.3 The agent harness in the container
 
-`provision.sh` installs Claude Code without credentials (§7 covers the token):
+`provision.sh` installs Claude Code without credentials (§7 covers the
+token), and OpenCode too when its binary is on the host:
 
 - **Binary.** It pushes the host's binary (`readlink -f $(which claude)`, a
   dynamically linked ELF that needs only glibc ≥ 2.26; Ubuntu 24.04 has 2.39)
   to `/home/ubuntu/.local/bin/claude`, so the container runs the same version
   as the host. The launcher sets `DISABLE_AUTOUPDATER=1`, otherwise the
-  updater can replace the binary during a run.
-- **First-run prompts.** Three prompts would otherwise stop an unattended
+  updater can replace the binary during a run. OpenCode is installed the same
+  way (`readlink -f $(which opencode)`, a self-contained ELF of about
+  250 MB) to `/home/ubuntu/.local/bin/opencode`, with a global
+  `~/.config/opencode/opencode.json` that allows every action (its base
+  policy otherwise asks before reading `.env` files) and a `cli.json` without
+  the release-highlights popup.
+- **First-run prompts (Claude Code).** Three prompts would otherwise stop an
+  unattended
   run, or swallow the command typed into it:
   - onboarding: `~/.claude.json` with `hasCompletedOnboarding: true`;
   - folder trust: in the same file,
@@ -140,9 +149,15 @@ are in `test_auto_wp.py` next to tests 1–19.
     `skipDangerousModePermissionPrompt: true`.
 
   `harness.sh` writes the folder-trust entry for the exact project path
-  before each start.
+  before each start. OpenCode has no such dialogs; `harness.sh` writes its
+  global config instead.
 - **Do not use `--bare`**: it reads only `ANTHROPIC_API_KEY` and ignores the
   OAuth token.
+
+Which harness a level 3 or 4 script drives is `HARNESS` (default `claude`):
+the launcher, the transcript location (`~/.claude/projects/*/*.jsonl`, or
+OpenCode's session database `~/.local/share/opencode/opencode.db`) and the
+tmux prompt pattern change with it; the typed command and the checks do not.
 
 ### 3.4 Git in the container
 
@@ -157,21 +172,25 @@ are in `test_auto_wp.py` next to tests 1–19.
 ### 3.5 Driving the harness (`tests/lib/harness.sh`)
 
 The time-loop re-arms itself between cycles with a scheduled wake-up
-(`ScheduleWakeup`, `time-loop/SKILL.md` §4). Print mode (`claude -p`) exits
-when its first turn ends, so the wake-ups never fire and a `-p` run is at
+(`ScheduleWakeup` on Claude Code; on OpenCode, the external `opencode run`
+watchdog, `time-loop/SKILL.md` §8). Print mode (`claude -p`, or an `opencode
+run` one-shot) exits
+when its first turn ends, so the wake-ups never fire and a one-shot run is at
 most one cycle. **Levels 3 and 4 therefore run the interactive harness in
 tmux**, as a person would:
 
-1. `tmux new-session -d -s autowp -c ~/foobar` running
+1. `tmux new-session -d -s autowp -c ~/foobar` running the launcher:
    `DISABLE_AUTOUPDATER=1 CLAUDE_CODE_OAUTH_TOKEN=... claude --dangerously-skip-permissions`
-   (the token comes from §7, not from the command line).
+   (Claude Code; the token comes from §7, not from the command line), or
+   `ANTHROPIC_API_KEY=... opencode --standalone` (OpenCode).
 2. Wait until the prompt is shown: poll `tmux capture-pane -p` until it
    contains the input prompt, up to 120 s.
 3. Type the command literally, without Enter: `tmux send-keys -t autowp -l '/time-loop grub 3'`.
    Wait 2 s, so slash-command completion settles, then send `Enter` on its
    own (`tmux send-keys -t autowp Enter`).
 4. Confirm the command started: within 5 minutes, the newest session
-   transcript under `~/.claude/projects/` shows the `time-loop` command or
+   transcript (`~/.claude/projects/`, or OpenCode's session database) shows
+   the `time-loop` command or
    skill being loaded.
 
 `--dangerously-skip-permissions` is acceptable here and only here: the
@@ -275,8 +294,8 @@ git clone https://gitlab.freedesktop.org/gnu-grub/grub.git
 
 | # | Check |
 |---|---|
-| C2.1 | `auto-wp.py` exits 0 with the stock `python3`, and prints `skills:   21` and `commands: 3`. |
-| C2.2 | `foobar/README.md` exists, and the in-container block of its quick start (step 2, the code block that starts with `cd foobar`), extracted from the file, starts with exactly the lines this test ran and ends with `claude --dangerously-skip-permissions`. |
+| C2.1 | `auto-wp.py` exits 0 with the stock `python3`, and prints `skills:   22` and `commands: 3`. |
+| C2.2 | `foobar/README.md` exists, and the in-container block of its quick start (step 2, the code block that starts with `cd foobar`), extracted from the file, starts with exactly the lines this test ran and ends with `claude --dangerously-skip-permissions`; the README also documents the OpenCode harness (its install URL and `opencode` start line). |
 | C2.3 | `git clone` exits 0 and `foobar/grub/` is a git work tree. |
 | C2.4 | `foobar` is a git work tree and `grub/` is not tracked by it. |
 | C2.5 | A second `auto-wp.py --c foobar` exits 1 and changes nothing: a `sha256sum` manifest of `foobar/` (excluding `grub/` and `.git/`), plus the file list, is identical before and after. |
@@ -504,7 +523,7 @@ least one goal; S.5 the report `sudo-rs.md`; S.6 K2; S.7 K3 (INFO); S.8
 on it exits 0 (the Rust counterpart of G.3, §5.5). `SETUP_ONLY=1` stops
 after S.0, without the token.
 
-## 7. Giving Claude Code access inside the container
+## 7. Giving the harness access inside the container
 
 ### 7.1 Recommendation: a long-lived token from `claude setup-token`
 
@@ -512,6 +531,17 @@ On the host, Claude Code is signed in with a Claude subscription (an OAuth
 access token and refresh token in `~/.claude/.credentials.json`), not with an
 API key. To let a container use the subscription, **do not copy this
 session**: create a separate long-lived token for the tests.
+
+With `HARNESS=opencode` the credential is a provider API key instead, and the
+same rules apply: store it once on the host
+(`~/.config/auto-wp/opencode-provider-key`, mode 600 — the default of
+`AUTOWP_TOKEN_FILE` for that harness), never copy the host's
+`~/.local/share/opencode/auth.json` into a container, and stream the key
+through the same `/run/autowp/token` route. The launcher exports it under
+the name of the provider it is for (`AUTOWP_OPENCODE_KEY_ENV`, default
+`ANTHROPIC_API_KEY`); a key of another provider needs that variable set to
+match. API keys do not expire the way OAuth tokens do, so the
+`.created`/expiry metadata of this section is optional for them.
 
 1. **Once, on the host:** `claude setup-token` ("Set up a long-lived
    authentication token (requires Claude subscription)"). It signs in through

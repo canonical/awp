@@ -893,7 +893,8 @@ stop, emit the terminus/interim report.
   autonomously** the moment the loop would otherwise sit idle. Pick an **~8–12 min off-minute** recurrence
   (e.g. `6,16,26,36,46,56 * * * *`); the cron is a *restart-after-idle watchdog*, not a per-cycle poll —
   CHAIN-WITHIN-TURN drives the cadence while a turn is live, the cron only catches the turn-END.
-  **GATE (run at the START of EVERY cycle):** `CronList` (or the `/loop` wakeup equivalent); if no live
+  **GATE (run at the START of EVERY cycle):** `CronList` (or the harness equivalent — "The heartbeat
+  on each harness" below); if no live
   heartbeat exists, **RE-ARM it immediately** — it may have been cleared, expired, or never set. Cron jobs
   are **session-only and auto-expire after 7 days**, so on a long campaign re-arm proactively. The heartbeat
   also survives a hung WP/prover/sub-agent (re-invoke → reconcile from the last checkpoint → continue).
@@ -905,6 +906,33 @@ stop, emit the terminus/interim report.
 - **Deadline — `start + N h`:** at `now > deadline`, go straight to the terminus; reserve the last
   ~15–20 min for the report — never a last-minute dump. At the terminus/deadline call
   `ScheduleWakeup({ stop: true })` so no further self-fire occurs.
+
+**The heartbeat on each harness.** The contract above is harness-neutral: arm the next wake as the
+cycle's LAST action, keep an idle watchdog live, verify both at the start of every cycle, and stop by
+not re-arming. The primitives differ:
+- **Claude Code:** `ScheduleWakeup` (arm-last, ends the turn) and `CronCreate`/`CronList` (the idle
+  watchdog), as written above.
+- **OpenCode:** there is no in-session wakeup, but the loop is resumable from `time-loop.state` (§0 —
+  a fresh `/time-loop XXX N` reuses the stored start and deadline), so the heartbeat is an EXTERNAL
+  watchdog the loop arms once at activation and re-arms if absent — a detached shell loop that
+  re-invokes the campaign headlessly when the state file has gone quiet (a live turn refreshes it
+  every cycle, so a quiet state file means no session is driving):
+  ```bash
+  # armed from the project root; STOPFILE removed/created by the loop itself
+  setsid nohup bash -c 'cd "$(pwd)"; while [ ! -e .time-loop-watchdog.stop ]; do
+      sleep 480;
+      s=$(stat -c %Y XXX-analysis-acsl/time-loop.state 2>/dev/null) || continue;
+      [ $(( $(date +%s) - s )) -ge 600 ] || continue;             # idle >= 10 min
+      [ "$(date +%s)" -ge DEADLINE_EPOCH ] && touch .time-loop-watchdog.stop && continue;
+      opencode run "Load the time-loop skill and run its next cycle for XXX \
+          (budget N hours) from XXX-analysis-acsl/time-loop.state";
+  done' >/dev/null 2>&1 &
+  ```
+  Each wake is a fresh `opencode run` session that re-enters this skill, reconciles from the last
+  checkpoint and drives ONE cycle (arm-last is then implicit: the watchdog IS the armed wake). At the
+  terminus or the deadline the loop creates `.time-loop-watchdog.stop` and removes it on a fresh arm.
+  Verify the watchdog at the start of every cycle: a live process is not enough on its own — check
+  the state file is being refreshed and, if the watchdog died (container restart), re-arm it.
 
 **`--dir=<subdir>` — focus an EXISTING campaign on a subdirectory (a scope filter, not a new campaign).**
 When present, `XXX` still names the existing campaign — its `XXX-analysis-rmf-report.md`, onboarding,
@@ -957,7 +985,8 @@ the whole in-scope goal set is in one of the three statuses.
 **SELF-PERPETUATION IS MANDATORY AND GATED — the loop keeps ITSELF alive; it NEVER waits for the human to
 re-invoke it (the 6-hour-idle relapse, 2026-08-01).** The **FIRST action on activation** is to ARM a
 self-re-invoking heartbeat — `CronCreate` a recurring re-invocation of this loop (or `ScheduleWakeup` in a
-`/loop` session, armed as the cycle's LAST action since it ends the turn) — and to **VERIFY it is live
+`/loop` session; on OpenCode, the external `opencode run` watchdog of "The heartbeat on each harness"
+below) — and to **VERIFY it is live
 (`CronList`) at the start of every cycle**, re-arming if absent. A turn that ENDS (checkpoint, compaction,
 context-limit, or a completed cycle) while **no heartbeat job is armed** is a **SILENT DEATH**: the loop
 sits idle until a human happens to re-engage — which is exactly the failure this gate abolishes.

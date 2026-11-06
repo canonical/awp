@@ -295,15 +295,17 @@ class TestAutoWp(AutoWpTestCase):
             self.assertEqual(after.get(k), v, k)
 
     # 8 ----------------------------------------------------------------------
-    def test_08_existing_claude_dir(self):
-        foo = self.tmp / "foo"
-        (foo / ".claude").mkdir(parents=True)
-        (foo / ".claude/settings.json").write_text('{"x": 1}\n')
-        before = snapshot(foo / ".claude/settings.json")
-        r = self.run_auto_wp("--c", "foo")
-        self.assertOk(r)
-        self.assertEqual(snapshot(foo / ".claude/settings.json"), before)
-        self.assertTrue((foo / ".claude/skills").is_symlink())
+    def test_08_existing_harness_dirs(self):
+        for dot in (".claude", ".opencode"):
+            with self.subTest(dir=dot):
+                foo = self.tmp / ("foo" + dot.strip("."))
+                (foo / dot).mkdir(parents=True)
+                (foo / dot / "settings.json").write_text('{"x": 1}\n')
+                before = snapshot(foo / dot / "settings.json")
+                r = self.run_auto_wp("--c", foo.name)
+                self.assertOk(r)
+                self.assertEqual(snapshot(foo / dot / "settings.json"), before)
+                self.assertTrue((foo / dot / "skills").is_symlink())
 
     def test_08b_reserved_paths_refused(self):
         cases = {
@@ -311,10 +313,15 @@ class TestAutoWp(AutoWpTestCase):
                                         (d / ".claude/skills").mkdir()),
             "claude-commands-file": lambda d: ((d / ".claude").mkdir(),
                                                (d / ".claude/commands").write_text("x")),
+            "opencode-skills": lambda d: ((d / ".opencode").mkdir(),
+                                          (d / ".opencode/skills").mkdir()),
+            "opencode-commands-file": lambda d: ((d / ".opencode").mkdir(),
+                                                 (d / ".opencode/commands").write_text("x")),
             "config-dir": lambda d: (d / "config").mkdir(),
             "config-file": lambda d: (d / "config").write_text("x"),
             "agents-link": lambda d: (d / ".agents").symlink_to("nowhere"),
             "claude-is-file": lambda d: (d / ".claude").write_text("x"),
+            "opencode-is-file": lambda d: (d / ".opencode").write_text("x"),
         }
         for name, make in cases.items():
             with self.subTest(case=name):
@@ -353,6 +360,8 @@ class TestAutoWp(AutoWpTestCase):
                 for rel, target, resolved in [
                         (".claude/skills", "../config/skills", "config/skills"),
                         (".claude/commands", "../config/commands", "config/commands"),
+                        (".opencode/skills", "../config/skills", "config/skills"),
+                        (".opencode/commands", "../config/commands", "config/commands"),
                         (".agents", "config", "config")]:
                     p = foo / rel
                     self.assertTrue(p.is_symlink(), rel)
@@ -363,6 +372,9 @@ class TestAutoWp(AutoWpTestCase):
                 moved = self.tmp / ("moved-" + foo.name)
                 foo.rename(moved)
                 self.assertTrue((moved / ".claude/skills/sl-builder/SKILL.md").is_file())
+                self.assertTrue((moved / ".opencode/skills/sl-builder/SKILL.md").is_file())
+                if lang == "--c":
+                    self.assertTrue((moved / ".opencode/commands/time-loop.md").is_file())
 
     # 10 ---------------------------------------------------------------------
     def test_10_exec_bits(self):
@@ -407,7 +419,7 @@ class TestAutoWp(AutoWpTestCase):
                 self.assertOk(self.run_auto_wp("--" + lang, foo.name))
                 m = json.loads((foo / "config/auto-wp.json").read_text())
                 self.assertEqual(m["language"], lang)
-                self.assertEqual(m["auto_wp_version"], "0.3.0")
+                self.assertEqual(m["auto_wp_version"], "0.4.0")
                 self.assertRegex(m["created"], r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$")
                 self.assertEqual(m["skills"], sorted(m["skills"]))
                 self.assertEqual(m["commands"], sorted(m["commands"]))
@@ -766,9 +778,11 @@ class TestOutputAndConstraints(AutoWpTestCase):
             "copied  foobar/framac-gold\n"
             "copied  foobar/no-ceiling.md\n"
             "copied  foobar/.workshop (workshop: autowp)\n"
-            "linked  foobar/.agents          -> config\n"
-            "linked  foobar/.claude/skills   -> ../config/skills\n"
-            "linked  foobar/.claude/commands -> ../config/commands\n"
+            "linked  foobar/.agents            -> config\n"
+            "linked  foobar/.claude/skills     -> ../config/skills\n"
+            "linked  foobar/.claude/commands   -> ../config/commands\n"
+            "linked  foobar/.opencode/skills   -> ../config/skills\n"
+            "linked  foobar/.opencode/commands -> ../config/commands\n"
             "wrote   foobar/README.md\n"
             "git     initialized foobar\n"))
 
@@ -792,7 +806,15 @@ class TestOutputAndConstraints(AutoWpTestCase):
 
     def test_script_header_and_mode(self):
         self.assertTrue(SCRIPT.read_text().startswith("#!/usr/bin/env python3\n"))
-        self.assertEqual(stat.S_IMODE(os.stat(SCRIPT).st_mode), 0o755)
+        # The mode that ships is the index's (spec §5: 0755). The working
+        # tree may carry extra group-write bits from the checkout's umask
+        # (a group-shared clone with umask 002 yields 0775), so compare the
+        # index entry and require the exec bit locally.
+        index = subprocess.run(
+            ["git", "-C", str(REPO), "ls-files", "-s", "--", "auto-wp.py"],
+            capture_output=True, text=True, check=True).stdout.split()
+        self.assertEqual(index[0], "100755")
+        self.assertTrue(os.access(SCRIPT, os.X_OK))
 
     def test_stdlib_only(self):
         allowed = {"argparse", "pathlib", "shutil", "json", "datetime", "subprocess",

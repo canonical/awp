@@ -42,7 +42,7 @@ usage() { sed -n '2,25p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
 
 require_cost() {
     if [ "${ACCEPT_COST:-0}" != 1 ]; then
-        echo "ERROR: $SUB runs on the Claude subscription of the host session and shares its" >&2
+        echo "ERROR: $SUB runs on the host session's harness subscription and shares its" >&2
         echo "       usage limits (tests.md 2). Set ACCEPT_COST=1 to start it, preferably while" >&2
         echo "       the host session is idle." >&2
         exit 2

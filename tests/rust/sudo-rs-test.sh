@@ -18,7 +18,7 @@
 # asks creusot-monitoring for the overlay itself (sudo-rs-test.md 3). It also
 # asks for the code-blind RMF risk study (rmf-sl), checked by S.8 with
 # bin/rmf-lint.sh as the C test's G.3 does.
-# Needs the Claude token (tests.md 7, AUTOWP_TOKEN_FILE) unless SETUP_ONLY=1.
+# Needs the harness credential (tests.md 7, AUTOWP_TOKEN_FILE) unless SETUP_ONLY=1.
 set -euo pipefail
 HERE=$(cd "$(dirname "$0")" && pwd)
 # shellcheck source=../lib/lxc.sh
@@ -106,7 +106,7 @@ if [ "$WORKSHOP" = 1 ]; then
     ws_launch || { autowp_summary; exit 1; }
     w3
     ws_egress
-    [ "$SETUP_ONLY" = 1 ] || ws_install_claude
+    [ "$SETUP_ONLY" = 1 ] || ws_install_harness
 else
     autowp_require_lxc
     autowp_install_trap

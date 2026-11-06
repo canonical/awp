@@ -4,7 +4,7 @@ Container tests for a project generated with `auto-wp.py --c`, on GRUB.
 Every check is specified in `../../spec/tests.md` §5; the IDs below are those of
 that section. Run the scripts from any directory, or through the `make`
 targets at the repository root. See `../README.md` for the levels, the LXD
-objects and the Claude token.
+objects and the harness credential.
 
 | Script | Level | `make` target | Duration | Token |
 |---|---|---|---|---|
@@ -20,15 +20,16 @@ In a fresh `ubuntu:24.04` container, with its stock `python3` and `git`:
 runs `auto-wp.py --c foobar`, checks the README, clones GRUB, and runs
 `auto-wp.py` a second time.
 
-- C2.1 — `auto-wp.py` exits 0 and prints `skills:   21` and `commands: 3`.
+- C2.1 — `auto-wp.py` exits 0 and prints `skills:   22` and `commands: 3`.
 - C2.2 — the in-container block of `foobar/README.md` starts with the lines
-  this test runs and ends with `claude --dangerously-skip-permissions`.
+  this test runs and ends with `claude --dangerously-skip-permissions`, and
+  the README documents the OpenCode alternative.
 - C2.3 — `git clone` of GRUB works, and `foobar/grub/` is its own work tree.
 - C2.4 — `foobar` is a git work tree with no commits, and does not track
   `grub/`.
 - C2.5 — a second run exits 1 and changes nothing in `foobar/`.
 
-It does not install Claude Code or the toolchain; level 3 covers the rest.
+It does not install a harness or the toolchain; level 3 covers the rest.
 
 ## `provision.sh` — base container
 

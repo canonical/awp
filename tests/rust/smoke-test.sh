@@ -62,7 +62,10 @@ while :; do
     sleep 300
     now=$(date +%s)
     [ $((now - start)) -ge "$LIMIT" ] && { info wait "hard limit reached"; break; }
-    idle=$(autowp_exec_user "$C" 't=$(ls -t ~/.claude/projects/*/*.jsonl | head -1); echo $(( $(date +%s) - $(stat -c %Y "$t") ))')
+    idle=$(autowp_exec_user "$C" "case $HARNESS in
+        opencode) t=~/.local/share/opencode/opencode.db ;;
+        *) t=\$(ls -t ~/.claude/projects/*/*.jsonl | head -1) ;;
+    esac; echo \$( (\$(date +%s) - \$(stat -c %Y \"\$t\")) )")
     [ "$idle" -ge 1200 ] && break
 done
 harness_stop "$C"
@@ -93,6 +96,6 @@ fi
 # R4.5
 secret_k2 "$C" R4.5-K2
 info R4.5-K3 "$(autowp_exec_user "$C" 'find ~ /tmp -xdev -newer ~/.autowp-t0 -type f 2>/dev/null \
-    | grep -vE "^/home/ubuntu/(foobar|\.claude|\.cache|\.local/share/claude|\.config|\.cargo|\.rustup|\.opam|\.local/share/creusot|remote\.git|\.bash_history|\.gitconfig|\.claude\.json)|^/tmp/" | head -20 | tr "\n" " "')"
+    | grep -vE "^/home/ubuntu/(foobar|\.claude|\.opencode|\.cache|\.local/share/claude|\.local/share/opencode|\.local/state/opencode|\.config|\.cargo|\.rustup|\.opam|\.local/share/creusot|remote\.git|\.bash_history|\.gitconfig|\.claude\.json)|^/tmp/" | head -20 | tr "\n" " "')"
 
 autowp_summary

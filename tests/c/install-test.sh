@@ -32,8 +32,8 @@ set -e
 printf '%s\n' "$out" | sed 's/^/    | /'
 if [ "$rc" -ne 0 ]; then
     fail C2.1 "auto-wp.py --c foobar exited $rc"
-elif ! grep -qx '  skills:   21' <<<"$out"; then
-    fail C2.1 "output lacks 'skills:   21'"
+elif ! grep -qx '  skills:   22' <<<"$out"; then
+    fail C2.1 "output lacks 'skills:   22'"
 elif ! grep -qx '  commands: 3' <<<"$out"; then
     fail C2.1 "output lacks 'commands: 3'"
 else
@@ -58,6 +58,9 @@ elif [ "$head_lines" != "$expected" ]; then
     fail C2.2 "in-container quick-start block does not start with the lines run: $(echo "$readme_block" | head -3 | tr '\n' '|')"
 elif [ "$last_line" != "claude --dangerously-skip-permissions" ]; then
     fail C2.2 "in-container quick-start block does not end with claude: '$last_line'"
+elif ! autowp_exec_user "$C" \
+        'grep -q "https://opencode.ai/install" ~/foobar/README.md && grep -q "^opencode$" ~/foobar/README.md'; then
+    fail C2.2 "README does not document the OpenCode harness (install URL and start line)"
 else
     pass C2.2
     info C2.2 "the rest of the block (tools, remote, claude) is not run at level 2 (covered by level 3)"

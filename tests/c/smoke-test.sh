@@ -4,7 +4,7 @@
 #
 #   tests/c/smoke-test.sh              KEEP=1 keeps the container
 #
-# Needs the Claude token (tests.md 7, AUTOWP_TOKEN_FILE). Waits for the loop
+# Needs the harness credential (tests.md 7, AUTOWP_TOKEN_FILE). Waits for the loop
 # to stop, at most 5 hours, then runs C3.1-C3.10.
 set -euo pipefail
 HERE=$(cd "$(dirname "$0")" && pwd)

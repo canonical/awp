@@ -15,7 +15,7 @@
 # SETUP_ONLY=1 stops after the setup checks (G.0, and W.1-W.4 in workshop
 # mode): no token needed, no Claude Code session, minutes instead of hours.
 #
-# Needs the Claude token (tests.md 7, AUTOWP_TOKEN_FILE). Downloads and checks
+# Needs the harness credential (tests.md 7, AUTOWP_TOKEN_FILE). Downloads and checks
 # gzip-1.9.zip (G.0) before the token is moved in, waits for the loop to stop,
 # at most 3 hours, then runs G.1-G.11 (and W.1-W.4 in workshop mode).
 set -euo pipefail
@@ -119,7 +119,7 @@ if [ "$WORKSHOP" = 1 ]; then
     ws_launch || { autowp_summary; exit 1; }
     ws_toolchain
     ws_egress
-    [ "$SETUP_ONLY" = 1 ] || ws_install_claude
+    [ "$SETUP_ONLY" = 1 ] || ws_install_harness
 else
     autowp_require_lxc
     autowp_install_trap

@@ -1,9 +1,10 @@
 # auto-wp
 
-`auto-wp.py` creates a project directory pre-loaded with the Claude Code
-skills and slash commands for a long-running formal-verification campaign:
+`auto-wp.py` creates a project directory pre-loaded with the agent skills and
+slash commands for a long-running formal-verification campaign:
 C with [Frama-C/WP](https://frama-c.com), or Rust with
-[Creusot](https://github.com/creusot-rs/creusot).
+[Creusot](https://github.com/creusot-rs/creusot). The generated project works
+with Claude Code and with OpenCode.
 
 ```
 ./auto-wp.py [--c|--rust] <directory-name>
@@ -11,8 +12,8 @@ C with [Frama-C/WP](https://frama-c.com), or Rust with
 
 The generated directory is stand-alone. It has its own `README.md` with the
 quick start: clone the code to analyse next to the configuration, then run
-Claude Code in a container (for example `/time-loop grub 72` for a 72-hour
-campaign on GRUB). Python 3.10 or later, standard library only.
+your agent harness in a container (for example `/time-loop grub 72` for a
+72-hour campaign on GRUB). Python 3.10 or later, standard library only.
 
 ## Repository layout
 

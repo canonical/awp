@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
-# Starts Claude Code in tmux inside a container and types a command
-# (tests.md 3.5). Source it after lib/lxc.sh and lib/secret.sh.
+# Starts the agent harness (Claude Code or OpenCode) in tmux inside a container
+# and types a command (tests.md 3.5). Source it after lib/lxc.sh and lib/secret.sh.
+#
+#   HARNESS=claude|opencode   which harness to drive (default: claude)
 #
 #   harness_start   <container> <project-dir> '<command>'   steps 1-3
 #   harness_confirm <container> <name> [timeout-s]          step 4 (K4)
@@ -8,21 +10,49 @@
 #   harness_running <container>
 #   harness_pane    <container>                             current screen
 #
-# The token comes from secret_push (tests.md 7), never from the command line.
-# --dangerously-skip-permissions is used here and only here (tests.md 3.5).
+# The credential comes from secret_push (tests.md 7), never from the command
+# line: the OAuth token of Claude Code, or the provider API key the OpenCode
+# launcher exports. --dangerously-skip-permissions is used here and only here
+# (tests.md 3.5); OpenCode needs no such flag (its default policy allows
+# actions), so its launcher just runs `opencode --standalone`.
 # --bare is never used: it ignores the OAuth token (tests.md 3.3).
 
+HARNESS=${HARNESS:-claude}
 HARNESS_SESSION=${HARNESS_SESSION:-autowp}
-# The Claude Code input box; override if the UI changes.
-# The prompt character is followed by a space or, since Claude Code 2.1.3xx,
-# a no-break space (U+00A0), which grep's ' ' does not match.
-HARNESS_PROMPT_RE=${HARNESS_PROMPT_RE:-'(^|[│ ])(>|❯)( | )|\? for shortcuts'}
+# The harness input box; override if the UI changes.
+# Claude Code: the prompt character is followed by a space or, since Claude
+# Code 2.1.3xx, a no-break space (U+00A0), which grep's ' ' does not match.
+# OpenCode (v2 TUI): the placeholder in the empty input box ("Ask anything…")
+# and the status line, which stays once text is typed.
+case $HARNESS in
+    opencode) HARNESS_PROMPT_RE=${HARNESS_PROMPT_RE:-'Ask anything|shift\+tab agents'} ;;
+    *)        HARNESS_PROMPT_RE=${HARNESS_PROMPT_RE:-'(^|[│ ])(>|❯)( | )|\? for shortcuts'} ;;
+esac
 
-# Writes the launcher that reads the token into the environment and deletes
-# the file (tests.md 7.1 step 3).
+# Writes the launcher that reads the credential into the environment and
+# deletes the file (tests.md 7.1 step 3).
 harness_write_launcher() {
     local c=$1
-    autowp_exec_user "$c" 'mkdir -p ~/.local/bin && cat > ~/.local/bin/autowp-launch && chmod 755 ~/.local/bin/autowp-launch' <<'EOF'
+    case $HARNESS in
+    opencode)
+        # The provider whose API key is in the token file (secret.sh); the
+        # launcher exports it under the name that provider's catalog entry
+        # reads. --standalone: a private server inherits this environment.
+        autowp_exec_user "$c" 'mkdir -p ~/.local/bin && cat > ~/.local/bin/autowp-launch && chmod 755 ~/.local/bin/autowp-launch' <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+if [ ! -s /run/autowp/token ]; then
+    echo "autowp-launch: /run/autowp/token missing" >&2
+    exit 1
+fi
+${AUTOWP_OPENCODE_KEY_ENV:-ANTHROPIC_API_KEY}=\$(cat /run/autowp/token)
+export ${AUTOWP_OPENCODE_KEY_ENV:-ANTHROPIC_API_KEY}
+rm -f /run/autowp/token
+exec opencode --standalone
+EOF
+        ;;
+    *)
+        autowp_exec_user "$c" 'mkdir -p ~/.local/bin && cat > ~/.local/bin/autowp-launch && chmod 755 ~/.local/bin/autowp-launch' <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 if [ ! -s /run/autowp/token ]; then
@@ -35,12 +65,30 @@ rm -f /run/autowp/token
 export DISABLE_AUTOUPDATER=1
 exec claude --dangerously-skip-permissions
 EOF
+        ;;
+    esac
 }
 
-# Folder trust for the exact project path (tests.md 3.3), plus onboarding.
+# Folder trust for the exact project path (tests.md 3.3), plus onboarding —
+# Claude Code. OpenCode has neither dialog; it gets a global config that
+# allows every action (its base policy only asks for .env reads) and a
+# cli.json without the release-highlights popup.
 harness_trust() {
     local c=$1 dir=$2
-    autowp_exec_user "$c" "python3 - '$dir'" <<'EOF'
+    case $HARNESS in
+    opencode)
+        autowp_exec_user "$c" 'mkdir -p ~/.config/opencode && cat > ~/.config/opencode/opencode.json && cat > ~/.config/opencode/cli.json' <<'EOF'
+{"$schema": "https://opencode.ai/config.json",
+ "permissions": [
+     {"action": "*", "resource": "*", "effect": "allow"},
+     {"action": "read", "resource": "*.env", "effect": "allow"},
+     {"action": "read", "resource": "*.env.*", "effect": "allow"}
+ ]}
+{"highlights": false}
+EOF
+        ;;
+    *)
+        autowp_exec_user "$c" "python3 - '$dir'" <<'EOF'
 import json, os, sys
 p = os.path.expanduser("~/.claude.json")
 try:
@@ -59,6 +107,8 @@ except (OSError, ValueError):
 st["skipDangerousModePermissionPrompt"] = True
 json.dump(st, open(s, "w"), indent=2)
 EOF
+        ;;
+    esac
 }
 
 harness_pane() {
@@ -104,9 +154,13 @@ harness_start() {
     return 0
 }
 
-# Newest transcript under ~/.claude/projects/ (printed path).
+# Newest transcript (printed path): Claude Code's session JSONL, or OpenCode's
+# session database (grep'd binary-safe with grep -a).
 harness_transcript() {
-    autowp_exec_user "$1" 'ls -t ~/.claude/projects/*/*.jsonl 2>/dev/null | head -n1'
+    case $HARNESS in
+        opencode) autowp_exec_user "$1" 'ls -t ~/.local/share/opencode/opencode.db 2>/dev/null' ;;
+        *)        autowp_exec_user "$1" 'ls -t ~/.claude/projects/*/*.jsonl 2>/dev/null | head -n1' ;;
+    esac
 }
 
 # harness_confirm <container> <command-or-skill-name> [timeout]: step 4.
@@ -116,7 +170,7 @@ harness_confirm() {
         t=$(harness_transcript "$c")
         if [ -n "$t" ] && autowp_exec_user "$c" \
             "find '$t' -newer ~/.autowp-harness-start -print -quit | grep -q . \
-             && grep -qE '<command-name>/?$name</command-name>|\"skill\": *\"$name\"|/$name ' '$t'"; then
+             && grep -qaE '<command-name>/?$name</command-name>|\"skill\": *\"$name\"|/$name ' '$t'"; then
             return 0
         fi
         sleep 10
@@ -247,7 +301,7 @@ k1_tracked() {
 k3() {
     local c=$1 id=$2 out
     out=$(autowp_exec_user "$c" 'find ~ /tmp -xdev -newer ~/.autowp-t0 -type f 2>/dev/null \
-        | grep -vE "^'"$AUTOWP_HOME"'/('"$CAMPAIGN_PROJECT"'|toolchain|\.claude|\.claude\.json|\.cache|\.opam|\.elan|\.cargo|\.rustup|\.local/share/creusot|\.local/share/claude|\.local/state/claude|\.config|\.bash_history|\.gitconfig|remote\.git|\.autowp-)|^/tmp/" \
+        | grep -vE "^'"$AUTOWP_HOME"'/('"$CAMPAIGN_PROJECT"'|toolchain|\.claude|\.claude\.json|\.opencode|\.cache|\.opam|\.elan|\.cargo|\.rustup|\.local/share/creusot|\.local/share/claude|\.local/state/claude|\.local/share/opencode|\.local/state/opencode|\.config|\.bash_history|\.gitconfig|remote\.git|\.autowp-)|^/tmp/" \
         | head -30' || true)
     info "$id" "outside the allowlist: ${out:-nothing}" 
     info "$id" "writes into ~/toolchain: $(autowp_exec_user "$c" 'find ~/toolchain -xdev -newer ~/.autowp-t0 -type f 2>/dev/null | head -10 | tr "\n" " "')"
@@ -316,7 +370,11 @@ json_get() { python3 -c 'import json,sys; v=json.loads(sys.argv[1]).get(sys.argv
 # transcript and the state file have both been idle for IDLE_S (default 1800 s,
 # longer than the ~20-min watchdog wake-up of time-loop), or at the hard limit.
 wait_loop_stopped() {
-    local c=$1 f=$2 limit=$3 idle_s=${IDLE_S:-1800} t0 idle
+    local c=$1 f=$2 limit=$3 idle_s=${IDLE_S:-1800} t0 idle glob
+    case $HARNESS in
+        opencode) glob='~/.local/share/opencode/opencode.db' ;;
+        *)        glob='$(ls -t ~/.claude/projects/*/*.jsonl 2>/dev/null | head -1)' ;;
+    esac
     t0=$(date +%s)
     while :; do
         sleep 300
@@ -325,7 +383,7 @@ wait_loop_stopped() {
             return 1
         fi
         idle=$(autowp_exec_user "$c" "now=\$(date +%s); m=0
-            for x in \$(ls -t ~/.claude/projects/*/*.jsonl 2>/dev/null | head -1) '$f'; do
+            for x in $glob '$f'; do
                 [ -e \"\$x\" ] && { s=\$(stat -c %Y \"\$x\"); [ \"\$s\" -gt \"\$m\" ] && m=\$s; }
             done; echo \$(( now - m ))")
         [ "$idle" -ge "$idle_s" ] && return 0

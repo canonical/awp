@@ -66,7 +66,7 @@ the deadline loop) and run it per that skill.
   original deadline:** the first invocation fixes start and deadline; a later `/time-loop XXX N` on the
   same campaign (after a stop, a crash or a reboot) reuses the stored start and deadline and ignores its
   `N`; if the stored deadline has already passed, it emits the report straight away and stops. A new
-  budget needs `--fresh`, which starts a new campaign. Resumable, idempotent, deadline-aware; scheduled via `/loop` / `ScheduleWakeup` (per-cycle checkpoint + ~20-min watchdog),
+  budget needs `--fresh`, which starts a new campaign. Resumable, idempotent, deadline-aware; scheduled via the harness heartbeat (Claude Code: `/loop` / `ScheduleWakeup`; OpenCode: the external `opencode run` watchdog — the time-loop skill, "The heartbeat on each harness") (per-cycle checkpoint + ~20-min watchdog),
   reserving the last ~15–20 min for the terminus report.
 - **Each cycle:** TRIAGE the residue ledger into class **A** (tool / `U`-ceiling — SKIP, retry only if
   the toolchain was enriched), class **B** (BLOCKED crypto/entropy — SKIP), class **C**

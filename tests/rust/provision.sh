@@ -80,8 +80,10 @@ for t in Why3 why3find Alt-Ergo Z3 CVC4 CVC5; do
 done
 info R-prov.2 "creusot commit $(autowp_exec_user "$BASE" 'git -C ~/git/creusot rev-parse --short HEAD')"
 
-# --- 3. Claude Code (no credentials) and git -------------------------------------
-note "step 3: Claude Code and git identity"
+# --- 3. Agent harnesses (no credentials) and git -----------------------------------
+# Claude Code always; OpenCode too when its binary is on the host, so the
+# base serves HARNESS=claude and HARNESS=opencode runs alike.
+note "step 3: Claude Code, OpenCode and git identity"
 claude_bin=$(readlink -f "$(command -v claude)")
 autowp_exec_user "$BASE" 'mkdir -p ~/.local/bin ~/.claude'
 lxc file push "$claude_bin" "$BASE/home/ubuntu/.local/bin/claude" --uid 1000 --gid 1000 --mode 0755
@@ -98,6 +100,27 @@ git config --global user.email "autowp-test@localhost"'
 host_ver=$(claude --version 2>/dev/null | head -1)
 guest_ver=$(autowp_exec_user "$BASE" 'DISABLE_AUTOUPDATER=1 claude --version 2>/dev/null | head -1')
 check R-prov.3-claude "container claude '$guest_ver' differs from host '$host_ver'" test "$host_ver" = "$guest_ver"
+if command -v opencode >/dev/null; then
+    opencode_bin=$(readlink -f "$(command -v opencode)")
+    lxc file push "$opencode_bin" "$BASE/home/ubuntu/.local/bin/opencode" --uid 1000 --gid 1000 --mode 0755
+    autowp_exec_user "$BASE" 'mkdir -p ~/.config/opencode
+cat > ~/.config/opencode/opencode.json <<JSON
+{"\$schema": "https://opencode.ai/config.json",
+ "permissions": [
+     {"action": "*", "resource": "*", "effect": "allow"},
+     {"action": "read", "resource": "*.env", "effect": "allow"},
+     {"action": "read", "resource": "*.env.*", "effect": "allow"}
+ ]}
+JSON
+cat > ~/.config/opencode/cli.json <<JSON
+{"highlights": false}
+JSON'
+    host_ver=$(opencode --version 2>/dev/null | head -1)
+    guest_ver=$(autowp_exec_user "$BASE" 'opencode --version 2>/dev/null | head -1')
+    check R-prov.3-opencode "container opencode '$guest_ver' differs from host '$host_ver'" test "$host_ver" = "$guest_ver"
+else
+    skip R-prov.3-opencode "opencode not on the host PATH; the base serves HARNESS=claude only"
+fi
 
 # --- 4. snapshot -----------------------------------------------------------------
 if autowp_summary; then

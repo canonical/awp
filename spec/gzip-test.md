@@ -16,7 +16,8 @@ threshold, and the download falls back to other mirrors.
 2. In `gzip-analyze`, download `gzip-1.9.zip` (with mirror fallbacks),
    check its sha256 and its GPG signature, and unzip it, which gives
    `gzip-analyze/gzip-1.9/`.
-3. In the container, start Claude Code in the harness and type
+3. In the container, start the agent harness (`HARNESS`, tests.md §3.3:
+   Claude Code by default, or OpenCode) and type
    `/time-loop gzip-1.9 1`: the RMF campaign (`rmf-sl` code-blind risk study,
    then `frama-c-launch` and `frama-c-monitoring`) on gzip, with a one-hour
    budget.
@@ -77,9 +78,10 @@ The test reuses the level 3 machinery of `tests/c/smoke-test.sh`
   mounted: a test run never writes into a host directory (`tests/README.md`,
   "Differences from the README quick start"). `auto-wp.py` and the templates
   are pushed with `autowp_push_project`, as the other tests do.
-- **The harness** is `tests/lib/harness.sh`: Claude Code in `tmux`, started
-  with `--dangerously-skip-permissions`, with the token moved in by
-  `tests/lib/secret.sh` (`tests.md` §7).
+- **The harness** is `tests/lib/harness.sh`: the agent harness of `HARNESS`
+  (default Claude Code, started with `--dangerously-skip-permissions`;
+  `HARNESS=opencode` starts OpenCode) in `tmux`, with the credential moved in
+  by `tests/lib/secret.sh` (`tests.md` §7).
 - **The checkpoint remote** is a local bare repository `~/remote.git` in the
   container (`tests.md` §3.4).
 

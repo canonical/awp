@@ -131,7 +131,8 @@ ws_egress() {
     done
 }
 
-# Claude Code, as step 2 of the README's quick start A; exits on failure.
+# The agent harness, as step 2 of the README's quick start A; exits on
+# failure. HARNESS picks the binary (default claude).
 ws_install_claude() {
     local out
     if out=$(autowp_exec_user "$WS" 'curl -fsSL https://claude.ai/install.sh | bash >/dev/null 2>&1; . ~/.profile; claude --version' 2>&1); then
@@ -139,4 +140,21 @@ ws_install_claude() {
     else
         fail setup "Claude Code install failed: $(tail -2 <<<"$out" | tr '\n' ' ')"; autowp_summary; exit 1
     fi
+}
+
+ws_install_opencode() {
+    local out
+    if out=$(autowp_exec_user "$WS" 'curl -fsSL https://opencode.ai/install | bash >/dev/null 2>&1; . ~/.profile; opencode --version' 2>&1); then
+        info setup "OpenCode $(tail -1 <<<"$out")"
+    else
+        fail setup "OpenCode install failed: $(tail -2 <<<"$out" | tr '\n' ' ')"; autowp_summary; exit 1
+    fi
+}
+
+# ws_install_harness: the ws_install_* call matching $HARNESS.
+ws_install_harness() {
+    case ${HARNESS:-claude} in
+        opencode) ws_install_opencode ;;
+        *)        ws_install_claude ;;
+    esac
 }

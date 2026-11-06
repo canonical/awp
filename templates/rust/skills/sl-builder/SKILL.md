@@ -291,7 +291,8 @@ Catchability (C2): <blind spot → who catches it> for each actor.
 Every new SL is delivered as a **skill**, not a loose plan. The convention has
 four artifacts, all carrying the same kebab-case `<name>` = the loop `id`:
 - **Skill directory.** `config/skills/<name>/SKILL.md` — the SL written up as a
-  triggerable skill (the `.claude/skills/<name>` path is a symlink into
+  triggerable skill (the `.claude/skills/<name>` and `.opencode/skills/<name>`
+  paths are symlinks into
   `config/skills/`, so author under `config/skills/` only).
 - **SL-1.0 self-description.** `<name>.sl.json` — the §9 coordinator-owned
   registry, validated by `sl_disjointness_check.py` before delivery.
