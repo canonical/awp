@@ -14,7 +14,9 @@
 
 HARNESS_SESSION=${HARNESS_SESSION:-autowp}
 # The Claude Code input box; override if the UI changes.
-HARNESS_PROMPT_RE=${HARNESS_PROMPT_RE:-'(^|[│ ])(>|❯) |\? for shortcuts'}
+# The prompt character is followed by a space or, since Claude Code 2.1.3xx,
+# a no-break space (U+00A0), which grep's ' ' does not match.
+HARNESS_PROMPT_RE=${HARNESS_PROMPT_RE:-'(^|[│ ])(>|❯)( | )|\? for shortcuts'}
 
 # Writes the launcher that reads the token into the environment and deletes
 # the file (tests.md 7.1 step 3).
