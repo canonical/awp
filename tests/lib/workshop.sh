@@ -17,8 +17,9 @@
 #                                host) instead of the Store, for SDKs not
 #                                released yet
 #   WORKSHOP_DIR=<dir>           where the project is generated (default a new
-#                                directory under ${TMPDIR:-/tmp}, removed at
-#                                the end)
+#                                directory under ~/.awp, removed at the end;
+#                                on disk, since /tmp may be a tmpfs and a
+#                                campaign's work would then be lost on reboot)
 #   KEEP=1                       keeps the workshop and the project
 
 WS=autowp                       # the workshop name auto-wp.py writes
@@ -29,7 +30,10 @@ ws_init() {
     local name=$1
     command -v workshop >/dev/null || die "workshop not found (sudo snap install --classic workshop)"
     if [ -n "${WORKSHOP_DIR:-}" ]; then WS_PARENT=$WORKSHOP_DIR WS_OWN=0
-    else WS_PARENT=$(mktemp -d "${TMPDIR:-/tmp}/autowp-$name-ws.XXXXXX") WS_OWN=1; fi
+    else
+        mkdir -p "$HOME/.awp"
+        WS_PARENT=$(mktemp -d "$HOME/.awp/autowp-$name-ws.XXXXXX") WS_OWN=1
+    fi
     WS_PROJECT=$WS_PARENT/$name
     autowp_use_workshop "$WS_PROJECT"
     CAMPAIGN_DIR=/project

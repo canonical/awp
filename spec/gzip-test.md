@@ -188,8 +188,10 @@ the hours-long build and the hour goes to verification.
 
 - **The project is generated on the host**, as the README says: `auto-wp.py
   --c <tmp>/gzip-analyze`, then `workshop launch autowp` there. Unlike §3,
-  the test writes into a host directory, a new one under `${TMPDIR:-/tmp}`
-  (or `WORKSHOP_DIR`), removed at the end unless `KEEP=1`.
+  the test writes into a host directory, a new one under `~/.awp` (or
+  `WORKSHOP_DIR`), removed at the end unless `KEEP=1`. It is on disk, not
+  under `/tmp`: on a host where `/tmp` is a tmpfs, a reboot would lose a
+  campaign's work, and the files would take RAM (seen 2026-11-06).
 - **The guest** is the workshop: the user is `workshop`, the home
   `/home/workshop`, the project `/project`, and every in-guest step goes
   through `workshop exec` (`autowp_use_workshop` in `tests/lib/lxc.sh`).
