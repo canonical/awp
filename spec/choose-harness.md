@@ -19,13 +19,19 @@ Status: Claude Code and OpenCode are implemented (`auto-wp.py` 0.5.0);
 GitHub Copilot is not. Facts that the repository cannot show are marked
 **unverified**, or cite the page or command they come from; the Copilot CLI
 facts come from its documentation and from `copilot --help` of GitHub Copilot
-CLI 1.0.105, read on 2026-11-07. "OpenCode V2" is the OpenCode release
+CLI 1.0.107 (the cells were first written against 1.0.105), read on
+2026-11-07. "OpenCode V2" is the OpenCode release
 observed when the OpenCode path was written (`opencode --version`), whose
 TUI talks to a background service.
 
 Review: [`choose-harness-feedback.md`](choose-harness-feedback.md)
-(2026-11-07); this revision applies it. Finding numbers (B1, M2, m4 …) refer
-to that review.
+(2026-11-07) and
+[`choose-harness-copilot-feedback.md`](choose-harness-copilot-feedback.md)
+(2026-11-07); this revision applies both. Finding numbers (B1, M2, m4 …)
+refer to the first review, and C1–C14 to the second. Everything this
+document specifies for `HARNESS_CREDENTIAL`, the unknown-harness check and
+the Copilot rows is **specified, not yet implemented**: `tests/lib/*.sh` still
+behave as described in §1.2 and §3.2.
 
 ## 1. The harness abstraction
 
@@ -38,20 +44,21 @@ harness-specific in this repository is one row of this table:
 | Capability | Claude Code | OpenCode | Copilot CLI (Route B, proposed) |
 |---|---|---|---|
 | install, README route | `curl -fsSL https://claude.ai/install.sh \| bash` | `curl -fsSL https://opencode.ai/install \| bash` | `npm install -g @github/copilot` (Node ≥ 22), or `curl -fsSL https://gh.io/copilot-install \| bash` (GitHub's install page) |
-| install, test route | the host's binary pushed by `provision.sh`, version-checked, `DISABLE_AUTOUPDATER=1` (`tests.md` §3.3) | the host's binary pushed by `provision.sh` (`C-prov.4-opencode`, `R-prov.3-opencode`) | the same push; `COPILOT_AUTO_UPDATE=false` |
-| wiring the project | `.claude/{skills,commands}` → `config/` | `.opencode/{skills,commands}` → `config/`; V2 also reads `.claude/skills` and `.agents/skills`. Commands are read from `.opencode/commands/` only, so that link is load-bearing. The commands' `argument-hint` frontmatter is Claude Code's; OpenCode documents `description`, `agent`, `model`, `subagent` (unknown keys ignored: **unverified**) | skills from `.github/skills/`, `.agents/skills/` or `.claude/skills/` (the generated links already work); custom agents from `.github/agents/*.agent.md`; **no project slash commands** |
-| campaign entry point | the slash command `/time-loop <dir> N` | the slash command `/time-loop <dir> N` | none yet: a prompt ("Load the `time-loop` skill and run it for `<dir>` with N hours") or a generated `.github/agents/time-loop.agent.md` (§9, point 1) |
+| install, test route | the host's binary pushed by `provision.sh`, version-checked, `DISABLE_AUTOUPDATER=1` (`tests.md` §3.3) | the host's binary pushed by `provision.sh` (`C-prov.4-opencode`, `R-prov.3-opencode`) | the same push; `COPILOT_AUTO_UPDATE=false` (or `--no-auto-update`), set explicitly: auto-update is off by default only in CI environments |
+| wiring the project | `.claude/{skills,commands}` → `config/` | `.opencode/{skills,commands}` → `config/`; V2 also reads `.claude/skills` and `.agents/skills`. Commands are read from `.opencode/commands/` only, so that link is load-bearing. The commands' `argument-hint` frontmatter is Claude Code's; OpenCode documents `description`, `agent`, `model`, `subagent` (unknown keys ignored: **unverified**) | skills from `.github/skills/`, `.agents/skills/` or `.claude/skills/` (the generated links already work); custom agents from `.github/agents/*.agent.md`; plugins (`--plugin-dir`) can bundle skills, agents, hooks and MCP servers; **no project-defined slash commands** in `copilot help commands`. Whether a skill is invocable as `/<skill-name>`, and whether a plugin can add a slash command, is **unverified** |
+| campaign entry point | the slash command `/time-loop <dir> N` | the slash command `/time-loop <dir> N` | first choice: a prompt that loads the skill ("Load the `time-loop` skill and run it for `<dir>` with N hours"), passed with `-i "<prompt>"` (interactive session that executes it at start), so the test types nothing; fallback: a generated `.github/agents/time-loop.agent.md` (§9, point 1) |
 | credential mode (`HARNESS_CREDENTIAL`, §1.1) | `file` | `file` (API key); `persisted` under Route A | `file` |
-| credential | a long-lived OAuth token (`claude setup-token`) streamed to `/run/autowp/token`, exported as `CLAUDE_CODE_OAUTH_TOKEN`, deleted after read | `file`: a provider **API key** in `AUTOWP_TOKEN_FILE`, exported under `AUTOWP_OPENCODE_KEY_ENV` (default `ANTHROPIC_API_KEY`). `persisted`: Route A's device-flow connection, stored in the container (§4) | a fine-grained PAT with the "Copilot Requests" permission, exported as `COPILOT_GITHUB_TOKEN` (precedence over `GH_TOKEN`, `GITHUB_TOKEN`); the stream-and-delete route applies unchanged |
+| credential | a long-lived OAuth token (`claude setup-token`) streamed to `/run/autowp/token`, exported as `CLAUDE_CODE_OAUTH_TOKEN`, deleted after read | `file`: a provider **API key** in `AUTOWP_TOKEN_FILE`, exported under `AUTOWP_OPENCODE_KEY_ENV` (default `ANTHROPIC_API_KEY`). `persisted`: Route A's device-flow connection, stored in the container (§4) | a fine-grained PAT with the "Copilot Requests" permission, exported as `COPILOT_GITHUB_TOKEN` (precedence over stored credentials, `GH_TOKEN`, `GITHUB_TOKEN`); the stream-and-delete route applies unchanged, and the variable is listed in `--secret-env-vars` so the agent's shell and MCP servers do not inherit it. Alternative, **Route B′** (§5): BYOK with `COPILOT_PROVIDER_*` (an API key, no Copilot plan) |
 | permission posture | `--dangerously-skip-permissions` + `skipDangerousModePermissionPrompt` in `~/.claude/settings.json` | none needed: the V2 base policy allows every action; the harness writes a global `opencode.json` pinning it with `"action": "*"` (the wildcard and the `.env` reads claim are **unverified**: the config page documents named actions) and a `cli.json` without the release popup (**unverified**, undocumented) | `--allow-all-tools` (required for non-interactive mode), or `--allow-all`/`--yolo`, or `COPILOT_ALLOW_ALL=true` |
-| trust / onboarding dialogs | `~/.claude.json` onboarding + folder trust, written by `harness_trust` for the exact project path | none; the global config is written instead | a folder-trust prompt: `--trust-folder` for one session, or `COPILOT_ALLOW_ALL=true`; where interactive trust is persisted is **unverified** |
-| input-box prompt (the tmux regex) | `❯` followed by a space or, since 2.1.3xx, a no-break space — `$'... '` in `HARNESS_PROMPT_RE` | `Ask anything…` (the placeholder) / `shift+tab agents` (the status line; **unverified**) | **unverified** (spike) |
-| transcript (what `harness_confirm` greps) | `~/.claude/projects/*/*.jsonl` | `~/.local/share/opencode/opencode.db*` (`grep -a`; the glob covers a WAL file, §3.2) — the same database holds any stored credential | state under `~/.copilot` (`COPILOT_HOME`), logs in `~/.copilot/logs/`; the session file format is **unverified** |
-| headless mode | `claude -p` and `--bare`, never used for campaigns (`tests.md` §3.3, §3.5: one turn, no wake-ups) | `opencode run` (the `-c`, `--auto`, `-m` flags are **unverified**: the CLI page documents none); `opencode mini` is a minimal interactive mode | `copilot -p "<prompt>" --allow-all-tools [-s] [--output-format json]`; `--continue`, `-r/--resume [id]`, `--session-id`; `--autopilot` with `--max-autopilot-continues` |
-| time-loop heartbeat | in-session: `ScheduleWakeup` (armed as the cycle's last action) + `CronCreate`/`CronList` idle watchdog | an external watchdog: a detached loop re-invoking `opencode run --standalone` when `time-loop.state` goes quiet (`time-loop/SKILL.md`, "The heartbeat on each harness"; §3.2) | none visible in `--help`: the external watchdog with `copilot -p … --allow-all-tools --continue` |
-| sub-agent spawn (the delegation barrier) | `Agent`/`Task`: the verifier of each cycle runs in a spawned sub-agent (`time-loop/SKILL.md` §4 step 2) | subagents via `@agent` mentions and commands with `subagent: true` (opencode.ai/docs/commands); whether the coordinator gets the delivered report back as Claude Code's does is **unverified** | custom agents; `--fleet` parallel sub-agent orchestration; the in-session spawn API is **unverified** |
-| background task + stop | background sub-agents whose completion notification re-invokes the session; `TaskStop` on a verifier past its time box | **unverified**; fallback: one verifier at a time, run in the foreground of the cycle | **unverified** |
-| test switch | `HARNESS=claude` (the default) | `HARNESS=opencode` | `HARNESS=copilot`: **rejected** until Route B lands (§1.2) |
+| trust / onboarding dialogs | `~/.claude.json` onboarding + folder trust, written by `harness_trust` for the exact project path | none; the global config is written instead | a folder-trust prompt. `--trust-folder` covers **one prompt-mode session only** (no saved trust), so it fits `-p`, not a tmux session. For tmux the tests use `COPILOT_ALLOW_ALL=true` (exactly `true`), which also trusts the directory and **loads its hooks, which can run shell commands**: a generated project must not ship `.github/hooks`. Where interactive trust is persisted is **unverified** |
+| input-box prompt (the tmux regex) | `❯` followed by a space or, since 2.1.3xx, a no-break space — `$'... '` in `HARNESS_PROMPT_RE` | `Ask anything…` (the placeholder) / `shift+tab agents` (the status line; **unverified**) | **unverified** (spike). With `-i` it is needed only for the idle check. Set `COPILOT_MULTIPLEXER=tmux` so the CLI does not misdetect the nested tmux |
+| transcript (what `harness_confirm` greps) | `~/.claude/projects/*/*.jsonl` | `~/.local/share/opencode/opencode.db*` (`grep -a`; the glob covers a WAL file, §3.2) — the same database holds any stored credential | state under `~/.copilot` (`COPILOT_HOME`), logs in `~/.copilot/logs/`; the interactive session file format is **unverified**. In `-p` runs the test chooses the oracle: `--share <path>` (Markdown) or `--output-format json` (JSONL) |
+| headless mode | `claude -p` and `--bare`, never used for campaigns (`tests.md` §3.3, §3.5: one turn, no wake-ups) | `opencode run` (the `-c`, `--auto`, `-m` flags are **unverified**: the CLI page documents none); `opencode mini` is a minimal interactive mode | `copilot -p "<prompt>" --allow-all-tools [-s] [--output-format json]`; `--continue`, `-r/--resume [id]`, `--session-id`; `--no-ask-user` so a headless turn cannot block on a question form; `--autopilot` with `--max-autopilot-continues` (default **5**, so `--autopilot` alone stops after five continuations, not at the deadline) |
+| time-loop heartbeat | in-session: `ScheduleWakeup` (armed as the cycle's last action) + `CronCreate`/`CronList` idle watchdog | an external watchdog: a detached loop re-invoking `opencode run --standalone` when `time-loop.state` goes quiet (`time-loop/SKILL.md`, "The heartbeat on each harness"; §3.2) | none visible in `--help`: the external watchdog with `copilot -p … --allow-all-tools --no-ask-user --session-id <id>` (a stable id, not `--continue`, which resumes the most recent session and can pick another project's if `COPILOT_HOME` is shared). The watchdog tells exit causes apart: a reached credit limit or an expired PAT **stops** it, a network error retries |
+| sub-agent spawn (the delegation barrier) | `Agent`/`Task`: the verifier of each cycle runs in a spawned sub-agent (`time-loop/SKILL.md` §4 step 2) | subagents via `@agent` mentions and commands with `subagent: true` (opencode.ai/docs/commands); whether the coordinator gets the delivered report back as Claude Code's does is **unverified** | custom agents (`--agent`, `.github/agents`); `--fleet`/`/fleet` parallel sub-agents; `/tasks` lists subagents and shell commands. That the coordinator spawns a verifier and reads back its delivered report is **unverified**: the spike's target. `/delegate` is **not** a candidate: it hands the session to GitHub (§6) |
+| background task + stop | background sub-agents whose completion notification re-invokes the session; `TaskStop` on a verifier past its time box | **unverified**; fallback: one verifier at a time, run in the foreground of the cycle | **unverified**; `/tasks` is the likely view-and-stop mechanism (spike) |
+| spend limit | none | none known | `--max-ai-credits <n>` (minimum 30; a soft cap, shared with sub-agents; the next model call is blocked once it is exceeded) and `--usage-output-file <file>`. The tests set both for every Copilot run |
+| test switch | `HARNESS=claude` (the default) | `HARNESS=opencode` | `HARNESS=copilot`: **rejected** until Route B lands (§1.2), then accepted (§8.2, test 9) |
 
 **The rule the table enforces.** The skills and commands live once in
 `config/` and every harness reads the same files through links. They are
@@ -279,32 +286,65 @@ Copilot model.
 
 Route B makes `HARNESS=copilot` a first-class row of §1. The verified cells
 are in the table. The work starts with a **spike** — a level-2-shaped
-exercise in a throwaway container: install, authorize with
-`COPILOT_GITHUB_TOKEN`, drive one prompt through tmux, find the input-box
-marker, locate the session file — then the file changes of §8.1.
+exercise in a throwaway container, in this order:
+
+1. install, authorize with `COPILOT_GITHUB_TOKEN`, and start a session with
+   `-i "<prompt that loads the time-loop skill>"`; check whether `/time-loop`
+   or `/skills` invokes the skill by name;
+2. check the delegation barrier: can a coordinator spawn a verifier
+   (`.github/agents`, `/fleet`) and read back its delivered report, and does
+   `/tasks` stop one;
+3. run a 30-minute `copilot -p` loop under the external watchdog with
+   `--session-id`, `--max-ai-credits` and `--usage-output-file`, and check
+   that a reached limit stops the watchdog;
+4. only then the interactive items: the input-box marker, the session file,
+   where folder trust is persisted.
+
+Then come the file changes of §8.1.
 
 Route B also needs two decisions that Route A does not:
 
-- **The entry point** (§9, point 1). The Copilot CLI has no project slash
-  commands, so typing `/time-loop …` is probably rejected as unknown
-  (**unverified**) and `harness_confirm`'s patterns would not match. Either
-  the test types a prompt that loads the skill, or `auto-wp.py` generates a
-  `.github/agents/time-loop.agent.md`; the second adds a `.github/` layer to
-  every generated project.
-- **The sub-agent primitive** (§9, point 2). The `--fleet` mode and custom
-  agents may meet the delegation barrier; the spike checks whether a
-  coordinator can spawn a verifier and read back its delivered report.
+- **The entry point** (§9, point 1). The Copilot CLI has no project-defined
+  slash commands, so typing `/time-loop …` is probably rejected as unknown
+  (**unverified**) and `harness_confirm`'s patterns would not match. The
+  first choice is a prompt that loads the skill, passed with `-i`; it keeps
+  generated projects harness-neutral. `harness_confirm` then matches the
+  skill load, not `<command-name>`. The fallback is a generated
+  `.github/agents/time-loop.agent.md`, which adds a `.github/` layer to every
+  generated project.
+- **The sub-agent primitive** (§9, point 2). Custom agents, `/fleet` and
+  `/tasks` may meet the delegation barrier; step 2 of the spike checks it.
 
 The credential needs nothing new: a PAT in `AUTOWP_TOKEN_FILE`
 (`file` mode), exported as `COPILOT_GITHUB_TOKEN`, with the `.created`
 metadata and `secret_check_expiry` as for Claude. A PAT has a chosen
-expiry, so the expiry check applies as is. The CLI redacts
-`GITHUB_TOKEN`/`COPILOT_GITHUB_TOKEN` values in its output.
+expiry, so the expiry check applies as is. The launcher also passes
+`--secret-env-vars COPILOT_GITHUB_TOKEN`, which removes the variable from
+the shell and MCP environments the agent can read. This is stronger than
+Claude's token, which the agent can read; the CLI's redaction of the value
+in its output is not relied on.
 
-**Route A is the recommended route for GitHub Copilot**: it reuses the
-OpenCode path (heartbeat, transcript, permissions) and needs only the
-credential mode and the connect step. Route B stays a sketch until the spike
-answers §9.
+**Route B′ — BYOK.** The CLI can use a custom provider instead of Copilot's
+routing: `COPILOT_PROVIDER_BASE_URL`, `COPILOT_PROVIDER_TYPE`
+(`openai`, `azure`, `anthropic`) and `COPILOT_PROVIDER_API_KEY`; GitHub
+authentication is then not required. It is Route B with an API key in
+`AUTOWP_TOKEN_FILE` exported under `COPILOT_PROVIDER_API_KEY`, so it needs no
+Copilot plan, is outside the plan and policy limits of §6, and avoids using
+subscription OAuth in a third-party client. It is the path when no paid
+Copilot seat is available. Spike item: which models and `COPILOT_PROVIDER_*`
+settings carry a long campaign.
+
+**Which route first.** Route A reuses the OpenCode path (heartbeat,
+transcript, permissions) but needs the `persisted` credential mode, the
+connect pre-step, the §3.2 fixes as prerequisites, and leaves a live OAuth
+token in the container for the agent to read, with an unknown 96-hour
+refresh behaviour (§9, point 4). Route B needs no new credential machinery
+and keeps K2 and stream-and-delete intact, at the price of the open
+questions of §9, points 1, 2 and 7. **Run Route B's spike first.** If its
+entry-point and sub-agent questions resolve, Route B is the recommended
+route for GitHub Copilot; if the Copilot CLI cannot carry a long headless
+loop, Route A is the fallback. Until the spike has run, neither is
+recommended over the other.
 
 ## 6. Accounts, plans and terms
 
@@ -320,18 +360,27 @@ answers §9.
   2026-01-16). Copilot Free is not supported. Business and Enterprise
   administrators can disable the Copilot CLI by policy. The tests assume a
   paid plan whose policy allows the client used.
-- **Premium requests.** Copilot counts one premium request per prompt,
-  multiplied by the model's rate. On the legacy billing scheme a Pro plan
-  has 300 a month and Pro+ 1,500; the current scheme for other plans is
-  **unverified**. A 96-hour campaign with a wake at least every 20 minutes
-  sends at least 288 prompts before counting sub-agent prompts, which
-  exhausts a Pro allowance in one run. A Copilot campaign therefore needs
-  Pro+ or above, or paid overage; test 7 of §8.2 checks the run did not fall
-  back to an included model.
+- **Cost.** The Copilot CLI measures usage in **AI credits**, token-based
+  and shown per model in `/model`, in the footer (`Session: N AIC used`) and
+  in `/usage`; premium requests apply only on the legacy billing platform
+  (`copilot help billing`). The cost of a campaign is therefore not wakes ×
+  prompts: it depends on tokens, the model and sub-agent work. Record which
+  scheme the test account is on. Route B runs set `--max-ai-credits` and
+  write `--usage-output-file`; for Route A the figure comes from the
+  account's billing page. A budget reached mid-run blocks every later model
+  call, so the watchdog treats it as a stop (§1 table). Footnote, legacy
+  scheme: premium requests are one per prompt times the model's rate, a Pro
+  plan has 300 a month and Pro+ 1,500, and a 96-hour campaign with a wake at
+  least every 20 minutes sends at least 288 prompts before sub-agent prompts,
+  which exhausts a Pro allowance in one run. Test 7 of §8.2 checks the run
+  did not fall back to an included model and records the credits used.
 - **Data handling.** A campaign sends third-party source code (GRUB, gzip,
   sudo-rs, Mbed TLS) to the provider. Retention rules differ between
   individual and Business/Enterprise plans, and between providers; the
-  user's provider policy applies.
+  user's provider policy applies. The Copilot CLI has further ways to send a
+  session to GitHub: `/delegate` (the cloud agent opens a PR), `/share`,
+  `--share-gist` and `/remote`. A campaign never uses them, and test 10 of
+  §8.2 checks that no gist or remote session was created.
 
 ## 7. A running campaign is never switched
 
@@ -387,15 +436,20 @@ To change harness:
 | 4 | `test_harness.py`: an unknown `HARNESS` (including `copilot` before Route B) makes `harness.sh` and `secret.sh` exit non-zero | §1.2 |
 | 5 | Route A: `C-copilot.connect` passes, and K2 under `persisted` (§4.4) passes: the token is not in the project tree, `~/remote.git` or `/tmp` | §4.2, §4.4 |
 | 6 | `test_harness.py`: `HARNESS_PROMPT_RE` matches the recorded input box of each implemented harness and rejects ordinary output | §1 prompt row |
-| 7 | A Copilot run (Route A or B) completes without a fallback to an included model, and records its premium-request count | §6 |
+| 7 | A Copilot run (Route A, B or B′) completes without a fallback to an included model, and records the AI credits used (`--usage-output-file`, or the billing page for Route A; the premium-request count on the legacy scheme) | §6 |
 | 8 | C2.2 covers each harness bullet of the generated README | §8.1 READMEs |
+| 9 | `test_harness.py`, once Route B has a spike result: `HARNESS=copilot` is accepted and the launcher exports `COPILOT_GITHUB_TOKEN`, passes `--secret-env-vars COPILOT_GITHUB_TOKEN`, `--max-ai-credits` and `--usage-output-file`; the pair of test 4 | §1.2 |
+| 10 | After a Copilot run: no secret gist (`--share-gist`), no `/delegate` PR and no remote session was created, and `.github/hooks` is absent from the project | §6 |
+| 11 | Copilot watchdog: a reached `--max-ai-credits` limit or an expired PAT stops it; a network error retries | §1 table |
 
 ## 9. Open points
 
-1. **Copilot entry point** (Route B): a prompt that loads the `time-loop`
-   skill, or a generated `.github/agents/time-loop.agent.md`? Decides
-   whether `auto-wp.py` gains a `.github/` layer and what `harness_confirm`
-   greps.
+1. **Copilot entry point** (Route B): a prompt passed with `-i` that loads
+   the `time-loop` skill (first choice), or a generated
+   `.github/agents/time-loop.agent.md`? Decides whether `auto-wp.py` gains a
+   `.github/` layer and what `harness_confirm` greps. The spike's first
+   question: does `/time-loop` or `/skills` invoke the skill by name, and can
+   a plugin add a slash command?
 2. **The delegation barrier.** Is the verifier-in-a-sub-agent rule (and
    `TaskStop` on a verifier past its time box) a requirement of the method or
    a Claude Code convenience? If it is a requirement: which OpenCode and
@@ -416,7 +470,13 @@ To change harness:
 7. **Copilot CLI open cells** (Route B): the tmux input-box marker, the
    session file format, where folder trust is persisted, and arm64 builds.
 8. **Route A model quality and cost.** Whether the Copilot-provided models
-   are good enough for a 96-hour WP/Coq campaign, and the premium-request
-   budget of one run (wakes × sub-agent prompts × model rate). The ranking
+   are good enough for a 96-hour WP/Coq campaign, and the budget of one run
+   in AI credits (tokens × model price; premium requests only on the legacy
+   scheme). The ranking
    and the cross-provider judge (`sl-auditor`) exist; the cost and quality
    are unmeasured.
+9. **Route B′ (BYOK).** Which `COPILOT_PROVIDER_*` settings and models carry
+   a long campaign, and whether the CLI's behaviour (sub-agents, credit
+   accounting, `--max-ai-credits`) is the same with a custom provider.
+10. **Route order.** Route B's spike (§5) decides whether Route A stays the
+    fallback or is dropped.
