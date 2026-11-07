@@ -73,8 +73,8 @@ is the right call — skip the squeeze.** Reach for the full loop deliberately.
      guessed config are NOT a substitute: a unit whose generated dependencies were never produced is
      *not* onboarded, it is **un-built**, and the loop **fails** rather than recording it BLOCKED and
      falling back to a lifted leaf driver (see the build oracle in §1 and Gate B_launch in §4).
-     - **`-machdep` override — the one preprocess value the caller may PIN (`--machdep=<name>` via `/rmf`).**
-       When `/rmf` forwards `--machdep=<name>`, pin `-machdep` to it for the campaign (record it in the
+     - **`-machdep` override — the one preprocess value the caller may PIN (`--machdep=<name>` via `/rmf` or `/fips`).**
+       When `/rmf` or `/fips` forwards `--machdep=<name>`, pin `-machdep` to it for the campaign (record it in the
        onboarding package and the generated `verify.sh`; do **not** re-derive it from the build). This is
        the sanctioned override for **cross/embedded** targets Frama-C has no exact machdep for: `<name>`
        must be one `frama-c -machdep help` lists, and the ABI-faithful proxies are **`gcc_x86_32` for
@@ -199,6 +199,17 @@ is the right call — skip the squeeze.** Reach for the full loop deliberately.
       `references/rmf-feedback.md` (landing on the 800-37 *Monitor* step). Same exogeneity rule: sound
       only if R1–R4 were authored **without reading the implementation**. EBIOS and RMF are
       interchangeable peer sources of the exogenous ranking — use whichever the engagement mandates.
+    - **Or a FIPS 140-3 requirement study (the third exogenous bound).** The ranking may come from a
+      FIPS 140-3 requirement study produced by the **`fips-sl`** loop (`../fips-sl/SKILL.md`, the
+      FIPS-instantiated sibling, grounded in the vendored `NIST.FIPS.140-3.pdf` + the module's public
+      description + the manifest's target level), joined through `templates/fips-crosswalk.md`; the
+      verdict→requirement return half is `references/fips-feedback.md` (landing on the Ann. 13
+      residual-risk acknowledgment). Same exogeneity rule: sound only if F1–F4 were authored
+      **without reading the implementation**. The ranking key is the study's **`VO#` priority
+      `P1`–`P3`** (Plane W = the `zeroize`/`no-plain-ssp-out` obligations; Plane H = the six
+      system-level classes; `approved-only` is a call-graph check outside both planes). EBIOS, RMF
+      and FIPS are interchangeable peer sources of the exogenous ranking — use whichever the
+      engagement mandates (the project's `driver` key in `config/auto-wp.json` names the default).
 - **Lower bound `L` (executable, ground truth):** the onboarding **oracles**, which no prep actor
   can argue with:
   0. **Build oracle (precedes all others)** — the target **actually compiled** for the chosen
@@ -382,7 +393,10 @@ artifact before the next step builds on it.
 1. **Architectural audit** (architect, read-only fan-out). Produce the scope map (amenable vs
    BLOCKED) + attack-surface ranking. **Ranking key:** if an **EBIOS RM** study exists, rank by its
    **risk level** (severity × likelihood) via `templates/ebios-crosswalk.md` — the exogenous bound;
-   a high-severity supporting asset that is BLOCKED becomes a *flagged residual risk*, not a silent
+   if a **NIST RMF** assessment exists, rank by its risk level via `templates/rmf-crosswalk.md`; if a
+   **FIPS 140-3** requirement study exists, rank by its `VO#` priority `P1`–`P3` via
+   `templates/fips-crosswalk.md`; a high-severity/high-priority asset or obligation that is BLOCKED
+   becomes a *flagged residual risk*, not a silent
    drop. With no study, fall back to input-exposure and **mark the ranking endogenous**. (This is the
    audit `frama-c-monitoring`'s Phase 0 *consumes* — `frama-c-launch` owns it; see the handoff below.)
 2. **Gate A_launch** → APPROVED (coordinator judges profile + scope + baseline plan).
@@ -548,6 +562,15 @@ Implementation is the canonical preset **`linux/linux-acsl/onboard-linux.sh <ana
 - `references/ebios-feedback.md` — the downstream half: how `frama-c-monitoring`'s verdicts become
   EBIOS W5 treatment evidence (SCIP measures + residual risks) at campaign close (`frama-c-monitoring`
   §8e runs it). The coordinator proposes; the EBIOS risk owner adjudicates (human terminus).
+- `templates/fips-crosswalk.md` — the FIPS 140-3 ↔ launch join table: the module (`MOD#`, `SV#`,
+  `RL#`, `SSP#`, `IF#`, `ST#`) ↔ translation units, the `VO#` obligations ranked by priority
+  `P1`–`P3` (the exogenous `U`), and the F5 verification-feedback section.
+- `references/fips-feedback.md` — the downstream half for the FIPS driver: how `frama-c-monitoring`'s
+  verdicts become requirement evidence (`PROVED` `VO#` = evidence for its `RQ#`, never a CMVP
+  validation) at campaign close. The coordinator proposes; the owner of the protected information, or
+  the agency's responsible authority, adjudicates (the Ann. 13 human terminus).
+- The **`fips-sl`** loop (`../fips-sl/SKILL.md`) — the **producer** of the FIPS exogenous bound: a
+  code-disjoint peer that authors the F1–F5 requirement study *before* this loop and hands it over.
 - The **`ebios-sl`** loop (`../ebios-sl/SKILL.md`) — the **producer** of the exogenous risk bound: a
   code-disjoint peer that authors the EBIOS report (W1–W4) *before* this loop and hands it over. Its
   W1 severity + W4 likelihood feed the crosswalk's ranking; W5 consumes the verification verdicts back

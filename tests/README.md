@@ -34,6 +34,8 @@ Levels 3 and 4 need a provisioned base container first:
 make provision-c     # or provision-rust; builds autowp-c-base (hours)
 make smoke-c         # level 3, C
 make smoke-c-gzip    # level 3, C, gzip 1.9 (one hour)
+make smoke-c-mbedtls # level 3, C, a fips campaign on Mbed TLS (SKIPs until
+                     # the fips driver exists)
 make workspace-rust  # level 3, Rust, no token needed
 make smoke-rust      # level 3, Rust
 tests/c/acceptance.sh start   # level 4, see c/README.md

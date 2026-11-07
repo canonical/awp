@@ -20,6 +20,10 @@
 #                          a line "# ws1-stage: N" (default stage = 1; --stage overrides).
 #
 # Baseline default: <CROSSWALK>.ledger-baseline.tsv  (TSV: asset<TAB>S<TAB>T<TAB>R<TAB>I<TAB>D<TAB>E).
+# FIPS form: a line "# ledger: fips" in the crosswalk (crosswalk-template §3.4) selects the FIPS
+#   ledger — rows keyed by the bare VO#, one Coverage cell each; its baseline's first line is
+#   "# ledger: fips" and its rows are VO#<TAB>cell. Same lifecycle and ratchet rule; the WS1
+#   race-family rule is a STRIDE rule and does not apply to the FIPS form.
 # SKIP-honest: no ledger table present -> SKIP + exit 0 (so a crosswalk without a §3 matrix never fails).
 set -uo pipefail
 PY="${ROCQ_PYTHON_BIN:-python3}"
@@ -78,6 +82,120 @@ def cell_token(cell):
         if s == tok:
             return tok
     return None
+
+# --- the FIPS ledger form (crosswalk-template §3.4) ---------------------------
+# A line "# ledger: fips" in the crosswalk selects it: rows keyed by the bare VO#,
+# one Coverage cell each, same lifecycle and ratchet rule — no STRIDE families, so
+# the WS1 race rule does not apply.
+IS_FIPS = re.search(r'(?m)^#\s*ledger:\s*fips\s*$', txt) is not None
+
+if IS_FIPS:
+    HDR_RX = re.compile(r'^\s*\|(.+)\|\s*$')
+    SEP_RX = re.compile(r'^\s*\|[\s:|-]+\|\s*$')
+    fips_hdr = None
+    for i, ln in enumerate(lines):
+        m = HDR_RX.match(ln)
+        if not m:
+            continue
+        cells = [re.sub(r'[`*_]', '', c).strip().lower() for c in m.group(1).split('|')]
+        if (len(cells) >= 4 and cells[0].startswith('vo#') and cells[1].startswith('ar#')
+                and cells[2].startswith('class') and cells[3].startswith('coverage')
+                and i + 1 < len(lines) and SEP_RX.match(lines[i+1])):
+            fips_hdr = i
+            break
+    if fips_hdr is None:
+        print("  SKIP  '# ledger: fips' present but no FIPS ledger table (VO# | AR# | Class | Coverage) in '%s'" % XWALK)
+        print("\nLEDGER-RATCHET SKIP (no FIPS ledger table) — exit 0")
+        sys.exit(0)
+
+    order, frows, badcells = [], {}, []
+    k = fips_hdr + 2
+    while k < len(lines):
+        m = HDR_RX.match(lines[k])
+        if not m:
+            break
+        cells = [c.strip() for c in m.group(1).split('|')]
+        if re.match(r'^[\s:|-]+$', '|'.join(cells)):
+            k += 1; continue
+        vo_raw = re.sub(r'[`*_]', '', cells[0]).strip()
+        mtag = re.match(r'^(VO\d+)\b', vo_raw)
+        vo = mtag.group(1) if mtag else vo_raw
+        cov = cells[3] if len(cells) > 3 else ''
+        tok = cell_token(cov)
+        if tok is None:
+            badcells.append('%s="%s"' % (vo or ('row%d' % k), cov.strip()))
+        if vo not in frows:
+            order.append(vo)
+        frows[vo] = tok
+        k += 1
+
+    res = []
+    if badcells:
+        res.append(('FAIL', "FIPS ledger coverage cells without exactly one valid lifecycle token "
+                    "(UNMODELED|PROVED|TRUSTED-PENDING|TRUSTED|N/A[(RR#)]): " + ", ".join(badcells[:10])))
+
+    def fips_to_tsv(order, frows):
+        out = ["# ledger: fips — frozen FIPS ledger (crosswalk-template §3.4); ratchet moves forward only."]
+        for v in order:
+            out.append("\t".join([v, frows[v] or 'UNMODELED']))
+        return "\n".join(out) + "\n"
+
+    def fips_from_tsv(path):
+        base = {}
+        lns = open(path, encoding="utf-8", errors="replace").read().splitlines()
+        if not (lns and lns[0].strip().startswith('#') and 'ledger: fips' in lns[0]):
+            return base          # a STRIDE baseline is not a FIPS one
+        for ln in lns[1:]:
+            if not ln.strip() or ln.lstrip().startswith('#'):
+                continue
+            parts = ln.split('\t')
+            if len(parts) < 2:
+                continue
+            base[parts[0].strip()] = parts[1].strip()
+        return base
+
+    bootstrap = False
+    if EMIT_ONLY or not os.path.exists(BASELINE):
+        open(BASELINE, "w", encoding="utf-8").write(fips_to_tsv(order, frows))
+        bootstrap = True
+        res.append(('INFO', "no baseline at '%s' — emitted frozen baseline from current ledger (%d obligation row%s)"
+                    % (BASELINE, len(order), '' if len(order) == 1 else 's')))
+    else:
+        base = fips_from_tsv(BASELINE)
+        if not base:
+            res.append(('FAIL', "baseline '%s' is not a FIPS baseline (its first line must be '# ledger: fips')"
+                        % BASELINE))
+        else:
+            res.append(('INFO', "baseline: %s (%d obligation row%s)" % (BASELINE, len(base), '' if len(base) == 1 else 's')))
+            reg = [v for v, was in base.items()
+                   if was in ('PROVED', 'TRUSTED') and frows.get(v) == 'UNMODELED']
+            if reg:
+                res.append(('FAIL', "RATCHET regression — a PROVED/TRUSTED cell backslid to UNMODELED "
+                            "(template §3.2.1): " + "; ".join('%s: %s -> UNMODELED' % (v, base[v]) for v in reg)))
+            missing = [v for v in base if v not in frows]
+            if missing:
+                res.append(('FAIL', "RATCHET regression — obligation row present in baseline now MISSING "
+                            "(template §3.2.2): " + ", ".join(sorted(missing))))
+            if not reg and not missing:
+                res.append(('PASS', "no regression vs baseline (no PROVED/TRUSTED -> UNMODELED, no dropped VO# row)"))
+    warn_cells = ['%s=%s' % (v, frows[v]) for v in order if frows[v] in ('UNMODELED', 'TRUSTED-PENDING')]
+    if warn_cells:
+        res.append(('WARN', "incomplete cells (ratcheted toward PROVED/TRUSTED, NOT blocking): " + ", ".join(warn_cells)))
+    for v in order:
+        res.append(('INFO', "  %-9s Coverage=%s" % (v, frows[v])))
+    for lvl, msg in res:
+        print("  %-4s %s" % (lvl, msg))
+    print()
+    fails = [r for r in res if r[0] == 'FAIL']
+    if fails:
+        print("LEDGER-RATCHET FAIL (%d regression%s) — the ratchet moves FORWARD only (template §3.2)"
+              % (len(fails), '' if len(fails) == 1 else 's'))
+        sys.exit(1)
+    if bootstrap:
+        print("LEDGER-RATCHET PASS (bootstrap — frozen baseline emitted; cross-run ratchet armed for next run)")
+    else:
+        print("LEDGER-RATCHET PASS (regression-only gate; incompleteness WARNs, never fails — crosswalk-template §3.2)")
+    sys.exit(0)
 
 # --- locate the §3.3 ledger table (six S,T,R,I,D,E columns) -----------------
 def find_ledger():

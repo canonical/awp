@@ -16,17 +16,18 @@
 # can never drift from the proof — the no-blend invariant, enforced).
 #
 # Usage:
-#   ./crosswalk-gen.sh PREFIX [--kind rmf|ebios] [--out FILE] [--check]
-#     PREFIX        e.g. s2n-tls-analysis  (expects PREFIX-{rmf,ebios}-report.md + PREFIX-acsl/)
-#     --kind        rmf (default) or ebios; auto-detected from which report exists
+#   ./crosswalk-gen.sh PREFIX [--kind rmf|ebios|fips] [--out FILE] [--check]
+#     PREFIX        e.g. s2n-tls-analysis  (expects PREFIX-{rmf,ebios,fips}-report.md + PREFIX-acsl/)
+#     --kind        rmf (default) or ebios or fips; auto-detected from which report exists
 #     --out FILE    output path (default PREFIX-crosswalk.md)
 #     --check       do not write; regenerate to a temp file and diff against the committed
 #                   crosswalk — exit 1 on drift (the CI sync gate). Implies faithfulness check.
 #
 # Inputs (per PREFIX):
-#   PREFIX-rmf-report.md | PREFIX-ebios-report.md   (the code-blind report)
-#   PREFIX-acsl/verdicts.tsv                          (unit\tSA#\t...\tverdict\t...)
+#   PREFIX-rmf-report.md | PREFIX-ebios-report.md | PREFIX-fips-report.md  (the code-blind report)
+#   PREFIX-acsl/verdicts.tsv                          (unit\tSA#\t...\tverdict\t...; headed VO# under fips)
 #   PREFIX-acsl/stride-ledger.tsv                     (SA\tS\tT\tR\tI\tD\tE\tattack — the §3 matrix)
+#   PREFIX-acsl/fips-ledger.tsv                       (VO#\tAR#\tclass\tcell — the §3 FIPS ledger)
 # Exit: 0 ok · 1 faithfulness violation / drift · 2 usage / missing input.
 set -uo pipefail
 
@@ -41,21 +42,23 @@ while [ $# -gt 0 ]; do
     *) prefix="$1"; shift;;
   esac
 done
-[ -n "$prefix" ] || { echo "usage: crosswalk-gen.sh PREFIX [--kind rmf|ebios] [--out FILE] [--check]" >&2; exit 2; }
+[ -n "$prefix" ] || { echo "usage: crosswalk-gen.sh PREFIX [--kind rmf|ebios|fips] [--out FILE] [--check]" >&2; exit 2; }
 
 # locate the report + decide kind
 rmf_report="${prefix}-rmf-report.md"
 ebios_report="${prefix}-ebios-report.md"
+fips_report="${prefix}-fips-report.md"
 if [ -z "$kind" ]; then
   if   [ -f "$rmf_report" ];   then kind=rmf
   elif [ -f "$ebios_report" ]; then kind=ebios
-  else echo "crosswalk-gen: no ${prefix}-rmf-report.md or ${prefix}-ebios-report.md" >&2; exit 2; fi
+  elif [ -f "$fips_report" ];  then kind=fips
+  else echo "crosswalk-gen: no ${prefix}-rmf-report.md, ${prefix}-ebios-report.md or ${prefix}-fips-report.md" >&2; exit 2; fi
 fi
 report="${prefix}-${kind}-report.md"
 [ -f "$report" ] || { echo "crosswalk-gen: report '$report' not found" >&2; exit 2; }
 overlay="${prefix}-acsl"
 verdicts="${overlay}/verdicts.tsv"
-ledger="${overlay}/stride-ledger.tsv"
+if [ "$kind" = fips ]; then ledger="${overlay}/fips-ledger.tsv"; else ledger="${overlay}/stride-ledger.tsv"; fi
 [ -n "$out" ] || out="${prefix}-crosswalk.md"
 
 tmp="$(mktemp)"
@@ -68,8 +71,16 @@ FAM = ["S","T","R","I","D","E"]
 warn = []
 
 # ---- §1 assets: "- SAn <role>: <desc>"  or  "- SAn <role>" ----
+#              fips: the F4 VO# home lines ("- VOn — FMn — RQn — class — Pk — ..."),
+#                    keyed on VO# so the unit and coverage columns join (no VO# line names an SV#)
 assets = []  # (id, role)
-for m in re.finditer(r'(?m)^[-*]\s+(SA\d+)\s+(.+)$', rep):
+if kind == "fips":
+    for m in re.finditer(r'(?m)^[-*]\s+(VO\d+)\s+(.+)$', rep):
+        sid, rest = m.group(1), m.group(2).strip()
+        role = re.split(r'\s+[—–-]\s+|:\s', rest, maxsplit=1)[0].strip()
+        assets.append((sid, role))
+else:
+  for m in re.finditer(r'(?m)^[-*]\s+(SA\d+)\s+(.+)$', rep):
     sid, rest = m.group(1), m.group(2).strip()
     # role = up to the first ": " or surrounded dash separator (NOT a bare "." — "X.509")
     role = re.split(r'\s+[—–-]\s+|:\s', rest, maxsplit=1)[0].strip()
@@ -81,9 +92,21 @@ for sid,role in assets:
 assets=_a
 
 # ---- §2 scenarios: RMF "RSn: ... (SAn) ... likelihood Lk — risk R ... CTLn"
-#                    EBIOS "SSn: ... FEn ... via SAn — severity Gk — attack path APn" ----
+#                    EBIOS "SSn: ... FEn ... via SAn — severity Gk — attack path APn"
+#                    FIPS "VOn — FMn — RQn — class — Pk — ..." (the F4 VO# home lines) ----
 scen = []  # dict
-if kind == "rmf":
+if kind == "fips":
+    for m in re.finditer(r'(?m)^[-*]\s+(VO\d+)\s+(.+)$', rep):
+        rid, body = m.group(1), m.group(2)
+        fm  = re.search(r'\b(FM\d+)\b', body)
+        rq  = re.search(r'\b(RQ\d+)\b', body)
+        cls = re.search(r'\b(approved-only|output-inhibit|role-gate|integrity-first|zeroize|'
+                        r'no-plain-ssp-out|selftest-order|error-state|fsm)\b', body)
+        pri = re.search(r'\b(P[1-3])\b', body)
+        scen.append(dict(id=rid, sa=rq.group(1) if rq else "?", fe=fm.group(1) if fm else "",
+                         lk=cls.group(1) if cls else "?", risk=pri.group(1) if pri else "?",
+                         ctl=""))
+elif kind == "rmf":
     for m in re.finditer(r'(?m)^[-*]\s+(RS\d+):\s*(.+)$', rep):
         rid, body = m.group(1), m.group(2)
         sa  = (re.search(r'\((SA\d+)\)', body) or re.search(r'\b(SA\d+)\b', body))
@@ -104,20 +127,24 @@ else:
         scen.append(dict(id=rid, sa=sa.group(1) if sa else "?", fe=fe.group(1) if fe else "",
                          lk="", risk=sev.group(1) if sev else "?", ctl=ap.group(1) if ap else ""))
 
-# ---- verdicts.tsv: SA# -> has a non-vacuous Valid/PROVED verdict? ----
+# ---- verdicts.tsv: SA#/VO# -> has a non-vacuous Valid/PROVED verdict? ----
+# Read by header name, not position: the key column is headed `SA#` (rmf/ebios)
+# or `VO#` (fips — the obligations are the ledger rows).
 verds = []           # rows (dict)
-proved_sa = set()    # SA with a Valid/PROVED row
-sa_units = {}        # SA -> ordered list of distinct translation units (code-aware)
+proved_sa = set()    # SA/VO with a Valid/PROVED row
+sa_units = {}        # SA/VO -> ordered list of distinct translation units (code-aware)
 if os.path.exists(verdicts_p):
     rows = [l.rstrip("\n").split("\t") for l in open(verdicts_p, encoding="utf-8", errors="replace")
             if l.strip() and not l.lstrip().startswith("#")]
     if rows:
         hdr = [h.strip().lower().rstrip("#") for h in rows[0]]
+        key = "vo" if kind == "fips" else "sa"
+        placeholder = r'VO\d+' if kind == "fips" else r'SA\d+'
         def col(r, name):
             try: return r[hdr.index(name)].strip()
             except (ValueError, IndexError): return ""
         for r in rows[1:]:
-            sa = col(r,"sa"); vd = col(r,"verdict") or col(r,"status"); unit = col(r,"unit")
+            sa = col(r,key); vd = col(r,"verdict") or col(r,"status"); unit = col(r,"unit")
             verds.append(dict(sa=sa, fn=col(r,"function") or unit,
                               verdict=vd, goals=col(r,"goals"), note=col(r,"notes")))
             for s in re.split(r'[/,]', sa):
@@ -125,50 +152,75 @@ if os.path.exists(verdicts_p):
                 if not s: continue
                 # VERIFIED is time-loop's per-unit word (time-loop/SKILL.md §5 schema)
                 if re.search(r'\b(Valid|PROVED|GREEN|VERIFIED)\b', vd, re.I): proved_sa.add(s)
-                if unit and not re.fullmatch(r'SA\d+', unit):   # skip SA# placeholders used by BLOCKED rows
+                if unit and not re.fullmatch(placeholder, unit):   # skip key placeholders used by BLOCKED rows
                     sa_units.setdefault(s, [])
                     if unit not in sa_units[s]: sa_units[s].append(unit)
 else:
     warn.append(f"no {verdicts_p} — §4 verdict join will be empty")
 
-# ---- stride-ledger.tsv: the §3 matrix (SA  S T R I D E  attack) ----
+# ---- the §3 ledger ----
+#   stride-ledger.tsv (rmf/ebios): SA  S T R I D E  attack — the §3.3 matrix
+#   fips-ledger.tsv    (fips):     VO#\tAR#\tclass\tcell — the §3.4 FIPS form
 LEDGER_TOKENS = {"UNMODELED","PROVED","TRUSTED-PENDING","TRUSTED","N/A"}
-ledger = {}   # sa -> {fam: token}, plus 'attack'
+ledger = {}   # sa -> {fam: token}, plus 'attack' (rmf/ebios) — or {COV: token} (fips)
 fail = []
 if os.path.exists(ledger_p):
     rows = [l.rstrip("\n").split("\t") for l in open(ledger_p, encoding="utf-8", errors="replace") if l.strip() and not l.startswith("#")]
-    hdr = [h.strip().lower() for h in rows[0]] if rows else []
-    for r in rows[1:]:
-        rec = dict(zip(hdr, [c.strip() for c in r]))
-        sa = rec.get("sa","")
-        if not sa: continue
-        cells = {}
-        for f in FAM:
-            tok_raw = rec.get(f.lower(), "UNMODELED") or "UNMODELED"
-            base = re.sub(r'\s*\(.*\)$','', tok_raw).strip()   # strip "(RR2)"/notes
+    if kind == "fips":
+        for r in rows:
+            if len(r) < 4: continue
+            vo = r[0].strip()
+            if vo.lower() == "vo": continue          # an optional header row
+            if not re.fullmatch(r'VO\d+', vo):
+                fail.append(f"{vo}: not a VO# row key")
+                continue
+            cell = r[3].strip()
+            base = re.sub(r'\s*\(.*\)$','', cell).strip()
             if base not in LEDGER_TOKENS:
-                fail.append(f"{sa}/{f}: invalid token '{tok_raw}'")
-            cells[f] = tok_raw
-        cells["attack"] = rec.get("attack","")
-        ledger[sa] = cells
-    # FAITHFULNESS CHECK: every PROVED cell must be backed by a Valid verdict for that SA
-    for sa, cells in ledger.items():
-        for f in FAM:
-            if re.sub(r'\s*\(.*\)$','',cells[f]).strip() == "PROVED" and sa not in proved_sa:
-                fail.append(f"{sa}/{f}=PROVED but no Valid/PROVED verdict for {sa} in verdicts.tsv "
+                fail.append(f"{vo}: invalid coverage token '{cell}'")
+            ledger[vo] = {"COV": cell, "AR": r[1].strip(), "CLASS": r[2].strip()}
+        for vo, cells in ledger.items():
+            if re.sub(r'\s*\(.*\)$','',cells["COV"]).strip() == "PROVED" and vo not in proved_sa:
+                fail.append(f"{vo}/COV=PROVED but no Valid/PROVED verdict for {vo} in verdicts.tsv "
                             f"(no-blend: a PROVED cell must be backed by a proof)")
+    else:
+        hdr = [h.strip().lower() for h in rows[0]] if rows else []
+        for r in rows[1:]:
+            rec = dict(zip(hdr, [c.strip() for c in r]))
+            sa = rec.get("sa","")
+            if not sa: continue
+            cells = {}
+            for f in FAM:
+                tok_raw = rec.get(f.lower(), "UNMODELED") or "UNMODELED"
+                base = re.sub(r'\s*\(.*\)$','', tok_raw).strip()   # strip "(RR2)"/notes
+                if base not in LEDGER_TOKENS:
+                    fail.append(f"{sa}/{f}: invalid token '{tok_raw}'")
+                cells[f] = tok_raw
+            cells["attack"] = rec.get("attack","")
+            ledger[sa] = cells
+        # FAITHFULNESS CHECK: every PROVED cell must be backed by a Valid verdict for that SA
+        for sa, cells in ledger.items():
+            for f in FAM:
+                if re.sub(r'\s*\(.*\)$','',cells[f]).strip() == "PROVED" and sa not in proved_sa:
+                    fail.append(f"{sa}/{f}=PROVED but no Valid/PROVED verdict for {sa} in verdicts.tsv "
+                                f"(no-blend: a PROVED cell must be backed by a proof)")
 else:
-    warn.append(f"no {ledger_p} — §3 ledger emitted as all-UNMODELED skeleton (architect must fill)")
-    for sid,_ in assets:
-        ledger[sid] = {f:"UNMODELED" for f in FAM}; ledger[sid]["attack"]=""
+    if kind == "fips":
+        warn.append(f"no {ledger_p} — §3 ledger emitted as all-UNMODELED skeleton (architect must fill)")
+        for sid,_ in assets:
+            ledger[sid] = {"COV": "UNMODELED"}
+    else:
+        warn.append(f"no {ledger_p} — §3 ledger emitted as all-UNMODELED skeleton (architect must fill)")
+        for sid,_ in assets:
+            ledger[sid] = {f:"UNMODELED" for f in FAM}; ledger[sid]["attack"]=""
 
 if fail:
     sys.stderr.write("FAITHFULNESS FAIL:\n  " + "\n  ".join(fail) + "\n")
     sys.exit(1)
 
 # ---------------- emit the crosswalk (template-conforming) ----------------
-TL = "EBIOS" if kind=="ebios" else "RMF"
-loop = "ebios-sl" if kind=="ebios" else "rmf-sl"
+TL = {"ebios": "EBIOS", "rmf": "RMF", "fips": "FIPS 140-3"}[kind]
+loop = {"ebios": "ebios-sl", "rmf": "rmf-sl", "fips": "fips-sl"}[kind]
 P=print
 P(f"# {TL} ↔ frama-c-monitoring crosswalk — {prefix}")
 P("")
@@ -183,12 +235,23 @@ P("> **Plane / no-blend.** Every \"covers\" is the **named property only**. A `P
   "(code-blind §1–2,§5) + the architect (code-aware §3–4); the report stayed code-blind.")
 P("")
 # §1
-P("## 1. Asset crosswalk — SA# ↔ scope")
+if kind == "fips":
+    P("## 1. Obligation crosswalk — VO# ↔ scope")
+else:
+    P("## 1. Asset crosswalk — SA# ↔ scope")
 P("")
-P("| SA# | Role (code-blind report) | Translation unit(s) (verdicts.tsv) | Coverage (§3 ledger) |")
+if kind == "fips":
+    P("| VO# | Obligation (code-blind report) | Translation unit(s) (verdicts.tsv) | Coverage (§3 ledger) |")
+else:
+    P("| SA# | Role (code-blind report) | Translation unit(s) (verdicts.tsv) | Coverage (§3 ledger) |")
 P("|---|---|---|---|")
 def cov(sid):
     c = ledger.get(sid, {})
+    if "COV" in c:                      # the FIPS form: one coverage cell per obligation
+        base = re.sub(r'\s*\(.*\)$','',c["COV"]).strip()
+        return ("**amenable** (PROVED)" if base == "PROVED"
+                else "**BLOCKED** (residual)" if base in ("TRUSTED","TRUSTED-PENDING")
+                else c["COV"] if base == "N/A" else "UNMODELED")
     pv = [f for f in FAM if re.sub(r'\s*\(.*\)$','',c.get(f,"")).strip()=="PROVED"]
     tr = [f for f in FAM if re.sub(r'\s*\(.*\)$','',c.get(f,"")).strip() in ("TRUSTED","TRUSTED-PENDING")]
     if pv and not tr: return "**amenable** ("+",".join(pv)+" PROVED)"
@@ -200,30 +263,52 @@ for sid, role in assets:
     P(f"| **{sid}** | {role} | {units} | {cov(sid)} |")
 P("")
 # §2
-P("## 2. Scenario crosswalk — exogenous ranking (cited from the report)")
-P("")
-if kind=="rmf":
-    P("| RS# | SA | impact | likelihood | risk | control |")
-    P("|---|---|---|---|---|---|")
-    for s in scen:
-        P(f"| {s['id']} | {s['sa']} | {s['fe']} | {s['lk']} | {s['risk']} | {s['ctl']} |")
-else:
-    P("| SS# | SA | feared event | severity | attack path |")
+if kind == "fips":
+    P("## 2. Obligation ranking — exogenous, cited from the report")
+    P("")
+    P("| VO# | FM# | RQ# | class | priority |")
     P("|---|---|---|---|---|")
     for s in scen:
-        P(f"| {s['id']} | {s['sa']} | {s['fe']} | {s['risk']} | {s['ctl']} |")
+        P(f"| {s['id']} | {s['fe']} | {s['sa']} | {s['lk']} | {s['risk']} |")
+else:
+    P("## 2. Scenario crosswalk — exogenous ranking (cited from the report)")
+    P("")
+    if kind=="rmf":
+        P("| RS# | SA | impact | likelihood | risk | control |")
+        P("|---|---|---|---|---|---|")
+        for s in scen:
+            P(f"| {s['id']} | {s['sa']} | {s['fe']} | {s['lk']} | {s['risk']} | {s['ctl']} |")
+    else:
+        P("| SS# | SA | feared event | severity | attack path |")
+        P("|---|---|---|---|---|")
+        for s in scen:
+            P(f"| {s['id']} | {s['sa']} | {s['fe']} | {s['risk']} | {s['ctl']} |")
 P("")
 # §3
-P("## 3. STRIDE coverage ledger — SA × {S,T,R,I,D,E}")
-P("")
-P("Lifecycle per template §3.1; ratchet per §3.2 (`ledger-ratchet.sh`). PROVED cells are machine-"
-  "checked against `verdicts.tsv`. `frozen baseline = this table`.")
-P("")
-P("| Asset | S | T | R | I | D | E | ATT&CK |")
-P("|---|---|---|---|---|---|---|---|")
-for sid,_ in assets:
-    c = ledger.get(sid, {f:"UNMODELED" for f in FAM})
-    P("| "+sid+" | "+" | ".join(c.get(f,"UNMODELED") for f in FAM)+" | "+c.get("attack","")+" |")
+if kind == "fips":
+    P("## 3. Coverage ledger — VO# × obligation")
+    P("")
+    P("# ledger: fips")
+    P("")
+    P("Lifecycle per template §3.1; ratchet per §3.2 (`ledger-ratchet.sh`, the FIPS form of §3.4). "
+      "PROVED cells are machine-checked against `verdicts.tsv`. `frozen baseline = this table`.")
+    P("")
+    P("| VO# | AR# | Class | Coverage |")
+    P("|---|---|---|---|")
+    for sid, _ in assets:
+        c = ledger.get(sid, {"COV": "UNMODELED", "AR": "—", "CLASS": "—"})
+        P("| %s | %s | %s | %s |" % (sid, c.get("AR","—"), c.get("CLASS","—"), c.get("COV","UNMODELED")))
+else:
+    P("## 3. STRIDE coverage ledger — SA × {S,T,R,I,D,E}")
+    P("")
+    P("Lifecycle per template §3.1; ratchet per §3.2 (`ledger-ratchet.sh`). PROVED cells are machine-"
+      "checked against `verdicts.tsv`. `frozen baseline = this table`.")
+    P("")
+    P("| Asset | S | T | R | I | D | E | ATT&CK |")
+    P("|---|---|---|---|---|---|---|---|")
+    for sid,_ in assets:
+        c = ledger.get(sid, {f:"UNMODELED" for f in FAM})
+        P("| "+sid+" | "+" | ".join(c.get(f,"UNMODELED") for f in FAM)+" | "+c.get("attack","")+" |")
 P("")
 # §4
 P("## 4. Verdict join — coverage vs ranking")

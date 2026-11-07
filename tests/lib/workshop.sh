@@ -57,12 +57,14 @@ ws_cleanup() {
     return "$status"
 }
 
-# ws_generate <c|rust> <sdk>: W.1. auto-wp.py on the host, as the README's
-# quick start A says; the definition lists <sdk>, rocq, lean and the
-# project-local SDK.
+# ws_generate <c|rust> <sdk> [auto-wp.py options...]: W.1. auto-wp.py on the
+# host, as the README's quick start A says; the definition lists <sdk>, rocq,
+# lean and the project-local SDK. Extra options are passed through (e.g.
+# `ws_generate c frama-c-sdk --driver fips --level 2`).
 ws_generate() {
     local lang=$1 sdk=$2 def out s missing=""
-    out=$(python3 "$AUTOWP_REPO/auto-wp.py" "--$lang" "$WS_PROJECT" 2>&1) \
+    shift 2
+    out=$(python3 "$AUTOWP_REPO/auto-wp.py" "--$lang" "$@" "$WS_PROJECT" 2>&1) \
         || { fail W.1 "auto-wp.py failed: $(tail -2 <<<"$out" | tr '\n' ' ')"; return 1; }
     def=$WS_PROJECT/.workshop/autowp.yaml
     [ -f "$def" ] && grep -qx 'name: autowp' "$def" || missing=" name:autowp"

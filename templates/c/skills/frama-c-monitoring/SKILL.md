@@ -457,10 +457,13 @@ per-unit Tier-3 gate therefore adds:
    passed the four gates (or is an honest PARTIAL/FAILED with a `gap-N`), and every base
    skill/inferred contract has a monitor verdict.
 10. **Emit the crosswalk (campaign close — Move 5).** Once the verdict log is final and the architect
-    has filled `<prefix>-acsl/stride-ledger.tsv` (the §3 STRIDE coverage assessment), generate the
-    threat↔verification join as a first-class deliverable: `bin/crosswalk-gen.sh <prefix>` writes
+    has filled `<prefix>-acsl/stride-ledger.tsv` (the §3 STRIDE coverage assessment) — or, under a
+    **fips** campaign (`PREFIX-fips-report.md` exists), `<prefix>-acsl/fips-ledger.tsv` (the FIPS
+    ledger, one row `VO#<TAB>AR#<TAB>class<TAB>cell` per obligation) — generate the
+    threat↔verification join as a first-class deliverable: `bin/crosswalk-gen.sh <prefix>` detects
+    the kind (rmf, ebios or fips) from which report exists and writes
     `<prefix>-crosswalk.md` from the code-blind report (§1/§2/§5) + `verdicts.tsv` (§4) +
-    `stride-ledger.tsv` (§3). The generator machine-checks every `PROVED` cell against the verdicts
+    `stride-ledger.tsv` (§3; the FIPS ledger under fips). The generator machine-checks every `PROVED` cell against the verdicts
     (a fabricated PROVED fails), bootstraps the `bin/ledger-ratchet.sh` baseline on first run, and is gated
     by `make stride-ci` (G4 = drift, G1 = ratchet). Do NOT hand-write the crosswalk. See
     `references/crosswalk-generation.md`. The W5/feedback step below draws its deltas from this crosswalk.
@@ -861,7 +864,9 @@ a filled `../frama-c-launch/templates/ebios-crosswalk.md` exist; otherwise skip.
   regression** (a PROVED/TRUSTED cell now UNMODELED, or a high-value asset row now missing). Incomplete
   cells only WARN (Issue 2 — regression-only so the gate is not DOA); no ledger ⇒ SKIP. Enforces the
   WS1 stage-1 rule (`# ws1-stage: N`, default 1): a race/concurrency-family cell `PROVED` at stage 1
-  FAILs. The single-file structural ledger check stays in `bin/rmf-lint.sh`/`bin/ebios-lint.sh` C9; this is the
+  FAILs. Under a **fips** campaign the same gate reads the FIPS ledger of `crosswalk-template.md` §3
+  (the `# ledger: fips` marker; rows keyed by the bare `VO#`), with the same lifecycle and ratchet
+  rule — the WS1 race rule is a STRIDE-family rule and does not apply to it. The single-file structural ledger check stays in `bin/rmf-lint.sh`/`bin/ebios-lint.sh` C9; this is the
   cross-run ratchet they defer to.
 - **Verification depth ladder (§4b)** — RTE floor → formal tests → macsl/HAPPY policies: the per-unit
   depth policy set at Gate A_top by risk. Formal-test pattern: `../frama-c/SKILL.md` "A formal test".

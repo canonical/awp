@@ -134,7 +134,8 @@ it drafts a nested design, so the conflict is caught before the loops ever run.
 ### The SOLO-COLLAPSE case — when ONE agent runs both the producer and the monitor (load-bearing)
 The disjointness above assumes the monitor and the producer it watches are **different actors with
 different evidence bases**. In a **single-agent instantiation** — one model executing an entire loop in
-the chat window, with no delegated sub-agents (the common `/time-loop`, `/rmf`, or solo verification
+the chat window, with no delegated sub-agents (the common `/time-loop`, `/rmf`, `/fips`, or solo
+verification
 run) — that assumption **structurally fails**: the same agent is both the verifier (who, under
 budget/terminus pressure, is tempted to relabel hard class-C work as an exempt "tool ceiling" to look
 done) **and** the monitor (who is supposed to catch exactly that). The monitor⊥producer barrier is not
@@ -150,7 +151,7 @@ act is precise, and so is what stays allowed:
   **bank every positive**: a WP `Valid` / a discharged PO / a passing macsl `\prop` is certified by the
   **prover-oracle `L`, which is disjoint from the agent** — the agent did not *decide* it was proved, the
   prover did. Solo positives are sound; forbidding the whole solo run would be wrong (and would ban the
-  primary `/time-loop`, `/rmf`, verification use-mode).
+  primary `/time-loop`, `/rmf`, `/fips`, verification use-mode).
 - **FORBIDDEN solo — the oracle-less *judgments*.** Every **exemption / class-A "tool ceiling" /
   BLOCKED / negative-capability / "done"-declaration** has **no oracle** — nothing but the agent decides
   it. In a solo run there is no disjoint base to set it, so **the agent may not issue it at all.** These

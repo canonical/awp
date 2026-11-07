@@ -8,9 +8,9 @@ existing artifacts. A hand-built join drifts from the verdicts it summarizes; a 
 
 | Crosswalk section | Source | Owner loop |
 |---|---|---|
-| §1 assets, §2 scenarios, §5 residuals | the **code-blind** `PREFIX-{rmf,ebios}-report.md` (SA#/RS#/SS#/FE# tags, severity, likelihood, RR#) | `rmf-sl` / `ebios-sl` |
+| §1 assets, §2 scenarios, §5 residuals | the **code-blind** `PREFIX-{rmf,ebios}-report.md` (SA#/RS#/SS#/FE# tags, severity, likelihood, RR#) — or, under `fips`, `PREFIX-fips-report.md` (the F4 `VO#` home lines, the F5 `RR#` home lines) | `rmf-sl` / `ebios-sl` / `fips-sl` |
 | §1 translation units, §4 verdict join | `PREFIX-acsl/verdicts.tsv` (the code-aware proof record) | `frama-c-monitoring` |
-| §3 STRIDE coverage ledger | `PREFIX-acsl/stride-ledger.tsv` (the architect's coverage assessment) | `frama-c-monitoring` (architect) |
+| §3 STRIDE coverage ledger | `PREFIX-acsl/stride-ledger.tsv` (the architect's coverage assessment) — under `fips`: `PREFIX-acsl/fips-ledger.tsv` (`VO#<TAB>AR#<TAB>class<TAB>cell`) | `frama-c-monitoring` (architect) |
 
 The §1–§2/§5 emission reads only the code-blind report, so the crosswalk does not make the upstream
 study endogenous. Do **not** let the code-aware step backfill the asset/scenario half.
@@ -44,12 +44,17 @@ a parenthetical residual ref (`TRUSTED (RR2)`). The ATT&CK column carries the WS
 Header row with at least `SA#`, `verdict`, and one of `function`/`unit`; `goals`/`notes` optional.
 Comment rows (`# …`) and `SA#`-placeholder unit values (used by BLOCKED rows) are ignored by the
 generator. A `Valid`/`PROVED`/`GREEN` verdict marks its SA provable (backs §3 PROVED cells + §4).
+The file is **read by header name, not position**. Under a **fips** campaign the same layout is used
+with the first column headed **`VO#`** instead of `SA#` (the obligations are the ledger rows), and
+`VO#`-placeholder unit values are skipped the same way; every other `verdicts.tsv` layout is
+untouched.
 
 ## Usage
 
 ```sh
-bin/crosswalk-gen.sh s2n-tls-analysis                    # emit (auto-detect rmf/ebios)
+bin/crosswalk-gen.sh s2n-tls-analysis                    # emit (auto-detect rmf/ebios/fips)
 bin/crosswalk-gen.sh wolfssl --kind ebios                # force the EBIOS variant
+bin/crosswalk-gen.sh mbed --kind fips                    # force the FIPS variant
 bin/crosswalk-gen.sh s2n-tls-analysis --check            # CI drift gate: fail if out of sync
 ```
 
@@ -57,9 +62,11 @@ bin/crosswalk-gen.sh s2n-tls-analysis --check            # CI drift gate: fail i
 It is **G4** of `ci/stride-coverage-check.sh` (`make stride-ci`), so a crosswalk can never silently
 fall out of sync with its report/verdicts, and a fabricated `PROVED` can never be committed.
 
-## In the `/rmf` and `/ebios` campaigns
+## In the `/rmf`, `/fips` and `/ebios` campaigns (whichever this project has)
 
 After Phase 2 produces `PREFIX-acsl/verdicts.tsv` and the architect fills
-`PREFIX-acsl/stride-ledger.tsv`, run `bin/crosswalk-gen.sh PREFIX` to emit `PREFIX-crosswalk.md` as a
-first-class campaign deliverable (alongside the report, found-issues, gaps, and the monitor packet).
+`PREFIX-acsl/stride-ledger.tsv` (or, under `fips`, `PREFIX-acsl/fips-ledger.tsv`), run
+`bin/crosswalk-gen.sh PREFIX` to emit `PREFIX-crosswalk.md` as a
+first-class campaign deliverable (alongside the report, found-issues, gaps, and the monitor/feedback
+packet).
 The first run also bootstraps the `bin/ledger-ratchet.sh` baseline; subsequent runs keep it forward-only.

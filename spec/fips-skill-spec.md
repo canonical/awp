@@ -796,7 +796,12 @@ not specified until the target is chosen.
    You asked for the PDF instead of SP 800-*, so neither is in this draft.
 2. **Target.** GRUB as a whole is a system, not a module. §7.3 proposes
    `--dir=grub-core/lib/libgcrypt` as the module boundary; a separate target
-   such as a small crypto library is the alternative.
+   such as a small crypto library is the alternative. Chosen (2026-11-06,
+   while implementing this spec): the level 3 FIPS smoke test targets
+   [Mbed TLS](https://github.com/Mbed-TLS/mbedtls) at a pinned tag —
+   `tests/c/mbed-tls-test.sh` (`MBEDTLS_TAG`/`MBEDTLS_SHA`, default
+   `mbedtls-3.6.7`), a real cryptographic library per the fips-sl module
+   rule. It prints SKIP until the driver of §6 exists.
 3. **Volume per level.** The numbers of §4.6 are placeholders.
 4. **STRIDE.** Dropped in favour of the eleven areas. Dropping it also
    drops the STRIDE coverage ledger; §7.1 replaces it with a FIPS ledger per

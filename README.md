@@ -28,6 +28,7 @@ your agent harness in a container (for example `/time-loop grub 72` for a
 ## Specifications
 
 - [`spec/auto-wp.md`](spec/auto-wp.md): `auto-wp.py`, the generated project, and its README
+- [`spec/choose-harness.md`](spec/choose-harness.md): selecting and switching the agent harness — Claude Code, OpenCode, GitHub Copilot
 - [`spec/tests.md`](spec/tests.md): the test plan
 - [`spec/workshop-autowp-c-base-spec.md`](spec/workshop-autowp-c-base-spec.md),
   [`spec/workshop-autowp-rust-base-spec.md`](spec/workshop-autowp-rust-base-spec.md): the Workshop SDKs

@@ -51,6 +51,30 @@ discipline against (burning the clock re-grinding the Frama-C ceiling). It is th
 meta-pattern instantiated, time-boxed, for any target. **`meta-penguin` is the worked Linux instance
 of exactly this design** — consult it for a concrete activation.
 
+## The campaign driver — read the RMF wording through this table
+
+`/time-loop` drives the project's campaign driver: the `driver` key of `config/auto-wp.json`
+(what `auto-wp.py --driver` records). The wording of this skill is written for `rmf` — `/rmf`, the
+RMF report names, `RS#` and the risk levels — and every occurrence below is read through this table.
+Without a `driver` key (a project generated before the driver existed), assume `rmf`.
+
+| | `rmf` | `fips` |
+|---|---|---|
+| base command | `/rmf` | `/fips` |
+| report | `XXX-analysis-rmf-report.md` | `XXX-analysis-fips-report.md` |
+| gaps | `XXX-analysis-rmf-gaps.md` | `XXX-analysis-fips-gaps.md` |
+| feedback | `XXX-analysis-monitor-feedback-NN.md` | `XXX-analysis-fips-feedback-NN.md` |
+| linter | `bin/rmf-lint.sh` | `bin/fips-lint.sh` |
+| ranked item and scale | `RS#`, risk `High`/`Moderate`/`Low` | `VO#`, priority `P1`/`P2`/`P3` |
+| Plane W (WP) | Tier-1 untrusted-input `RS#` | `VO#` of class `zeroize`, `no-plain-ssp-out` |
+| Plane H (macsl system properties) | Tier-3 authorization/integrity `RS#` | `VO#` of the six system-level classes of `fips-sl/references/area-properties.md` |
+| outside both planes | — | `approved-only` (a call-graph check, not a WP proof) |
+| terminus | Authorizing Official | the owner of the protected information, or the agency's responsible authority (Ann. 13) |
+
+The driving loop itself is the same under both drivers: the same deadline and `time-loop.state`, the
+same A/B/C residue triage, the same heartbeat, the same per-cycle checkpoint + commit + Monitor-style
+feedback packet. Only the names, the ranking scale and the terminus change.
+
 ## 0. Deliverable & correctness
 - **Deliverable:** the **whole in-scope code + its non-vacuous contracts PROVEN** — produced by
   repeatedly driving `/rmf XXX XXX-analysis` *continue-converge* cycles until **every** in-scope goal
@@ -1029,8 +1053,9 @@ arrange the schedule explicitly AND keep it armed until the deadline, then let e
 Inherited from the `/rmf` campaign: **pure WP, NO EVA; `XXX/` pristine; R5/Authorize PENDING (human AO).**
 
 ## Pairs with
-`config/commands/time-loop.md` (the `/time-loop XXX N` entry point), `config/commands/rmf.md` (the
-`/rmf` base loop it drives), `meta-penguin` (the worked Linux instance of this exact design), `rmf-sl`,
+`config/commands/time-loop.md` (the `/time-loop XXX N` entry point), the driver's own campaign
+command (`config/commands/rmf.md` or `config/commands/fips.md`, per the driver table above),
+`meta-penguin` (the worked Linux instance of this exact design), `rmf-sl` and `fips-sl`,
 `frama-c-launch`, `frama-c-monitoring`/`framac-sl`, `sl-monitoring-sl` (the meta-pattern this
 instantiates), `bin/crosswalk-gen.sh` + `bin/ledger-ratchet.sh` (the ledger/coverage gates), the
 `never-use-eva` rule, `bugs-to-report/wp-bitwise-smt-incompleteness/` (the canonical class-A residue).

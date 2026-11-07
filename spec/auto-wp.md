@@ -5,7 +5,14 @@ pre-loaded with the agent configuration (skills and slash commands) needed to
 drive a formal-verification campaign on C or Rust code. The configuration is
 modelled on `../use-frama-c/config/` (C) and `../use-creusot/config/` (Rust).
 
-Version described: **0.4.0**. Compared with 0.3.0, the harness wiring of
+Version described: **0.5.0**. Compared with 0.4.0, the campaign driver of
+`fips-skill-spec.md` is implemented: `--driver rmf|fips` and `--level` choose
+which skill drives the campaign (`/rmf` or `/fips`), the manifest records
+`driver` and `fips_level`, `templates/common/tools/` gains
+`bin/fips-lint.sh` and the vendored `NIST.FIPS.140-3.pdf` (installed in every
+project), the `time-loop` skill and command read the driver through their
+table, and `bin/crosswalk-gen.sh` and `bin/ledger-ratchet.sh` learn the FIPS
+kind. Compared with 0.3.0, the harness wiring of
 §3.3 also covers OpenCode (`.opencode/{skills,commands}`), so a generated
 project works with Claude Code and with OpenCode. Compared with 0.2.0, the common layer has a
 `tools/` directory of its own, merged with the language layer's (§3.6, §4.1):
@@ -22,16 +29,21 @@ by hand or by `frama-c-launch`) is kept as the fallback.
 ## 1. Command line
 
 ```
-./auto-wp.py [--c|--rust] <directory-name>
+./auto-wp.py [--c|--rust] [--driver rmf|fips] [--level 1|2|3|4] <directory-name>
 ```
 
 | Argument           | Meaning                                                                  |
 |--------------------|--------------------------------------------------------------------------|
 | `--c`              | Install the C configuration (Frama-C/WP). This is the default.           |
 | `--rust`           | Install the Rust configuration (Creusot).                                |
+| `--driver`         | Which skill drives the campaign: `rmf` (NIST RMF, the default) or `fips` (FIPS 140-3). Each driver installs its own campaign command (`/rmf` or `/fips`); both skills, both linters and the vendored PDF are installed whatever the driver (§4.1). |
+| `--level`          | The target FIPS 140-3 security level, 1–4. Required with `--driver fips` and refused otherwise — Ann. 7 says the level "must be chosen", so there is no default. |
 | `<directory-name>` | Path of the project directory to create. Relative paths resolve against the current working directory. |
 
 - `--c` and `--rust` are mutually exclusive; giving both is a usage error.
+- `--driver fips` without `--level` is a usage error; `--level` without
+  `--driver fips` is a usage error; `--level` outside 1–4 is a usage error
+  (exit 2, nothing created).
 - Exactly one positional argument is required.
 - `-h` / `--help` prints usage and exits with status 0.
 
@@ -134,15 +146,22 @@ Symbolic links in the templates are copied as links.
 ```json
 {
   "language": "c",
-  "auto_wp_version": "0.4.0",
+  "auto_wp_version": "0.5.0",
+  "driver": "fips",
+  "fips_level": 3,
   "created": "2026-10-27T21:30:00Z",
   "skills": ["directory-structure", "ebios-risk-manager", "..."],
-  "commands": ["ebios", "rmf", "time-loop"]
+  "commands": ["ebios", "fips", "time-loop"]
 }
 ```
 
 `created` is the UTC time of the run in ISO 8601. `skills` and `commands` are
-sorted lists of the names actually installed.
+sorted lists of the names actually installed. `driver` is `rmf` (the
+default) or `fips`; `fips_level` is present only under `fips` and is the
+single place the target level is stored — `fips-sl`, `/fips` and
+`bin/fips-lint.sh` read it from there. Under `--driver rmf` the commands list
+is `ebios, rmf, time-loop` (C), under `--driver fips` it is `ebios, fips,
+time-loop`; with `--rust` it is empty under both drivers.
 
 ### 3.3 Harness wiring
 
@@ -172,13 +191,17 @@ the generated directory is ready to use: clone a code base into it, start the
 agent harness in it, type one command.
 
 **Source.** The README comes from a per-language template,
-`templates/c/README.md` or `templates/rust/README.md`. The program replaces two
+`templates/c/README.md` or `templates/rust/README.md`. The program replaces
 placeholders in it and changes nothing else:
 
 | Placeholder | Replaced by |
 |---|---|
 | `{{DIR}}` | `Path(<directory-name>).resolve().name`, so `foobar`, `foobar/` and `./foobar` all give `foobar`, and `.` gives the name of the current directory |
 | `{{LANGUAGE}}` | `C (Frama-C/WP)` or `Rust (Creusot)` |
+| `{{DRIVER}}` | `rmf` or `fips` |
+| `{{FEEDBACK}}` | `monitor-feedback` or `fips-feedback` |
+| `{{DRIVER_LINE}}` | `Risk study: NIST RMF (rmf-sl).`, or `Requirement study: FIPS 140-3, security level N (fips-sl).` |
+| `{{DRIVER_NOTE}}` | empty under `rmf`; under `fips`, the sentence pointing at `/time-loop grub 72 --dir=grub-core/lib/libgcrypt` (GRUB as a whole is not a module; its crypto library is) |
 
 **Content of the C README** (`--c`, or no flag). In this order:
 
@@ -585,7 +608,8 @@ differences:
   `use-frama-c` checkout is needed. The optional
   `~/.local-llm-machine-ip.txt` line is the same as for C.
 - *What is in this directory.* `bin/` holds only `bin/rmf-lint.sh` (§4.1),
-  run from the project root; `.workshop/` as for C, with
+  run from the project root, and the project root holds the vendored
+  `NIST.FIPS.140-3.pdf` (§3.6); `.workshop/` as for C, with
   `autowp-packages/hooks/setup-base` holding only `tmux` and `curl` and a
   comment where to add the crate's own apt packages (§3.7.2).
 - One extra line says that the generated directory should not be inside a
@@ -619,9 +643,11 @@ project must be a git repository.
 
   ```
   created foobar/config (language: c)
-    skills:   22
+    driver:   rmf
+    skills:   23
     commands: 3
   copied  foobar/.gitignore
+  copied  foobar/NIST.FIPS.140-3.pdf
   copied  foobar/bin
   copied  foobar/frama-c-patches
   copied  foobar/framac-gold
@@ -636,12 +662,17 @@ project must be a git repository.
   git     initialized foobar
   ```
 
-  and exit 0. With `--rust` the counts are `skills: 17` and `commands: 0`
-  (§4.3.2), and the only `copied` lines are `foobar/.gitignore` (the Rust
-  layer's `tools/` holds nothing else, §4.3.2), `foobar/bin` (the common
+  and exit 0. The `driver:` line reads `driver:   fips (FIPS 140-3 level N)`
+  under `--driver fips --level N`, right after `created config`; the `copied`
+  `NIST.FIPS.140-3.pdf` line (the vendored standard, `templates/common/tools/`)
+  comes between `.gitignore` and `bin`, in sorted name order, under both
+  languages. With `--rust` the counts are `skills: 17` and `commands: 0`
+  (§4.3.2), and the `copied` lines are `foobar/.gitignore` (the Rust
+  layer's `tools/` holds nothing else, §4.3.2), `foobar/NIST.FIPS.140-3.pdf`,
+  `foobar/bin` (the common
   layer's `bin/rmf-lint.sh`, §4.1) and `foobar/.workshop`. An entry of
   `tools/` present in both layers is merged when it is a directory (`bin/`:
-  the C project's `bin/` holds the common script and the 21 C ones; the
+  the C project's `bin/` holds the common scripts and the 21 C ones; the
   language layer's file wins on a same-named file) and is the language
   layer's when it is a file. An entry of `tools/` that already exists in
   the target is not overwritten: the program prints
@@ -901,13 +932,13 @@ creates do not need them either (§4.2.1).
 
 ### 4.1 `templates/common/` — shared skills
 
-Skills: `directory-structure`, `ebios-risk-manager`, `ebios-sl`, `lean`,
-`polish-skill`, `rmf-sl`, `rocq`, `sl-auditor`, `sl-builder`, `sl-internal`,
-`sl-monitoring-sl`, `stride`, `workshop` (13).
+Skills: `directory-structure`, `ebios-risk-manager`, `ebios-sl`, `fips-sl`,
+`lean`, `polish-skill`, `rmf-sl`, `rocq`, `sl-auditor`, `sl-builder`,
+`sl-internal`, `sl-monitoring-sl`, `stride`, `workshop` (14).
 
 Commands: none.
 
-Tools (since 0.3.0): `tools/bin/rmf-lint.sh`, the structure, coverage and
+Tools: `tools/bin/rmf-lint.sh`, the structure, coverage and
 endogeneity linter that is the machine gate of `rmf-sl`, moved here from
 `templates/c/tools/bin/` so that both languages install it as
 `bin/rmf-lint.sh` (§3.6: `tools/` directories are merged across layers). Its
@@ -916,6 +947,9 @@ C8 endogeneity tripwire fails on C source artifacts (`.c`/`.h`, `#include`,
 `impl X`, `unsafe {`, `#[attr]`, `&mut`, `Vec<`/`Option<`/`Result<`/`Box<`,
 `macro!(`, `.unwrap()`) in R1–R4, whatever the language of the project; the
 pinned format (`rmf-sl/references/report-format.md`, Rule 5) says so.
+Also `tools/NIST.FIPS.140-3.pdf`, the vendored standard `fips-sl` cites — the
+one driver whose source document ships in the project (US government work;
+`test_templates.py` T9 checks its sha256).
 
 `workshop` is written for auto-wp, not seeded from a source repository: it
 documents Workshop itself (definitions, the `workshop` commands, interfaces,
@@ -947,7 +981,7 @@ Skills: `frama-c`, `frama-c-api`, `frama-c-internals`, `frama-c-launch`,
 
 Commands: `ebios`, `rmf`, `time-loop`.
 
-A `--c` project therefore has 22 skills (13 common + 9) and 3 commands.
+A `--c` project therefore has 23 skills (14 common + 9) and 3 commands.
 
 `meta-penguin` is not included: it is `time-loop` specialised to two Linux
 kernel subsystems of one campaign, not reusable for a new project.
@@ -968,7 +1002,11 @@ permission bits. The layer holds:
   and `launch_lxc.sh` (step 1 of the README quick start), written for
   auto-wp: 21 scripts. The twentieth `use-frama-c` script, `rmf-lint.sh`,
   is in the common layer since 0.3.0 (§4.1) and merged into the same
-  `bin/`, so a C project still has 22;
+  `bin/`, so a C project still has 22; `fips-lint.sh`, the machine gate of
+  `fips-sl` (the F-C0–F-C9 gates of its pinned format, plus the F-C10 volume
+  WARN and the F-C11 `src:UNSOURCED` count), makes 23 — it reads the target
+  level from `config/auto-wp.json`'s `fips_level` (`FIPS_LEVEL=N` is a test
+  hook);
 - `frama-c-patches/`, `framac-gold/` and `no-ceiling.md`, the data the
   scripts and skills read, at the project root as in `use-frama-c`;
 - a `.gitignore`, written for auto-wp: `/framac-src/`, `/macsl/`, `_build/`
@@ -1128,8 +1166,10 @@ templates/rust/
 │   └── sl-monitoring-sl/      copied from use-creusot (overrides common)
 ├── commands/                  empty
 ├── tools/
-│   └── .gitignore             /.workshop.lock (§3.7.4); bin/rmf-lint.sh comes
-│                              from templates/common/tools/ (§4.1, 0.3.0)
+│   └── .gitignore             /.workshop.lock (§3.7.4); bin/rmf-lint.sh and
+│                              bin/fips-lint.sh come from
+│                              templates/common/tools/ (§4.1), which also
+│                              holds NIST.FIPS.140-3.pdf
 └── workshop/                  .workshop/ of a Rust project (§3.7.1)
     ├── autowp.yaml
     └── autowp-packages/{sdk.yaml,hooks/setup-base}
@@ -1169,13 +1209,14 @@ The `creusot-sl` packaging is done **once, when seeding the templates**;
   `use-creusot`.
 - Apart from these, files are copied unchanged.
 
-A `--rust` project therefore has 17 skills: the 8 skills of the Rust layer
+A `--rust` project therefore has 18 skills: the 8 skills of the Rust layer
 (`creusot`, `creusot-launch`, `creusot-monitoring`, `creusot-sl` and the four
-Creusot-flavoured `sl-*` skills) and the 9 common skills that are not
-overridden (`directory-structure`, `ebios-risk-manager`, `ebios-sl`, `lean`,
-`polish-skill`, `rmf-sl`, `rocq`, `stride`, `workshop`). Seven of those nine
-are not in `use-creusot`: `ebios-risk-manager`, `ebios-sl`, `lean`, `rmf-sl`,
-`rocq`, `stride`, `workshop`. `ebios-sl` is still wired to Frama-C; `rmf-sl`
+Creusot-flavoured `sl-*` skills) and the 10 common skills that are not
+overridden (`directory-structure`, `ebios-risk-manager`, `ebios-sl`, `fips-sl`,
+`lean`, `polish-skill`, `rmf-sl`, `rocq`, `stride`, `workshop`). Eight of
+those ten
+are not in `use-creusot`: `ebios-risk-manager`, `ebios-sl`, `fips-sl`, `lean`,
+`rmf-sl`, `rocq`, `stride`, `workshop`. `ebios-sl` is still wired to Frama-C; `rmf-sl`
 names both consumers and its linter is installed since 0.3.0 (§4.1).
 
 #### 4.3.3 Divergent SL skills
@@ -1533,7 +1574,7 @@ subprocess.
 
 1. `--c foo` creates `foo/config/skills/frama-c/SKILL.md`,
    `foo/config/commands/rmf.md` and `foo/config/skills/sl-internal/SKILL.md`,
-   22 skill directories and 3 commands, and no `creusot*` skill (in particular
+   23 skill directories and 3 commands, and no `creusot*` skill (in particular
    no `creusot-launch`).
 2. `--rust foo` creates `foo/config/skills/{creusot,creusot-launch,creusot-monitoring,creusot-sl}/SKILL.md`,
    17 skill directories and no command, and no `frama-c*` skill.
@@ -1543,7 +1584,11 @@ subprocess.
    (the override replaces the whole directory).
 3. No language flag behaves like `--c`.
 4. `--c --rust foo` exits 2 and creates nothing (`foo` does not exist
-   afterwards).
+   afterwards). The driver options of §1 (fips-skill-spec.md §2), in both
+   option orders: `--driver fips foo` exits 2 ("needs --level"), `--level 3
+   foo` exits 2 ("only valid with --driver fips"), `--level 5` and
+   `--driver ebios` exit 2 (argparse `choices`), and `--driver fips --level 3
+   foo` as well as `--level 3 --driver fips foo` succeed.
 5. `--help` exits 0.
 6. Running twice on the same directory: the second run exits 1 and leaves the
    first run's files unchanged.
@@ -1562,7 +1607,8 @@ subprocess.
     and `frama-c-monitoring/canaries/*.sh`).
 11. `config/auto-wp.json` is valid JSON; its `skills` and `commands` lists
     match the directories under `config/skills/` and the files under
-    `config/commands/`.
+    `config/commands/`; `driver` is `rmf` by default and `fips_level` is
+    absent under it (fips-skill-spec.md §3).
 12. Running from another working directory (`cd /tmp && /path/to/auto-wp.py --c foo`)
     still finds the templates.
 13. `--c foobar` writes `foobar/README.md`, which contains
@@ -1578,13 +1624,15 @@ subprocess.
     paragraph of 2B, by the repository's URL and relative paths inside a
     clone of it, never by a host path).
 13b. `--c foobar` copies the tools of §4.2.1 to `foobar/` as regular files
-    (22 `bin/*.sh` and no `*.sh` at the root, `frama-c-patches/apply.sh`,
-    `framac-gold/`, `no-ceiling.md`, `.gitignore` listing `/framac-src/`
+    (23 `bin/*.sh` and no `*.sh` at the root, `frama-c-patches/apply.sh`,
+    `framac-gold/`, `no-ceiling.md`, `NIST.FIPS.140-3.pdf`, `.gitignore`
+    listing `/framac-src/`
     and `/.workshop.lock`),
     with the executable bit on every script, `bin/rmf-lint.sh` identical to
-    `templates/common/tools/bin/rmf-lint.sh` (§4.1); `--rust` creates a
-    `bin/` holding only that same `rmf-lint.sh` (a regular, executable
-    file), none of the C data (`frama-c-patches/`, `framac-gold/`,
+    `templates/common/tools/bin/rmf-lint.sh` and `bin/fips-lint.sh` to its
+    template (§4.1); `--rust` creates a
+    `bin/` holding those same two linters (regular, executable
+    files), the PDF, none of the C data (`frama-c-patches/`, `framac-gold/`,
     `no-ceiling.md`), and a `.gitignore` listing `/.workshop.lock`; an
     existing `foo/.gitignore` is kept and reported with `kept`.
 14. `--rust foobar` writes a README that contains `creusot-launch`,
@@ -1629,6 +1677,13 @@ subprocess.
     after `.workshop/` was written, `foo/.workshop/` no longer exists when
     this run created it; when `foo/.workshop/other.yaml` existed before,
     `foo/.workshop/` still holds exactly that file afterwards.
+23. The fips driver (fips-skill-spec.md §2, §3, §6): `--driver fips --level 3
+    foobar` writes the manifest keys, prints `driver:   fips (FIPS 140-3
+    level 3)`, installs `config/commands/fips.md` and not `rmf.md`, and
+    otherwise the same files as the default (both skills, both linters, the
+    PDF); the default run keeps `rmf.md` and has no `fips.md`; the README
+    placeholders of §3.4 for both drivers; and test 19 re-run with `--driver
+    fips --level 2` rolls back the same way.
 
 The template checks of `tests.md` (§3.2 there) gain: the `workshop/` files
 of each language layer are the three of §3.7.1, with the exact `sdks` list

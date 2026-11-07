@@ -7,9 +7,11 @@ that asymmetry is the whole point, and it is what keeps the upstream `ebios-sl` 
 exogenous.
 
 This template is consumed by:
-- `rmf-sl` / `ebios-sl` — produce the per-campaign crosswalk (`rmf-crosswalk.md` / `ebios-crosswalk.md`);
+- `rmf-sl` / `ebios-sl` / `fips-sl` — produce the per-campaign crosswalk (`rmf-crosswalk.md` /
+  `ebios-crosswalk.md` / `fips-crosswalk.md`);
 - `bin/rmf-lint.sh` / `bin/ebios-lint.sh` — emit + structurally check the STRIDE coverage ledger (§3);
-- `frama-c-monitoring` — the join (§2/§4) and the **ratchet CI gate** (§3) over the ledger.
+- `frama-c-monitoring` — the join (§2/§4) and the **ratchet CI gate** (§3) over the ledger;
+- `bin/crosswalk-gen.sh` (`--kind rmf|ebios|fips`) — the only writer of a generated crosswalk.
 
 > **Plane / no-blend rule (load-bearing).** A WP `PROVED` is a **hard** truth that retires exactly
 > **one class** (RTE / memory-safety, or one named functional property) of **one** attack step on the
@@ -77,6 +79,24 @@ matrix:
 | Asset | S | T | R | I | D | E | ATT&CK (WS9) |
 |---|---|---|---|---|---|---|---|
 | SA1 | `UNMODELED` | `PROVED` | … | … | … | … | T1059,… |
+
+### 3.4 The FIPS form (under a `fips` campaign — one row per verification obligation)
+
+When the crosswalk is generated from a FIPS 140-3 requirement study (`PREFIX-fips-report.md`), the
+§3 ledger has no STRIDE families: the rows are the F4 verification obligations, and the generator
+writes the marker line `# ledger: fips` immediately above the table. `bin/ledger-ratchet.sh` reads
+that marker and applies the same §3.1 lifecycle and §3.2 ratchet rule to this form; the WS1
+race-family rule is a STRIDE rule and does not apply to it. The header row is pinned and the first
+cell of every row is the bare `VO#` (the ratchet keys the row on that id):
+
+| VO# | AR# | Class | Coverage |
+|---|---|---|---|
+| VO1 | AR8 | zeroize | `PROVED` |
+| VO2 | AR2 | output-inhibit | `UNMODELED` |
+
+Its machine form is `PREFIX-acsl/fips-ledger.tsv`, one row `VO#<TAB>AR#<TAB>class<TAB>cell` (no
+marker in the TSV; `#` lines skipped); the frozen baseline's first line is `# ledger: fips` and its
+rows are `VO#<TAB>cell`.
 
 ## 4. Verdict join — what verification covers vs the ranking
 

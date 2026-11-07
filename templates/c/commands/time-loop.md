@@ -8,6 +8,23 @@ existing `/rmf` loop to **maximize high-value verified coverage** of a target �
 count. **Invoke the `time-loop` skill** (it holds the full design — residue triage, bounds, gates,
 the deadline loop) and run it per that skill.
 
+**The campaign driver.** Which base loop `/rmf` names depends on the project: the `driver` key of
+`config/auto-wp.json` (what `auto-wp.py --driver` records) selects it, and every RMF-specific name
+below is read through this table. Without a `driver` key, assume `rmf`.
+
+| | `rmf` | `fips` |
+|---|---|---|
+| base command | `/rmf` | `/fips` |
+| report | `XXX-analysis-rmf-report.md` | `XXX-analysis-fips-report.md` |
+| gaps | `XXX-analysis-rmf-gaps.md` | `XXX-analysis-fips-gaps.md` |
+| feedback | `XXX-analysis-monitor-feedback-NN.md` | `XXX-analysis-fips-feedback-NN.md` |
+| linter | `bin/rmf-lint.sh` | `bin/fips-lint.sh` |
+| ranked item and scale | `RS#`, risk `High`/`Moderate`/`Low` | `VO#`, priority `P1`/`P2`/`P3` |
+| Plane W (WP) | Tier-1 untrusted-input `RS#` | `VO#` of class `zeroize`, `no-plain-ssp-out` |
+| Plane H (macsl system properties) | Tier-3 authorization/integrity `RS#` | `VO#` of the six system-level classes of `fips-sl/references/area-properties.md` |
+| outside both planes | — | `approved-only` (a call-graph check, not a WP proof) |
+| terminus | Authorizing Official | the owner of the protected information, or the agency's responsible authority (Ann. 13) |
+
 **Parse `$ARGUMENTS` (strip flags first):**
 - Treat any `--`-prefixed token as a non-positional **flag**; strip them out BEFORE computing the
   positionals. Recognized flags are **forwarded verbatim to the underlying `/rmf`**: `--machdep=<name>`,

@@ -16,9 +16,14 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-VERSION = "0.4.0"
+VERSION = "0.5.0"
 TEMPLATES = Path(__file__).resolve().parent / "templates"
 LANGUAGES = {"c": "C (Frama-C/WP)", "rust": "Rust (Creusot)"}
+# The campaign driver (§2 of spec/fips-skill-spec.md): each driver installs its
+# own campaign command and the other's is left out; everything else (both
+# skills, both linters, the PDF) is installed whatever the driver.
+DRIVERS = ["rmf", "fips"]
+DRIVER_COMMANDS = {"rmf": "rmf.md", "fips": "fips.md"}
 
 # Links created in the project: (path relative to the project, link target).
 # The first two harnesses are wired the same way: `config/` holds the skills
@@ -56,19 +61,33 @@ def parse_args(argv):
                       help="install the C configuration (Frama-C/WP); the default")
     lang.add_argument("--rust", dest="language", action="store_const", const="rust",
                       help="install the Rust configuration (Creusot)")
+    parser.add_argument("--driver", choices=DRIVERS, default="rmf",
+                        help="which skill drives the campaign: rmf (NIST RMF, "
+                        "the default) or fips (FIPS 140-3)")
+    parser.add_argument("--level", type=int, choices=[1, 2, 3, 4], default=None,
+                        help="the target FIPS 140-3 security level; required "
+                        "with --driver fips, refused otherwise (Ann. 7: the "
+                        "level is chosen, never defaulted)")
     parser.add_argument("directory", metavar="<directory-name>",
                         help="project directory to create (or to fill, if it exists)")
     parser.set_defaults(language="c")
-    return parser.parse_args(argv)
+    args = parser.parse_args(argv)
+    if args.driver == "fips" and args.level is None:
+        parser.error("--driver fips needs --level 1, 2, 3 or 4")
+    if args.driver != "fips" and args.level is not None:
+        parser.error("--level is only valid with --driver fips")
+    return args
 
 
 class Run:
     """One invocation. Records what it creates so it can be rolled back."""
 
-    def __init__(self, directory, language):
+    def __init__(self, directory, language, driver="rmf", level=None):
         self.arg = directory
         self.target = Path(directory)
         self.language = language
+        self.driver = driver
+        self.level = level
         self.layers = [TEMPLATES / "common", TEMPLATES / language]
         self.created = []  # (kind, path) in creation order
         self.out = []      # stdout lines, printed only on success
@@ -118,13 +137,21 @@ class Run:
         manifest = {
             "language": self.language,
             "auto_wp_version": VERSION,
+            "driver": self.driver,
             "created": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
             "skills": skills,
             "commands": commands,
         }
+        if self.driver == "fips":
+            manifest["fips_level"] = self.level
         (config / "auto-wp.json").write_text(json.dumps(manifest, indent=2) + "\n")
+        if self.driver == "fips":
+            driver_line = f"  driver:   {self.driver} (FIPS 140-3 level {self.level})"
+        else:
+            driver_line = f"  driver:   {self.driver}"
         self.out += [
             f"created {self.show('config')} (language: {self.language})",
+            driver_line,
             f"  skills:   {len(skills)}",
             f"  commands: {len(commands)}",
         ]
@@ -145,12 +172,21 @@ class Run:
         return sorted(chosen)
 
     def copy_commands(self, dest):
-        """Copy command files (*.md); a language-layer file replaces the common one."""
+        """Copy command files (*.md); a language-layer file replaces the common one.
+
+        Each driver installs its own campaign command only (§6 of
+        spec/fips-skill-spec.md): rmf.md under --driver rmf, fips.md under
+        --driver fips; the other driver's file is skipped here. Both skills
+        and both linters are installed whatever the driver.
+        """
+        skip = {DRIVER_COMMANDS[d] for d in DRIVERS if d != self.driver}
         chosen = {}
         for layer in self.layers:
             src = layer / "commands"
             if src.is_dir():
                 for f in src.glob("*.md"):
+                    if f.name in skip:
+                        continue
                     chosen[f.name] = f
         dest.mkdir()
         for name in sorted(chosen):
@@ -234,6 +270,26 @@ class Run:
         text = (TEMPLATES / self.language / "README.md").read_text()
         text = text.replace("{{DIR}}", self.target.resolve().name)
         text = text.replace("{{LANGUAGE}}", LANGUAGES[self.language])
+        if self.driver == "fips":
+            text = text.replace("{{DRIVER}}", "fips")
+            text = text.replace("{{FEEDBACK}}", "fips-feedback")
+            text = text.replace("{{DRIVER_LINE}}",
+                                f"Requirement study: FIPS 140-3, security level "
+                                f"{self.level} (fips-sl).")
+        else:
+            text = text.replace("{{DRIVER}}", "rmf")
+            text = text.replace("{{FEEDBACK}}", "monitor-feedback")
+            text = text.replace("{{DRIVER_LINE}}", "Risk study: NIST RMF (rmf-sl).")
+        if self.driver == "fips" and self.language == "c":
+            # fips-skill-spec.md 7.3: the one fips sentence after the
+            # quick-start command (GRUB as a whole is not a module; its crypto
+            # library is). Inserted, not a placeholder, so the README
+            # templates carry only the placeholders of §3.4.
+            anchor = "/time-loop grub 72\n```"
+            note = ("\n\nTo study GRUB's cryptographic library as the module, "
+                    "use `/time-loop grub 72 --dir=grub-core/lib/libgcrypt`.")
+            if anchor in text:
+                text = text.replace(anchor, anchor + note, 1)
         readme.write_text(text)
         self.created.append(("file", readme))
         self.out.append(f"wrote   {self.show('README.md')}")
@@ -289,7 +345,7 @@ class Run:
 
 def main(argv=None):
     args = parse_args(argv)
-    run = Run(args.directory, args.language)
+    run = Run(args.directory, args.language, args.driver, args.level)
     try:
         run.execute()
     except (AutoWpError, OSError, subprocess.SubprocessError) as e:

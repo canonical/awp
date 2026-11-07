@@ -12,6 +12,7 @@ objects and the harness credential.
 | `provision.sh` | — | `provision-c` | hours | no |
 | `smoke-test.sh` | 3 | `smoke-c` | 3–5 h | yes |
 | `gzip-test.sh` | 3 | `smoke-c-gzip`, `smoke-c-gzip-ws` | 96–98 h (`GZIP_HOURS`) | yes (not with `SETUP_ONLY=1`) |
+| `mbed-tls-test.sh` | 3 | `smoke-c-mbedtls`, `smoke-c-mbedtls-ws` | 96 h (default; level 4) | yes (not with `SETUP_ONLY=1`) |
 | `acceptance.sh` | 4 | none | 72 h + 6 h | yes |
 
 ## `install-test.sh` — level 2
@@ -20,7 +21,7 @@ In a fresh `ubuntu:24.04` container, with its stock `python3` and `git`:
 runs `auto-wp.py --c foobar`, checks the README, clones GRUB, and runs
 `auto-wp.py` a second time.
 
-- C2.1 — `auto-wp.py` exits 0 and prints `skills:   22` and `commands: 3`.
+- C2.1 — `auto-wp.py` exits 0 and prints `skills:   23` and `commands: 3`.
 - C2.2 — the in-container block of `foobar/README.md` starts with the lines
   this test runs and ends with `claude --dangerously-skip-permissions`, and
   the README documents the OpenCode alternative.
@@ -93,6 +94,36 @@ W.2 (launch, `ready`), W.3 (`frama-c` 32.1 from the SDK), W.4
 ```
 WORKSHOP=1 SETUP_ONLY=1 tests/c/gzip-test.sh
 ```
+
+## `mbed-tls-test.sh` — level 3 (fips driver)
+
+The `--driver fips` counterpart of `gzip-test.sh`: a `/time-loop mbedtls N`
+campaign on [Mbed TLS](https://github.com/Mbed-TLS/mbedtls), a real
+cryptographic library, so that `fips-sl` studies a module that is one
+(`fips-skill-spec.md` §9, open point 2). Clones the pinned tag
+(`MBEDTLS_TAG`, default `mbedtls-3.6.7`, verified against `MBEDTLS_SHA`),
+generates the project with `--driver fips --level N` (`FIPS_LEVEL`, default
+**4**), runs the campaign for `MBEDTLS_HOURS` (default **96** — the cost
+profile of `acceptance.sh`; the credential must outlive the run, and
+`ACCEPT_TOKEN_EXPIRY=1` accepts an unknown lifetime), then checks the fips
+artifacts: the `*-fips-report.md` accepted by `bin/fips-lint.sh`, the
+time-loop state (deadline, wakes, cycles), one commit per cycle in
+`~/remote.git`, the token never leaked (K2), nothing written outside the
+allowlist (K3), the consolidated report, and at least one unit with PROVED
+goals. For a cheap smoke instead, pass `FIPS_LEVEL=2 MBEDTLS_HOURS=2`. The
+run's artifacts survive by default (`KEEP=1` is the default of this script,
+unlike the others): the FIPS documents stay in `/home/ubuntu/mbedtls-analyze/`
+in the kept container — read them with `lxc exec` or copy them out with
+`lxc file pull -r` (the container name is in the cleanup line) — or, with
+`WORKSHOP=1`, in `~/.awp/autowp-mbedtls-analyze-ws.<suffix>/mbedtls-analyze/`
+on the host. `KEEP=0` restores delete-on-exit; `make clean-lxc` sweeps
+leftover `autowp-*` containers. A
+guard prints SKIP and exits 0 if a fips-driver piece is missing
+(`auto-wp.py --driver/--level`, `commands/fips.md`, `bin/fips-lint.sh`, the
+time-loop driver table) — all four exist since the driver landed
+(`fips-skill-spec.md` §6–7). `WORKSHOP=1` runs it in
+the generated project's workshop like `gzip-test.sh` does; `SETUP_ONLY=1`
+stops after the setup checks.
 
 ## `acceptance.sh` — level 4
 

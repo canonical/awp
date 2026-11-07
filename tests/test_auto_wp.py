@@ -33,7 +33,7 @@ TEMPLATES = REPO / "templates"
 # --- what the specification says (auto-wp.md 4.1, 4.2, 4.3.2) -------------
 
 COMMON_SKILLS = [
-    "directory-structure", "ebios-risk-manager", "ebios-sl", "lean",
+    "directory-structure", "ebios-risk-manager", "ebios-sl", "fips-sl", "lean",
     "polish-skill", "rmf-sl", "rocq", "sl-auditor", "sl-builder",
     "sl-internal", "sl-monitoring-sl", "stride", "workshop",
 ]
@@ -48,7 +48,7 @@ RUST_LAYER_SKILLS = [
 ]
 RUST_COMMANDS = []
 
-C_SKILLS = sorted(set(COMMON_SKILLS) | set(C_LAYER_SKILLS))            # 22
+C_SKILLS = sorted(set(COMMON_SKILLS) | set(C_LAYER_SKILLS))            # 23
 RUST_SPEC_SKILLS = sorted(set(COMMON_SKILLS) | set(RUST_LAYER_SKILLS))  # 17
 
 # Rust-layer skills the roadmap has not delivered yet (auto-wp.md 4.3.7).
@@ -162,6 +162,14 @@ class AutoWpTestCase(unittest.TestCase):
         self.assertEqual(r.returncode, 0,
                          f"exit {r.returncode}\nstdout:\n{r.stdout}\nstderr:\n{r.stderr}")
 
+    def _copy_program(self):
+        """A private copy of auto-wp.py + templates whose templates we may break."""
+        prog = self.tmp / "prog"
+        prog.mkdir()
+        shutil.copy2(SCRIPT, prog / "auto-wp.py")
+        shutil.copytree(TEMPLATES, prog / "templates", symlinks=True)
+        return prog
+
 
 class TestAutoWp(AutoWpTestCase):
 
@@ -174,7 +182,7 @@ class TestAutoWp(AutoWpTestCase):
                     "config/skills/sl-internal/SKILL.md"]:
             self.assertTrue((foo / rel).is_file(), f"missing {rel}")
         skills = skill_dirs(foo)
-        self.assertEqual(len(skills), 22, skills)
+        self.assertEqual(len(skills), 23, skills)
         self.assertEqual(skills, C_SKILLS)
         self.assertEqual(command_names(foo), C_COMMANDS)
         self.assertEqual([s for s in skills if s.startswith("creusot")], [])
@@ -192,9 +200,9 @@ class TestAutoWp(AutoWpTestCase):
                             f"missing config/skills/{s}/SKILL.md")
         skills = skill_dirs(foo)
         self.assertEqual(skills, RUST_SKILLS,
-                         f"expected the 17 skills of auto-wp.md 4.3.2 minus "
+                         f"expected the 18 skills of auto-wp.md 4.3.2 minus "
                          f"{RUST_ABSENT_PENDING or 'nothing'}")
-        self.assertEqual(len(skills), 17 - len(RUST_ABSENT_PENDING))
+        self.assertEqual(len(skills), 18 - len(RUST_ABSENT_PENDING))
         self.assertEqual(command_names(foo), [])
         self.assertEqual([s for s in skills if s.startswith("frama-c")], [])
         self.assertEqual(
@@ -257,6 +265,26 @@ class TestAutoWp(AutoWpTestCase):
                 self.assertEqual(r.returncode, 2, r.stderr)
                 self.assertNotEqual(r.stderr.strip(), "")
                 self.assertEqual(os.listdir(self.tmp), [])
+
+    def test_04c_driver_usage_errors(self):
+        """fips-skill-spec.md 2: the --driver/--level dependency, both option orders."""
+        cases = [
+            (("--driver", "fips", "foo"), "--driver fips needs --level"),
+            (("--level", "3", "foo"), "--level is only valid with --driver fips"),
+            (("--driver", "fips", "--level", "5", "foo"), "invalid choice"),
+            (("--driver", "ebios", "foo"), "invalid choice"),
+            (("--level", "3", "--driver", "fips", "drv-ok1"), None),   # order-free: accepted
+            (("--driver", "fips", "--level", "3", "drv-ok2"), None),
+        ]
+        for args, err in cases:
+            with self.subTest(args=args):
+                r = self.run_auto_wp(*args)
+                if err is None:
+                    self.assertOk(r)
+                else:
+                    self.assertEqual(r.returncode, 2, r.stderr)
+                    self.assertIn(err, r.stderr)
+                    self.assertEqual(os.listdir(self.tmp), [])
 
     # 5 ----------------------------------------------------------------------
     def test_05_help(self):
@@ -419,7 +447,9 @@ class TestAutoWp(AutoWpTestCase):
                 self.assertOk(self.run_auto_wp("--" + lang, foo.name))
                 m = json.loads((foo / "config/auto-wp.json").read_text())
                 self.assertEqual(m["language"], lang)
-                self.assertEqual(m["auto_wp_version"], "0.4.0")
+                self.assertEqual(m["auto_wp_version"], "0.5.0")
+                self.assertEqual(m["driver"], "rmf")
+                self.assertNotIn("fips_level", m)
                 self.assertRegex(m["created"], r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$")
                 self.assertEqual(m["skills"], sorted(m["skills"]))
                 self.assertEqual(m["commands"], sorted(m["commands"]))
@@ -434,7 +464,7 @@ class TestAutoWp(AutoWpTestCase):
         elsewhere.mkdir()
         r = self.run_auto_wp("--c", "foo", cwd=elsewhere)
         self.assertOk(r)
-        self.assertEqual(len(skill_dirs(elsewhere / "foo")), 22)
+        self.assertEqual(len(skill_dirs(elsewhere / "foo")), 23)
         # absolute target path as well
         r = self.run_auto_wp("--rust", str(self.tmp / "abs"), cwd=elsewhere)
         self.assertOk(r)
@@ -466,15 +496,20 @@ class TestAutoWp(AutoWpTestCase):
     def test_13b_c_tools_stand_alone(self):
         self.assertOk(self.run_auto_wp("--c", "foobar"))
         d = self.tmp / "foobar"
-        for rel in ("bin/rmf-lint.sh", "bin/ebios-lint.sh", "bin/ledger-ratchet.sh",
+        for rel in ("bin/rmf-lint.sh", "bin/fips-lint.sh", "bin/ebios-lint.sh",
+                    "bin/ledger-ratchet.sh",
                     "bin/crosswalk-gen.sh", "bin/fetch-sources.sh", "no-ceiling.md", ".gitignore",
-                    "frama-c-patches/apply.sh", "framac-gold"):
+                    "frama-c-patches/apply.sh", "framac-gold", "NIST.FIPS.140-3.pdf"):
             self.assertTrue(os.path.lexists(d / rel), rel)
             self.assertFalse((d / rel).is_symlink(), rel)
-        # bin/ merges the common layer (rmf-lint.sh) and the C layer (21): 4.1, 4.2.1.
-        self.assertEqual(len(list(d.glob("bin/*.sh"))), 22)
+        # bin/ merges the common layer (rmf-lint.sh) and the C layer (22): 4.1, 4.2.1.
+        self.assertEqual(len(list(d.glob("bin/*.sh"))), 23)
         self.assertEqual((d / "bin/rmf-lint.sh").read_bytes(),
                          (TEMPLATES / "common/tools/bin/rmf-lint.sh").read_bytes())
+        self.assertEqual((d / "bin/fips-lint.sh").read_bytes(),
+                         (TEMPLATES / "c/tools/bin/fips-lint.sh").read_bytes())
+        self.assertEqual((d / "NIST.FIPS.140-3.pdf").read_bytes(),
+                         (TEMPLATES / "common/tools/NIST.FIPS.140-3.pdf").read_bytes())
         self.assertEqual(list(d.glob("*.sh")), [], "scripts belong in bin/, not the root")
         for s in d.glob("bin/*.sh"):
             self.assertTrue(os.access(s, os.X_OK), s.name)
@@ -491,6 +526,8 @@ class TestAutoWp(AutoWpTestCase):
         self.assertTrue(os.access(lint, os.X_OK))
         self.assertEqual(lint.read_bytes(),
                          (TEMPLATES / "common/tools/bin/rmf-lint.sh").read_bytes())
+        self.assertEqual((d / "NIST.FIPS.140-3.pdf").read_bytes(),
+                         (TEMPLATES / "common/tools/NIST.FIPS.140-3.pdf").read_bytes())
         for rel in ("frama-c-patches", "framac-gold", "no-ceiling.md"):
             self.assertFalse(os.path.lexists(d / rel), rel)
         gi = self.tmp / "foobar/.gitignore"
@@ -587,17 +624,9 @@ class TestAutoWp(AutoWpTestCase):
         self.assertIn("warning: git not found; run 'git init' in foo before /time-loop",
                       r.stderr)
         self.assertFalse(os.path.lexists(self.tmp / "foo/.git"))
-        self.assertEqual(len(skill_dirs(self.tmp / "foo")), 22)
+        self.assertEqual(len(skill_dirs(self.tmp / "foo")), 23)
 
     # 19 ---------------------------------------------------------------------
-    def _copy_program(self):
-        """A private copy of auto-wp.py + templates whose templates we may break."""
-        prog = self.tmp / "prog"
-        prog.mkdir()
-        shutil.copy2(SCRIPT, prog / "auto-wp.py")
-        shutil.copytree(TEMPLATES, prog / "templates", symlinks=True)
-        return prog
-
     def test_19_rollback(self):
         if os.geteuid() == 0:
             self.skipTest("running as root: an unreadable file is still readable")
@@ -637,7 +666,7 @@ class TestAutoWp(AutoWpTestCase):
             victim.chmod(0o644)
             r = self.run_auto_wp("--c", "foo", cwd=work, script=script)
             self.assertOk(r)
-            self.assertEqual(len(skill_dirs(work / "foo")), 22)
+            self.assertEqual(len(skill_dirs(work / "foo")), 23)
 
     def test_19b_rollback_missing_template_dir(self):
         """Missing template directory: run-time error, exit 1, nothing created."""
@@ -770,9 +799,11 @@ class TestOutputAndConstraints(AutoWpTestCase):
         self.assertOk(r)
         self.assertEqual(r.stdout, (
             "created foobar/config (language: c)\n"
-            "  skills:   22\n"
+            "  driver:   rmf\n"
+            "  skills:   23\n"
             "  commands: 3\n"
             "copied  foobar/.gitignore\n"
+            "copied  foobar/NIST.FIPS.140-3.pdf\n"
             "copied  foobar/bin\n"
             "copied  foobar/frama-c-patches\n"
             "copied  foobar/framac-gold\n"
@@ -791,18 +822,20 @@ class TestOutputAndConstraints(AutoWpTestCase):
         self.assertOk(r)
         lines = r.stdout.splitlines()
         self.assertEqual(lines[0], "created foobar/config (language: rust)")
-        self.assertEqual(lines[1], f"  skills:   {len(RUST_SKILLS)}")
-        self.assertEqual(lines[2], "  commands: 0")
-        self.assertEqual(lines[3:6], ["copied  foobar/.gitignore",
+        self.assertEqual(lines[1], "  driver:   rmf")
+        self.assertEqual(lines[2], f"  skills:   {len(RUST_SKILLS)}")
+        self.assertEqual(lines[3], "  commands: 0")
+        self.assertEqual(lines[4:8], ["copied  foobar/.gitignore",
+                                      "copied  foobar/NIST.FIPS.140-3.pdf",
                                       "copied  foobar/bin",
                                       "copied  foobar/.workshop (workshop: autowp)"])
 
-    def test_rust_output_spec_count_17(self):
+    def test_rust_output_spec_count_18(self):
         if RUST_ABSENT_PENDING:
             self.skipTest(pending_note(RUST_ABSENT_PENDING) +
-                          f"; prints 'skills:   {len(RUST_SKILLS)}', spec says 17")
+                          f"; prints 'skills:   {len(RUST_SKILLS)}', spec says 18")
         r = self.run_auto_wp("--rust", "foobar")
-        self.assertIn("  skills:   17", r.stdout.splitlines())
+        self.assertIn("  skills:   18", r.stdout.splitlines())
 
     def test_script_header_and_mode(self):
         self.assertTrue(SCRIPT.read_text().startswith("#!/usr/bin/env python3\n"))
@@ -831,6 +864,86 @@ class TestOutputAndConstraints(AutoWpTestCase):
         text = SCRIPT.read_text()
         self.assertNotIn("../use-frama-c", text)
         self.assertNotIn("../use-creusot", text)
+
+
+class TestFipsDriver(AutoWpTestCase):
+    """fips-skill-spec.md 2, 3, 6 and 7.3: the --driver/--level options."""
+
+    FIPS_COMMANDS = ["ebios", "fips", "time-loop"]
+
+    def test_fips_generation(self):
+        r = self.run_auto_wp("--driver", "fips", "--level", "3", "foobar")
+        self.assertOk(r)
+        self.assertIn("  driver:   fips (FIPS 140-3 level 3)", r.stdout.splitlines())
+        d = self.tmp / "foobar"
+        m = json.loads((d / "config/auto-wp.json").read_text())
+        self.assertEqual(m["driver"], "fips")
+        self.assertEqual(m["fips_level"], 3)
+        self.assertEqual(m["commands"], self.FIPS_COMMANDS)
+        self.assertEqual(command_names(d), self.FIPS_COMMANDS)
+        # Only the driver's command: fips.md in, rmf.md out (spec 6, option B).
+        self.assertTrue((d / "config/commands/fips.md").is_file())
+        self.assertFalse(os.path.lexists(d / "config/commands/rmf.md"))
+        # Everything else is installed whatever the driver: both skills, both
+        # linters, the vendored PDF, the same links and the workshop definition.
+        self.assertIn("fips-sl", m["skills"])
+        self.assertIn("rmf-sl", m["skills"])
+        self.assertTrue((d / "bin/fips-lint.sh").is_file())
+        self.assertTrue((d / "bin/rmf-lint.sh").is_file())
+        self.assertTrue((d / "NIST.FIPS.140-3.pdf").is_file())
+        self.assertTrue((d / ".workshop/autowp.yaml").is_file())
+        self.assertTrue((d / ".opencode/skills").is_symlink())
+
+    def test_default_generation_has_rmf_only(self):
+        r = self.run_auto_wp("--c", "foobar")
+        self.assertOk(r)
+        d = self.tmp / "foobar"
+        self.assertTrue((d / "config/commands/rmf.md").is_file())
+        self.assertFalse(os.path.lexists(d / "config/commands/fips.md"))
+
+    def test_fips_readme(self):
+        self.run_auto_wp("--driver", "fips", "--level", "2", "foobar")
+        text = (self.tmp / "foobar/README.md").read_text()
+        self.assertIn("Requirement study: FIPS 140-3, security level 2 (fips-sl).", text)
+        self.assertIn("/fips <dir> <dir>-analysis", text)
+        self.assertIn("bin/fips-lint.sh grub-analysis-fips-report.md", text)
+        self.assertIn("--dir=grub-core/lib/libgcrypt", text)
+        self.assertNotIn("{{", text)
+        self.assertNotIn("/rmf <dir>", text)
+        # The default driver's README keeps its line and has no fips note.
+        self.run_auto_wp("--c", "rmfbar")
+        text = (self.tmp / "rmfbar/README.md").read_text()
+        self.assertIn("Risk study: NIST RMF (rmf-sl).", text)
+        self.assertNotIn("libgcrypt", text)
+        self.assertNotIn("{{", text)
+
+    def test_fips_rust(self):
+        r = self.run_auto_wp("--driver", "fips", "--level", "4", "--rust", "foobar")
+        self.assertOk(r)
+        d = self.tmp / "foobar"
+        m = json.loads((d / "config/auto-wp.json").read_text())
+        self.assertEqual(m["driver"], "fips")
+        self.assertEqual(m["fips_level"], 4)
+        self.assertEqual(m["commands"], [])          # no campaign command under --rust
+        self.assertTrue((d / "NIST.FIPS.140-3.pdf").is_file())
+        text = (d / "README.md").read_text()
+        self.assertIn("Requirement study: FIPS 140-3, security level 4 (fips-sl).", text)
+        self.assertNotIn("{{", text)
+
+    def test_fips_rollback(self):
+        if os.geteuid() == 0:
+            self.skipTest("running as root: an unreadable file is still readable")
+        prog = self._copy_program()
+        victim = prog / "templates/c/skills/time-loop/SKILL.md"
+        victim.chmod(0)
+        work = self.tmp / "work"
+        work.mkdir()
+        r = self.run_auto_wp("--driver", "fips", "--level", "2", "foo",
+                             cwd=work, script=prog / "auto-wp.py")
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertEqual(r.stdout, "")
+        self.assertFalse(os.path.lexists(work / "foo"))
+        self.assertEqual(os.listdir(work), [])
 
 
 if __name__ == "__main__":

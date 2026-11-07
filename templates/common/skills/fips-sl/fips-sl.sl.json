@@ -1,0 +1,93 @@
+{
+  "sl_version": "1.0",
+  "id": "fips-sl",
+  "kind": "base",
+  "terrain": ["A", "B"],
+  "description": "The upstream, code-blind FIPS 140-3 requirement-study author (faithful sibling of rmf-sl) that produces each *-fips-report.md. A soft-side, human-terminus loop: its lower bound is the bin/fips-lint.sh structural/coverage/source-honesty linter PLUS a human terminus (a disjoint completeness/realism reviewer + the owner of the protected information, or the agency's responsible authority, per Ann. 13), because content realism and the honesty of each src: token have no machine oracle. Dominant coherent-and-wrong: a fluent, all-eleven-areas report whose requirements are INVENTED while stated as if sourced from the PDF (the PDF names the four levels and the eleven areas but holds almost none of the requirements) — or a coverage gap masked by fluency, or requirements quietly read off the implementation (endogeneity, collapsing the exogeneity that makes the study a valid upper bound for the verification loops).",
+  "sources": [
+    { "id": "fips_pdf", "name": "NIST.FIPS.140-3.pdf — the only standard cited (vendored at the project root)", "type": "soft_authority", "provenance": "exogenous", "produced_by": null, "notes": "US government work, 11 pages, sha256 942a4f929dfbd2b4af2e4e03df7f6e6377054346afd9bee346ed0ebac5db384b. Contains the four levels (Ann. 3), the eleven requirement areas (Abstract, Ann. 3), the level-choice rule (Ann. 7), the Approved-security-functions requirement (Ann. 10), conformance and residual risk (Ann. 13), applicability (Ann. 6), and the ISO/IEC 19790/24759 + SP 800-140 incorporation (Sec. 2-3, Table 1). It does NOT contain the per-area, per-level requirements — most RQ# will be src:UNSOURCED, which rule F3 keeps honest." },
+    { "id": "module_description", "name": "The module's public description — purpose, services, documented interfaces, Security Policy if one exists", "type": "soft_authority", "provenance": "exogenous", "produced_by": null, "notes": "The code-blind input side: public documentation only, never the implementation source." },
+    { "id": "target_level", "name": "The target FIPS 140-3 security level (1-4), from config/auto-wp.json fips_level", "type": "soft_authority", "provenance": "authored", "produced_by": null, "notes": "Ann. 7: the level must be chosen for the application and environment — auto-wp.py refuses to default it. Sets the F1 level line, rule F5's min-level applicability and Gate-A's volume budget." },
+    { "id": "area_properties", "name": "references/area-properties.md — the eleven areas mapped to verification property classes and residual planes", "type": "soft_authority", "provenance": "authored", "produced_by": null, "notes": "A declared design choice of this skill, NOT text from the PDF (the file says so in the same words). The engine that makes the report drive frama-c-monitoring." },
+    { "id": "fips_lint", "name": "bin/fips-lint.sh structural / coverage / source-honesty / endogeneity linter (F-C0–F-C9 gates; F-C10 WARN, F-C11 INFO)", "type": "executable_oracle", "provenance": "external_tool", "produced_by": null, "executable": true, "notes": "Checks structure/coverage/source tokens/endogeneity ONLY — explicitly NOT realism and NOT whether a src:PDF-… requirement really says what the cited section says. Reads fips_level from the manifest; FIPS_LEVEL=N is a test hook." },
+    { "id": "fips_report", "name": "The F1–F5 requirement study (*-fips-report.md)", "type": "artifact", "provenance": "internal", "produced_by": "author" },
+    { "id": "author_notes", "name": "Study author's private rationale", "type": "rationale", "provenance": "internal", "produced_by": "author", "notes": "A judge (reviewer) must never read it." },
+    { "id": "reviewer_critique", "name": "Independent completeness + realism critique, the src: honesty audit, and verdicts", "type": "artifact", "provenance": "internal", "produced_by": "reviewer" },
+    { "id": "terminus_decision", "name": "The residual-risk owner's acceptance (the owner of the protected information, or the agency's responsible authority — Ann. 13); the F5 sign-off", "type": "human_judgment", "provenance": "human", "produced_by": "terminus" },
+    { "id": "impl_source", "name": "The implementation source / codebase under study", "type": "artifact", "provenance": "exogenous", "produced_by": null, "notes": "The load-bearing barrier: every content actor is barriered from this (author ⊥ code). Reading it collapses the study to endogenous self-certification." },
+    { "id": "verification_scope_map", "name": "The downstream verification scope map (from the launch loop: frama-c-launch, or creusot-launch / creusot-monitoring for Rust)", "type": "artifact", "provenance": "exogenous", "produced_by": null, "notes": "Enters from the downstream loop; barriered from the author so the study stays exogenous." },
+    { "id": "probe_claim", "name": "One design/method claim under test (per probe)", "type": "soft_authority", "provenance": "authored", "produced_by": null, "notes": "A question posed to the loop, not authored by the probe — keeps the probe non-self-certifying." },
+    { "id": "probe_verdict", "name": "One recorded probe verdict (linter's actual behaviour)", "type": "artifact", "provenance": "internal", "produced_by": "probe" }
+  ],
+  "actors": [
+    {
+      "id": "coordinator",
+      "name": "FIPS coordinator",
+      "role": "coordinator",
+      "builds": "Framing (module + goal → F1–F5 subset), sequencing, Gate-A, gap adjudication, the handoff to the launch loop (frama-c-launch, or creusot-launch / creusot-monitoring for Rust)",
+      "produces": [],
+      "upper_bound": { "text": "The PDF + the module description + the target level", "sources": ["fips_pdf", "module_description", "target_level"] },
+      "lower_bound": { "text": "The linter output + reviewer/terminus verdicts", "sources": ["fips_lint", "reviewer_critique", "terminus_decision"], "executable": false },
+      "forbidden_moves": ["read the code", "author what it grades", "rubber-stamp", "declare done on an author's say-so"],
+      "must_not_see": ["impl_source"]
+    },
+    {
+      "id": "author",
+      "name": "Study author (requirement analyst)",
+      "role": "property_author",
+      "builds": "F1–F5 from the PDF + the module's public description + the target level + area-properties.md",
+      "produces": ["fips_report", "author_notes"],
+      "upper_bound": { "text": "The PDF + the module description + the target level", "sources": ["fips_pdf", "module_description", "target_level", "area_properties"] },
+      "lower_bound": { "text": "Format conformance (each tag a home line, each requirement exactly one AR# and one src: token, chaining well-formed)", "sources": ["fips_lint"], "executable": true },
+      "forbidden_moves": ["READ THE IMPLEMENTATION SOURCE (the load-bearing exogeneity barrier)", "state an invented requirement as PDF-sourced (src: honesty)", "inflate past the level's volume budget"],
+      "must_not_see": ["impl_source", "verification_scope_map", "reviewer_critique"]
+    },
+    {
+      "id": "reviewer",
+      "name": "Completeness/realism reviewer (disjoint catcher)",
+      "role": "exerciser",
+      "builds": "An independent completeness + realism critique, and the honesty audit of every src: token (does a src:PDF-… requirement really say what the cited section says; is every src:UNSOURCED surfaced)",
+      "produces": ["reviewer_critique"],
+      "upper_bound": { "text": "The PDF + the module description + the eleven-area vocabulary + (gold) ISO/IEC 19790 / SP 800-140 if supplied", "sources": ["fips_pdf", "module_description", "area_properties"] },
+      "lower_bound": { "text": "The coverage linter + its OWN independent per-area enumeration (the enumeration is the reviewer's method; the linter is the immutable oracle that squeezes it)", "sources": ["fips_lint"], "executable": true },
+      "forbidden_moves": ["read the author's rationale", "read the code", "rewrite the report (verdicts / carve-outs only)"],
+      "must_not_see": ["author_notes", "impl_source"]
+    },
+    {
+      "id": "terminus",
+      "name": "Residual-risk owner (the owner of the protected information, or the agency's responsible authority — the human terminus, Ann. 13)",
+      "role": "human_terminus",
+      "builds": "Acceptance of the residual risk; the F5 sign-off (PENDING until then). Validation itself is the CST laboratory and the CMVP, outside this loop",
+      "produces": ["terminus_decision"],
+      "upper_bound": { "text": "The owner's acceptance duty + the mission (the protected information)", "sources": ["module_description"] },
+      "lower_bound": { "text": "Consults the report + the reviewer's verdicts, then renders a HUMAN acceptance decision — no executable oracle", "sources": [], "executable": false, "absent_reason": "no executable oracle can settle acceptance/realism — that absence is why the owner is the terminus (the disjoint base); Ann. 13 puts the acknowledgment with the owner of the protected information" },
+      "forbidden_moves": ["author the requirements it accepts"],
+      "must_not_see": []
+    },
+    {
+      "id": "probe",
+      "name": "Probe (optional)",
+      "role": "probe",
+      "optional": true,
+      "builds": "Minimal method / tooling experiments",
+      "produces": ["probe_verdict"],
+      "upper_bound": { "text": "One design claim per probe", "sources": ["probe_claim"] },
+      "lower_bound": { "text": "The linter's actual behaviour", "sources": ["fips_lint"], "executable": true },
+      "forbidden_moves": ["implement a fix"],
+      "must_not_see": []
+    }
+  ],
+  "disjointness": {
+    "rationale": "Every content actor (coordinator, author, reviewer) is barriered from the implementation, so none can read requirements or failure modes off the code; the author holds the PDF + the public description + the level (never the reviewer's critique or the scope map), the reviewer holds the same U plus its own per-area enumeration (never the author's rationale or the code), and the owner holds the acceptance duty (never authors the requirements it accepts). No single pair certifies the report: structure and source tokens are the linter's, realism and the honesty audit are the reviewer's, acceptance is the owner's.",
+    "load_bearing_barrier": "author ⊥ code — the exogeneity invariant. If any content actor read the implementation, the requirement study collapses to endogenous self-certification and is no longer a valid upper bound for the verification loops.",
+    "catchability": [
+      { "actor": "author", "blind_spot": "invents a requirement stated as PDF-sourced; misses an area or writes a vacuous N/A; mirrors the code (endogeneity)", "caught_by": "reviewer", "via": "the reviewer's src: honesty audit + independent per-area enumeration + the fips-lint endogeneity tripwire (F-C5, F-C3, F-C9)" },
+      { "actor": "coordinator", "blind_spot": "bad framing / wrong module boundary or level / rubber-stamped 'done'", "caught_by": "terminus", "via": "the terminus refuses to sign on say-so" },
+      { "actor": "reviewer", "blind_spot": "the reviewer itself rubber-stamps or misses a class", "caught_by": "terminus", "via": "the owner weighs the residual risk against the protected information and can refuse the sign-off" },
+      { "actor": "terminus", "blind_spot": "accepts excessive residual risk", "caught_by": "external", "via": "org governance / external audit oversight (outside this loop)" },
+      { "actor": "probe", "blind_spot": "mis-reads the tool's behaviour / over-generalizes one experiment", "caught_by": "coordinator", "via": "the coordinator adjudicates probe verdicts at Gate-A; the probe never fixes, only records" }
+    ],
+    "endogeneity_flags": [],
+    "terminus": "The owner of the protected information, or the agency's responsible authority (Ann. 13), for the F5 sign-off; the disjoint completeness/realism reviewer for realism — no executable oracle settles either. The CMVP validation itself is outside this loop."
+  }
+}

@@ -113,16 +113,27 @@ content belong on the host, not in a container:
 |---|---|
 | T1 | No file under `templates/rust/` mentions "repo-root `creusot-sl.md`" (the rewrite of `auto-wp.md` §4.3.2). |
 | T2 | `templates/rust/skills/creusot-sl/SKILL.md` starts with a YAML front matter whose `name` is `creusot-sl`. |
-| T3 | `templates/common/` has the 13 skills of `auto-wp.md` §4.1, `templates/c/` the 9 of §4.2 and the 3 commands, `templates/rust/` the skills of §4.3.2 that exist so far. |
+| T3 | `templates/common/` has the 14 skills of `auto-wp.md` §4.1, `templates/c/` the 9 of §4.2 and the 4 commands, `templates/rust/` the skills of §4.3.2 that exist so far. |
 | T4 | No editor backup (`*~`) and nothing from `use-creusot/config/foo/` in `templates/`. |
-| T5 | Both `README.md` templates contain only the placeholders `{{DIR}}` and `{{LANGUAGE}}`. |
+| T5 | The `README.md` templates contain only these placeholders: `{{DIR}}`, `{{LANGUAGE}}`, `{{DRIVER}}`, `{{FEEDBACK}}`, `{{DRIVER_LINE}}` and `{{DRIVER_NOTE}}` (C), `{{DIR}}`, `{{LANGUAGE}}` and `{{DRIVER_LINE}}` (Rust). `{{DRIVER_NOTE}}` is the one sentence the fips driver adds after the quick-start command (`fips-skill-spec.md` §7.3). |
 | T6 | The three `time-loop` changes of `auto-wp.md` §4.2.2 are in `templates/c/`: `commands/time-loop.md` no longer contains "Stop early" nor "(diminishing returns)", and contains the replacement "Stop" bullet; `skills/time-loop/SKILL.md` no longer contains "DIMINISHING-RETURNS stop fires ONLY", and its description contains "There is no diminishing-returns stop"; both files name `XXX.md` as the report file and state that a re-run keeps the stored deadline. |
-| T7 | `templates/common/tools/bin/` holds `rmf-lint.sh` and `templates/c/tools/bin/` the other 21 scripts (`auto-wp.md` §4.1, §4.2.1; 22 in all, no name in both), neither `tools/` has a `*.sh` at its top level, `templates/rust/tools/` holds only `.gitignore`, and no file under `templates/` outside the two `tools/` names one of these scripts without its `bin/` prefix (bare or `./name.sh`). |
+| T7 | `templates/common/tools/bin/` holds `rmf-lint.sh` and `templates/c/tools/bin/` the other 22 scripts (`auto-wp.md` §4.1, §4.2.1; 23 in all, no name in both), `templates/common/tools/` holds the vendored `NIST.FIPS.140-3.pdf`, neither `tools/` has a `*.sh` at its top level, `templates/rust/tools/` holds only `.gitignore`, and no file under `templates/` outside the two `tools/` names one of these scripts without its `bin/` prefix (bare or `./name.sh`). |
 | T8 | The `workshop/` layer of each language (`auto-wp.md` §3.7.1) holds exactly `autowp.yaml`, `autowp-packages/sdk.yaml` and an executable `autowp-packages/hooks/setup-base` starting with `#!/bin/bash`; `autowp.yaml` has `name: autowp`, `base: ubuntu@24.04`, and the `sdks` names `frama-c-sdk`, `rocq`, `lean`, `project-autowp-packages` (C) or `creusot`, `rocq`, `lean`, `project-autowp-packages` (Rust), the three Store entries on `channel: latest/edge`; `sdk.yaml` has `name: autowp-packages`; no file of the layer names `sdks/`, `~/git/` or a `{{` placeholder; `setup-base` passes `shellcheck` when it is installed; each layer's `tools/.gitignore` lists `/.workshop.lock`. |
 
 The program tests 20–22 of `auto-wp.md` §5 (the generated `.workshop/`
 per language, the reserved `.workshop` paths, the rollback of `.workshop/`)
 are in `test_auto_wp.py` next to tests 1–19.
+
+The fips-driver checks (`fips-skill-spec.md` §8, numbered T8/T9/T9b/T9c/T10
+there) are T9–T13 here, after the workshop test T8:
+
+| # | Check |
+|---|---|
+| T9 | `templates/common/skills/fips-sl/` holds `SKILL.md` (front matter `name: fips-sl`), `fips-sl.sl.json` and the four reference files; `sl_disjointness_check.py fips-sl.sl.json` exits 0 (single-loop mode); the vendored PDF's sha256 is the spec's; the skeleton shown in `report-format.md` is byte-for-byte `skeleton.md`. |
+| T10 | `bin/fips-lint.sh` on `fips-sl/references/skeleton.md` passes (exit 0), and each of the ten broken copies (`fips-skill-spec.md` §5) fails with its check ID and no other failing check; a manifest without `fips_level` exits 2; `FIPS_LEVEL=3` overrides the manifest. |
+| T11 | `bin/ledger-ratchet.sh` on a FIPS ledger (the `# ledger: fips` form): the first run writes the baseline whose first line is `# ledger: fips`; a `PROVED` cell changed to `UNMODELED` FAILs after the round trip through the baseline file; `TRUSTED-PENDING` only warns; a header cell containing "race" with a `PROVED` row passes (the WS1 rule is not applied to the FIPS form); a STRIDE baseline is refused as "not a FIPS baseline"; the STRIDE path still reads its seven-column baseline. |
+| T12 | `bin/crosswalk-gen.sh --kind fips` on a fixture `PREFIX-fips-report.md`, `PREFIX-acsl/fips-ledger.tsv` and a `verdicts.tsv` with a `VO#` header: it detects the FIPS kind, writes §1 with one row per `VO#` and its units and coverage filled, writes the §3 FIPS ledger with the `# ledger: fips` marker, fails when a `PROVED` cell has no matching verdict, and `--check` fails on drift. The existing RMF and EBIOS kinds still detect as before. |
+| T13 | The PDF's normative sections hold their quotes (Ann. 6, 7, 10, 13 — the only sections an `RQ#` may cite), and the eleven areas and four level names appear in it; from `pdftotext` when installed, skipped otherwise. |
 
 ### 3.3 The agent harness in the container
 
@@ -294,11 +305,12 @@ git clone https://gitlab.freedesktop.org/gnu-grub/grub.git
 
 | # | Check |
 |---|---|
-| C2.1 | `auto-wp.py` exits 0 with the stock `python3`, and prints `skills:   22` and `commands: 3`. |
+| C2.1 | `auto-wp.py` exits 0 with the stock `python3`, and prints `skills:   23` and `commands: 3`. |
 | C2.2 | `foobar/README.md` exists, and the in-container block of its quick start (step 2, the code block that starts with `cd foobar`), extracted from the file, starts with exactly the lines this test ran and ends with `claude --dangerously-skip-permissions`; the README also documents the OpenCode harness (its install URL and `opencode` start line). |
 | C2.3 | `git clone` exits 0 and `foobar/grub/` is a git work tree. |
 | C2.4 | `foobar` is a git work tree and `grub/` is not tracked by it. |
 | C2.5 | A second `auto-wp.py --c foobar` exits 1 and changes nothing: a `sha256sum` manifest of `foobar/` (excluding `grub/` and `.git/`), plus the file list, is identical before and after. |
+| C2.6 | `auto-wp.py --driver fips --level 2 fipsbar` exits 0, prints `driver:   fips (FIPS 140-3 level 2)`, `skills:   23` and `commands: 3`, installs `ebios.md`, `fips.md` and `time-loop.md` (no `rmf.md`), and the manifest carries `driver: fips` and `fips_level: 2`. |
 
 ### 5.3 `smoke-test.sh` — level 3
 
@@ -453,7 +465,7 @@ Fresh `ubuntu:24.04` container, as in §5.2, then
 
 | # | Check |
 |---|---|
-| R2.1 | Exit 0 with the stock `python3`; prints `skills:   16` and `commands: 0`. |
+| R2.1 | Exit 0 with the stock `python3`; prints `skills:   17` and `commands: 0`. |
 | R2.2 | `foobar/README.md` exists and contains `creusot-launch`. |
 | R2.3 | `foobar` is a git work tree. |
 | R2.4 | As C2.5: a second run exits 1 and changes nothing. |

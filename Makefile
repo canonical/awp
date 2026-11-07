@@ -15,7 +15,8 @@ STAMP   = $(shell date -u +%Y%m%d-%H%M%S)
 SCRIPTS := $(wildcard tests/lib/*.sh tests/c/*.sh tests/rust/*.sh sdks/*.sh sdks/*/prepare.sh)
 
 .PHONY: help test test-l2 test-c-l2 test-rust-l2 check-scripts \
-        provision-c provision-rust smoke-c smoke-c-gzip smoke-c-gzip-ws smoke-rust sudo-rs-rust sudo-rs-rust-ws workspace-rust \
+        provision-c provision-rust smoke-c smoke-c-gzip smoke-c-gzip-ws smoke-c-mbedtls smoke-c-mbedtls-ws \
+        smoke-rust sudo-rs-rust sudo-rs-rust-ws workspace-rust \
         sdk-lean sdk-rocq sdk-framac sdk-creusot test-sdks clean clean-lxc
 
 help: ## Show this help
@@ -71,6 +72,12 @@ smoke-c-gzip: | $(OUT) ## Level 3, C: /time-loop run on gzip 1.9, 96 h by defaul
 
 smoke-c-gzip-ws: | $(OUT) ## Level 3, C: the gzip run in a generated project's workshop (token)
 	WORKSHOP=1 tests/c/gzip-test.sh 2>&1 | tee $(OUT)/c-gzip-ws-$(STAMP).log
+
+smoke-c-mbedtls: | $(OUT) ## Level 3, C: a fips `/time-loop mbedtls` campaign on Mbed TLS (level 4, 96 h, token)
+	tests/c/mbed-tls-test.sh 2>&1 | tee $(OUT)/c-mbedtls-$(STAMP).log
+
+smoke-c-mbedtls-ws: | $(OUT) ## Level 3, C: the mbedtls fips campaign in a generated project's workshop (token)
+	WORKSHOP=1 tests/c/mbed-tls-test.sh 2>&1 | tee $(OUT)/c-mbedtls-ws-$(STAMP).log
 
 sudo-rs-rust: | $(OUT) ## Level 3, Rust: a Creusot campaign on sudo-rs (token)
 	tests/rust/sudo-rs-test.sh 2>&1 | tee $(OUT)/rust-sudo-rs-$(STAMP).log

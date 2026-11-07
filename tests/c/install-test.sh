@@ -32,8 +32,8 @@ set -e
 printf '%s\n' "$out" | sed 's/^/    | /'
 if [ "$rc" -ne 0 ]; then
     fail C2.1 "auto-wp.py --c foobar exited $rc"
-elif ! grep -qx '  skills:   22' <<<"$out"; then
-    fail C2.1 "output lacks 'skills:   22'"
+elif ! grep -qx '  skills:   23' <<<"$out"; then
+    fail C2.1 "output lacks 'skills:   23'"
 elif ! grep -qx '  commands: 3' <<<"$out"; then
     fail C2.1 "output lacks 'commands: 3'"
 else
@@ -115,6 +115,30 @@ elif [ "$before" != "$after" ]; then
 else
     pass C2.5
     info C2.5 "second run said: $(echo "$again" | head -1)"
+fi
+
+# --- C2.6: the fips driver (fips-skill-spec.md 8) ------------------------------
+set +e
+fips_out=$(autowp_exec_user "$C" 'cd ~ && python3 auto-wp/auto-wp.py --driver fips --level 2 fipsbar' 2>&1)
+fips_rc=$?
+set -e
+printf '%s\n' "$fips_out" | sed 's/^/    | /'
+if [ "$fips_rc" -ne 0 ]; then
+    fail C2.6 "auto-wp.py --driver fips --level 2 exited $fips_rc"
+elif ! grep -qxF '  driver:   fips (FIPS 140-3 level 2)' <<<"$fips_out"; then
+    fail C2.6 "output lacks the fips driver line"
+elif ! grep -qxF '  skills:   23' <<<"$fips_out"; then
+    fail C2.6 "output lacks 'skills:   23'"
+elif ! grep -qxF '  commands: 3' <<<"$fips_out"; then
+    fail C2.6 "output lacks 'commands: 3'"
+elif ! autowp_exec_user "$C" \
+        'test -f ~/fipsbar/config/commands/fips.md && test -f ~/fipsbar/config/commands/ebios.md && test -f ~/fipsbar/config/commands/time-loop.md && test ! -e ~/fipsbar/config/commands/rmf.md'; then
+    fail C2.6 "fipsbar/config/commands/ is not ebios, fips, time-loop (rmf.md must be absent)"
+elif autowp_exec_user "$C" "python3 -c \"import json,sys; m=json.load(open('/home/ubuntu/fipsbar/config/auto-wp.json')); sys.exit(0 if (m.get('driver')=='fips' and m.get('fips_level')==2) else 1)\""; then
+    pass C2.6
+    info C2.6 "manifest: driver=fips, fips_level=2"
+else
+    fail C2.6 "the manifest lacks driver=fips / fips_level=2"
 fi
 
 autowp_summary

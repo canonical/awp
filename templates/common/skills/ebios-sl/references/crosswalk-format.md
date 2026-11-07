@@ -47,7 +47,8 @@ The crosswalk references the report's pinned tags (see
 
 ## Native generation (Move 5)
 
-The crosswalk is **generated**, not hand-written: `bin/crosswalk-gen.sh PREFIX` emits
+The crosswalk is **generated**, not hand-written: `bin/crosswalk-gen.sh PREFIX` (`--kind
+rmf|ebios|fips`, auto-detected from which report exists) emits
 `PREFIX-crosswalk.md` from this loop's code-blind report (§1 assets, §2 scenarios, §5 residuals) joined
 with the code-aware `PREFIX-acsl/verdicts.tsv` (§4) and `stride-ledger.tsv` (§3). The generator
 machine-checks that every `PROVED` ledger cell is backed by a real verdict (a fabricated PROVED fails

@@ -21,9 +21,12 @@ HARNESS=${HARNESS:-claude}
 HARNESS_SESSION=${HARNESS_SESSION:-autowp}
 # The harness input box; override if the UI changes.
 # Claude Code: the prompt character is followed by a space or, since Claude
-# Code 2.1.3xx, a no-break space (U+00A0), which grep's ' ' does not match.
+# Code 2.1.3xx, a no-break space (U+00A0). The NBSP is embedded at runtime
+# with printf, so the byte cannot be lost to an editor or a copy-paste.
 # OpenCode (v2 TUI): the placeholder in the empty input box ("Ask anything…")
 # and the status line, which stays once text is typed.
+# Claude Code: since 2.1.3xx the prompt char is followed by a no-break space,
+# embedded with $'...\u00a0' ANSI-C quoting so the byte survives edits.
 case $HARNESS in
     opencode) HARNESS_PROMPT_RE=${HARNESS_PROMPT_RE:-'Ask anything|shift\+tab agents'} ;;
     *)        HARNESS_PROMPT_RE=${HARNESS_PROMPT_RE:-$'(^|[│ ])(>|❯)( |\u00a0)|\\? for shortcuts'} ;;
@@ -131,8 +134,11 @@ harness_start() {
     fi
     autowp_exec_user "$c" "date -u +%s > ~/.autowp-harness-start; \
         tmux new-session -d -s $HARNESS_SESSION -x 220 -y 50 -c '$dir' ~/.local/bin/autowp-launch"
-    # 2. wait for the input prompt, up to 120 s
-    for i in $(seq 1 60); do
+    # 2. wait for the input prompt, up to HARNESS_START_TIMEOUT (default 300 s:
+    #    a cold first start — binary just pushed, page cache empty, a large
+    #    project tree to scan — can take minutes before the input box shows)
+    local tries=$(( ${HARNESS_START_TIMEOUT:-300} / 2 ))
+    for i in $(seq 1 "$tries"); do
         if harness_pane "$c" | grep -qE "$HARNESS_PROMPT_RE"; then
             break
         fi
