@@ -54,7 +54,8 @@ REQUEST="Analyze the crate sudo-rs in directory sudo-rs with creusot-monitoring.
 Guidance: a security audit. First, before anything reads the code, have a fresh sub-agent that \
 never sees sudo-rs/ write a code-blind NIST RMF risk study of sudo-rs with the rmf-sl skill to \
 $RMF_REPORT, next to sudo-rs/; it must pass bin/rmf-lint.sh $RMF_REPORT. creusot-monitoring \
-then uses its risk levels to rank what to prove. Never modify sudo-rs/; put every Creusot artifact in the overlay \
+then uses its risk levels to rank what to prove. Never modify sudo-rs/, and never run cargo inside it (cargo rewrites its Cargo.lock): \
+build a copy (cp -a sudo-rs /tmp/sudo-rs-build). Put every Creusot artifact in the overlay \
 $OVERLAY/ next to it, a Cargo workspace of its own that depends on creusot-std (see \
 config/skills/creusot/references/install.md), since creusot-launch is not available. \
 Rank files by exposure to untrusted input: the sudoers parser (src/sudoers) and command-line \
@@ -154,9 +155,15 @@ DEADLINE_UTC=$(date -u -d "@$DEADLINE" +%FT%TZ)
 REQUEST="$REQUEST \
 Deadline: $DEADLINE_UTC (epoch $DEADLINE). Work in cycles until then, and keep the session alive: \
 before ending every turn, if \$(date +%s) is below $DEADLINE, call ScheduleWakeup with delaySeconds 300 and \
-the prompt 'Continue the sudo-rs Creusot audit until epoch $DEADLINE: pick the next unproved item from \
-sudo-rs.md, prove it in $OVERLAY/, then update sudo-rs.md.' At the end of every cycle rewrite \
-sudo-rs.md so it is complete at any moment. Once the deadline has passed, write the final sudo-rs.md and \
+the prompt 'Continue the sudo-rs Creusot audit until epoch $DEADLINE: start the next item of the \
+list in the request (never a no-op cycle), work on it in $OVERLAY/, then update sudo-rs.md.' At the end of every cycle rewrite \
+sudo-rs.md so it is complete at any moment. \
+A cycle with nothing new is not a pause: while the deadline is ahead, every cycle must start one \
+of these, in order: an unproved function in an in-scope file; a mutation check for a proof that \
+lacks one; a finding not yet shown by a failing model in $OVERLAY/failing/; the next file by \
+exposure, including the parts of src/common, src/system and src/exec that are pure logic; a \
+stronger property (functional, not only absence of panics) for an item already proved. \
+Give each sub-agent at most 45 minutes and record what it delivers. Once the deadline has passed, write the final sudo-rs.md and \
 stop without re-arming."
 if ! harness_start "$C" "$D" "$REQUEST"; then
     fail S.1 "harness did not start"

@@ -525,6 +525,22 @@ on other lines. Each wake:
    `fork` that inherits context, or a fresh general-purpose/verifier agent; either way the authoring +
    the prover invocation happen in the sub-agent, and the coordinator consumes only the delivered
    verdict — never a mid-run artifact.)
+   **TIME BOX — every verifier delivers within 45 min of wall clock (default; state it in its prompt).**
+   One hard function must never hold the campaign (observed: a single verifier ground on `huft_build`
+   for 5 h while the coordinator recorded "still running; nothing recorded" at every wake). At the box
+   the verifier STOPS and DELIVERS what it has: each finished function with its verdict, each unfinished
+   one as `RESIDUE(C)` with its last `valid/total` goal count, the obstacle, and the next lever. The
+   coordinator records that report and re-queues the residue as a fresh, narrower thread (§4 triage),
+   rather than letting the same verifier run on. A verifier still running 15 min past its box is stopped
+   (`TaskStop`) and its thread re-spawned narrower.
+   **PARALLEL — never wait on one verifier while a disjoint target is nameable.** Run verifiers on
+   independent units side by side, but keep the machine's load below `nproc`: at most `nproc / 2`
+   concurrent verifiers (solver timeouts under overload are flaky verdicts, not residue).
+   **BUILD IN A COPY — the code under study `XXX/` is read-only, for builds too.** Never run
+   `configure`, `make`, a compiler, `cargo` or any tool that writes inside `XXX/` (object files, a
+   regenerated `Cargo.lock`, `config.status`); copy it first (`cp -a XXX build_XXX-analysis/…`) and
+   build there. Check `git -C XXX status --short` (or the checksum manifest) is still empty after any
+   build step.
    The sub-agent runs the base `/rmf` Phase-2: author the missing
    contract, WP, **refutation-probe every non-discharged goal**, escalate probe-confirmed true-but-
    hard goals to **audited admit-free Coq** (NO EVA) before tagging residue. **For a Plane-H thread:**

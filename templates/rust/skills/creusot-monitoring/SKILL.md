@@ -103,6 +103,12 @@ order + cross-unit Gate B.
   must not hand a barriered base role (spec author, verifier) anything it is forbidden
   to see; the monitoring layer adds barriers, it never removes the base's.
 
+- **The crate under study is read-only, for builds too.** Never run `cargo` (build, check,
+  test, update) inside `dir yyy`: cargo rewrites its `Cargo.lock` (a global `[patch]`, such as the
+  creusot SDK's, adds `[[patch.unused]]`; resolution may change versions), and the original cannot
+  be recovered without a commit. Copy it first (`cp -a yyy <scratch>/yyy`) and build the copy; check
+  `git -C yyy status --short` is still empty afterwards.
+
 ## 4. Gates (top level)
 - **Gate A_top — editorial.** The coordinator judges the per-crate plan + file
   schedule + the *interpretation of the guidance* against `U`: is "disregard network
@@ -189,6 +195,10 @@ as self-consistency unless an external requirement is also supplied.
    **`creusot-sl`** sub-loop, threading the guidance into the spec author/annotator
    (e.g. "specify thoroughly; disregard network access"). Propagate each proven callee
    `#[ensures]` as the caller's `#[requires]` (bottom-up).
+   **Time box:** each sub-loop delivers within 45 min of wall clock (say so in its prompt):
+   finished items with their verdict, unfinished ones as open with the last goal count, the
+   obstacle and the next lever. Re-queue the open part as a narrower item; never wait on one
+   sub-loop while an independent file is nameable (run them side by side, at most `nproc / 2`).
 5. **Base-SL monitor** audits that sub-loop's *soft outputs* — its newly written
    `config/skills/creusot/references/learned-*.md` entries and any
    inferred/strengthened contracts — against `U` and `L` (§6): **PASS / CARVE-OUT /

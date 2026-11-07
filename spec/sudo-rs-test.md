@@ -85,6 +85,17 @@ complete report; after the deadline, write the final report and stop without
 re-arming. This is what `time-loop/SKILL.md` does for C, until a Rust
 `time-loop` exists.
 
+A heartbeat alone keeps the session alive but not busy: the first 96-hour
+run (2026-11-06) logged 150 consecutive "nothing new" wake-ups from 23:10 on.
+The request therefore lists what a cycle with nothing new must start, in
+order: an unproved function in an in-scope file, a mutation check for a proof
+without one, a failing model for a finding without one, the next file by
+exposure (the pure parts of `src/common`, `src/system`, `src/exec`), then a
+stronger property for an item already proved; and it gives each sub-agent at
+most 45 minutes. It also forbids `cargo` inside `sudo-rs/` (build a copy):
+the same run rewrote `sudo-rs/Cargo.lock` itself with a `cargo build`
+there, which fails S.2.
+
 ## 4. Where it runs
 
 Two modes, sharing the steps and the checks:
