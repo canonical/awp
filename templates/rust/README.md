@@ -272,25 +272,42 @@ Never copy the host's `~/.local/share/opencode/auth.json` into it.
 
 ### 3. In the harness
 
-Whichever way you took, ask:
+Whichever way you took, type:
 
 ```
-onboard the crate mycrate with creusot-launch, then analyze it with creusot-monitoring
+/time-loop mycrate 72
 ```
 
-`creusot-launch` prepares the crate for Creusot and hands it to
-`creusot-monitoring`, which verifies it file by file with the `creusot-sl`
-loop. Detach from `tmux` with `Ctrl-b d` and leave the container with `exit`;
-the run goes on. To come back to it: with A, `workshop shell` then
-`tmux attach -t wp` (with B, after `multipass shell autowp`); with C:
+This runs the time-loop campaign on the crate `mycrate` for 72 hours: first a
+risk study of the crate written without reading its code, then Creusot
+proofs, ranked by that study, with `creusot-monitoring` and `creusot-sl`. In
+OpenCode, type the same command (type `/` to list the commands). Detach from
+`tmux` with `Ctrl-b d` and leave the container with `exit`; the run goes on.
+To come back to it: with A, `workshop shell` then `tmux attach -t wp` (with B,
+after `multipass shell autowp`); with C:
 
 ```
 lxc exec wp-{{DIR}} -- sudo -iu ubuntu tmux attach -t wp
 ```
 
-- The crate `mycrate/` is kept untouched. The annotated copy lives in an
-  overlay next to it, `mycrate-creusot/`, and every other result is written in
-  `{{DIR}}`.
+- The crate `mycrate/` is kept untouched; the loop never builds inside it
+  (it builds a copy). The Creusot models live in an overlay next to it,
+  `mycrate-creusot/`, with the verdict ledger `verdicts.tsv` and the state
+  `time-loop.state`; the risk study is `mycrate-analysis-rmf-report.md` (or
+  `mycrate-analysis-fips-report.md` under the fips driver) and the findings are in `mycrate-analysis-found-issues.md`.
+- The report of the run is written to `mycrate.md`, next to `mycrate/`. It is
+  the final report when the campaign is finished, or an interim report when
+  the deadline is reached first. Each new report replaces the previous one;
+  git history keeps the earlier versions.
+- You can stop the run and start it again with the same command. The loop
+  picks up from its saved state and **keeps the original deadline**:
+  `/time-loop mycrate 72` restarted after 10 hours has 62 hours left, not 72.
+  To start a new campaign with a new budget, add `--fresh`.
+- If the crate needs a system library to build (for example `libpam0g-dev`
+  for a crate that links PAM), add its apt package to the `apt-get install`
+  line of `.workshop/autowp-packages/hooks/setup-base` before `workshop
+  launch` (or run `workshop refresh` after). The proofs do not need it; the
+  reproductions of findings on the real code do.
 - Commits are made in `{{DIR}}/.git`, so the history is on the host too. They
   are pushed to `~/{{DIR}}.git`, a bare repository in the container, so the
   container needs no credentials. With A and C the files are on the host
@@ -324,21 +341,20 @@ allows every action), and the run stops at each prompt until you answer it.
 
 ## Other commands
 
-There are no slash commands for Rust yet (`config/commands/` is empty). Ask
-for these skills by name instead:
+- `/time-loop` options: `--dir=<subdir>` (focus an existing campaign on a
+  subdirectory of the crate, e.g. `--dir=src/parser`), `--fresh` (start a new
+  campaign). See `config/commands/time-loop.md` for details.
 
-- `creusot-launch` — onboard a crate: build configuration, toolchain check,
-  overlay, scope map, smoke proof.
-- `creusot-monitoring` — verify a whole crate, file by file, leaf files first.
+These skills can also be asked for by name:
+
+- `creusot-monitoring` — verify a whole crate, file by file, leaf files first,
+  without a time budget.
 - `creusot-sl` — verify one `*.rs` file.
 - `creusot` — the Pearlite reference used by the other skills.
 - `rmf-sl` — a NIST RMF risk study of the crate, written without reading its
   code, to `mycrate-analysis-rmf-report.md`; `bin/rmf-lint.sh
   mycrate-analysis-rmf-report.md` checks its structure and that no code
-  leaked into it. `creusot-monitoring` uses its risk levels to rank what to
-  prove first, so ask for it in the same request: "write a code-blind RMF
-  risk study of mycrate with rmf-sl, then analyze it with
-  creusot-monitoring".
+  leaked into it. `/time-loop` runs it first.
 
 ## Prerequisites
 
@@ -375,7 +391,7 @@ for these skills by name instead:
 ## What is in this directory
 
 - `config/` — the skills (`config/skills/`) and slash commands
-  (`config/commands/`, empty for now), listed in `config/auto-wp.json`.
+  (`config/commands/`: `time-loop`), listed in `config/auto-wp.json`.
 - `.agents`, `.claude/` and `.opencode/` — links to `config/`, so the agent
   harness (Claude Code, OpenCode, or any harness that reads `.agents/`) finds
   them.

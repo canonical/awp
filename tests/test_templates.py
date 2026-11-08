@@ -30,9 +30,10 @@ C_LAYER_SKILLS = [
     "frama-c-monitoring", "framac-sl", "linux-api", "ocaml", "time-loop",
 ]
 C_COMMANDS = ["ebios", "fips", "rmf", "time-loop"]
+RUST_COMMANDS = ["time-loop"]
 RUST_LAYER_SKILLS = [
     "creusot", "creusot-launch", "creusot-monitoring", "creusot-sl",
-    "sl-auditor", "sl-builder", "sl-internal", "sl-monitoring-sl",
+    "sl-auditor", "sl-builder", "sl-internal", "sl-monitoring-sl", "time-loop",
 ]
 # Not written yet (auto-wp.md 4.3.7: "Until a step is done, its files are absent").
 PENDING_RUST = {"creusot-launch": "roadmap step 1 (auto-wp.md 4.3.7)"}
@@ -118,7 +119,7 @@ class TestTemplates(unittest.TestCase):
         missing = sorted(set(RUST_LAYER_SKILLS) - set(present))
         self.assertEqual([s for s in missing if s not in PENDING_RUST], [],
                          "skills of 4.3.2 missing that are not pending roadmap steps")
-        self.assertEqual(commands("rust"), [])
+        self.assertEqual(commands("rust"), RUST_COMMANDS)
         self.assertTrue((TEMPLATES / "rust/README.md").is_file())
         for s in present:
             self.assertTrue((TEMPLATES / "rust/skills" / s / "SKILL.md").is_file(), s)
@@ -219,6 +220,36 @@ class TestTemplates(unittest.TestCase):
         self.assertIn("never terminate early", desc)
         self.assertNotIn("budget per invocation", norm(text))
         self._report_and_deadline(text, "skills/time-loop/SKILL.md")
+
+    def test_T6_rust_time_loop(self):
+        """The Rust /time-loop (auto-wp.md 4.3.7 step 5): same contract as the C one."""
+        cmd = (TEMPLATES / "rust/commands/time-loop.md").read_text()
+        skill = (TEMPLATES / "rust/skills/time-loop/SKILL.md").read_text()
+        for text, name in ((cmd, "rust commands/time-loop.md"),
+                           (skill, "rust skills/time-loop/SKILL.md")):
+            with self.subTest(name=name):
+                self._report_and_deadline(text, name)
+                n = norm(text)
+                self.assertNotIn("diminishing returns)", n)
+                self.assertRegex(text, r"[Nn]ever run `cargo`", "XXX/ must stay pristine")
+                self.assertIn("XXX-creusot/time-loop.state", text)
+        fm = front_matter(skill)
+        self.assertIsNotNone(fm)
+        self.assertRegex(fm, r"(?m)^name: time-loop$")
+        d = re.search(r"^description: >-\n((?:  .*\n)+)", fm + "\n", re.M)
+        self.assertIsNotNone(d)
+        desc = " ".join(l.strip() for l in d.group(1).splitlines())
+        self.assertLessEqual(len(desc), 1024, "description over the Agent Skills limit")
+        self.assertIn("There is no diminishing-returns stop", desc)
+        n = norm(skill)
+        # The pinned state lines and ledger header are those of the C skill (tests/test_harness.py).
+        for pinned in ("`start=<epoch>`", "`deadline=<epoch>`", "`wake=<epoch>`", "`cycle <n>: `"):
+            self.assertIn(pinned, skill, pinned)
+        self.assertIn("`unit\tSA#\tfunction\tverdict\tgoals\tnotes`", skill)
+        for rule in ("TIME BOX — 45 minutes", "at most `nproc / 2`", "No no-op cycle",
+                     "never verifies inline", "commit and push"):
+            self.assertIn(norm(rule), n, rule)
+        self.assertIn("/time-loop sudo-rs 96", cmd)
 
     def _report_and_deadline(self, text, name):
         n = norm(text)

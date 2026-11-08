@@ -16,7 +16,7 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-VERSION = "0.5.0"
+VERSION = "0.6.0"
 TEMPLATES = Path(__file__).resolve().parent / "templates"
 LANGUAGES = {"c": "C (Frama-C/WP)", "rust": "Rust (Creusot)"}
 # The campaign driver (§2 of spec/fips-skill-spec.md): each driver installs its

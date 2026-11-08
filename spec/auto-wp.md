@@ -5,7 +5,10 @@ pre-loaded with the agent configuration (skills and slash commands) needed to
 drive a formal-verification campaign on C or Rust code. The configuration is
 modelled on `../use-frama-c/config/` (C) and `../use-creusot/config/` (Rust).
 
-Version described: **0.5.0**. Compared with 0.4.0, the campaign driver of
+Version described: **0.6.0**. Compared with 0.5.0, the Rust layer has its
+own `/time-loop` command and `time-loop` skill (§4.3.7 step 5), so
+`/time-loop mycrate 72` works in a Rust project as in a C one; the manifest's
+`commands` is `time-loop` under `--rust`. Compared with 0.4.0, the campaign driver of
 `fips-skill-spec.md` is implemented: `--driver rmf|fips` and `--level` choose
 which skill drives the campaign (`/rmf` or `/fips`), the manifest records
 `driver` and `fips_level`, `templates/common/tools/` gains
@@ -146,7 +149,7 @@ Symbolic links in the templates are copied as links.
 ```json
 {
   "language": "c",
-  "auto_wp_version": "0.5.0",
+  "auto_wp_version": "0.6.0",
   "driver": "fips",
   "fips_level": 3,
   "created": "2026-10-27T21:30:00Z",
@@ -161,7 +164,8 @@ default) or `fips`; `fips_level` is present only under `fips` and is the
 single place the target level is stored — `fips-sl`, `/fips` and
 `bin/fips-lint.sh` read it from there. Under `--driver rmf` the commands list
 is `ebios, rmf, time-loop` (C), under `--driver fips` it is `ebios, fips,
-time-loop`; with `--rust` it is empty under both drivers.
+time-loop`; with `--rust` it is `time-loop` under both drivers (the Rust
+`time-loop` reads the driver to pick the risk study, §4.3.7 step 5).
 
 ### 3.3 Harness wiring
 
@@ -582,20 +586,20 @@ differences:
     `cd foobar`, `git clone <crate-url> mycrate`, the git identity and the
     bare remote, the harness install, `tmux` and the harness start.
 
-  Until roadmap
-  step 5 (§4.3.7) is done, there is no `/time-loop` command for Rust, so the
-  README must not contain the string `/time-loop mycrate 72`. Step 3 (2D) is
-  instead a plain request: `onboard the crate mycrate with creusot-launch,
-  then analyze it with creusot-monitoring`.
-  When `templates/rust/commands/time-loop.md` exists, the template is updated
-  to show `/time-loop mycrate 72`, exactly as in the C README. This is a
-  template change only; the program does not change.
-- *Other commands.* While `config/commands/` is empty for Rust, this item says
-  there are no slash commands yet and lists the skills to ask for by name:
-  `creusot-launch`, `creusot-monitoring`, `creusot-sl`, `creusot`, and
-  `rmf-sl` (the code-blind risk study, `mycrate-analysis-rmf-report.md`,
-  checked by `bin/rmf-lint.sh`, which `creusot-monitoring` uses to rank what
-  to prove; the item gives the request that asks for both).
+  Step 3 (2D) is `/time-loop mycrate 72`, as in the C README, followed
+  by the same bullets adapted to Rust: `mycrate/` untouched and never built
+  in place; the overlay `mycrate-creusot/` with `verdicts.tsv` and
+  `time-loop.state`; the risk study and the finding ledger; the report
+  `mycrate.md`; a re-run keeps the original deadline (`--fresh` for a new
+  one); a crate that needs a system library gets its apt package in
+  `.workshop/autowp-packages/hooks/setup-base` (the example is
+  `libpam0g-dev`).
+- *Other commands.* The `/time-loop` options (`--dir=<subdir>`,
+  `--fresh`), then the skills that can be asked for by name:
+  `creusot-monitoring`, `creusot-sl`, `creusot`, and `rmf-sl` (the
+  code-blind risk study, `mycrate-analysis-rmf-report.md`, checked by
+  `bin/rmf-lint.sh`, which `/time-loop` runs first). `creusot-launch` is
+  listed once it is written.
 - *Prerequisites.* On the host, the same three options as for C. In the
   container, Creusot
   (`cargo creusot`), Why3, why3find, the solvers (Alt-Ergo, Z3, CVC4, CVC5),
@@ -1163,8 +1167,10 @@ templates/rust/
 │   ├── sl-auditor/            copied from use-creusot (overrides common)
 │   ├── sl-builder/            copied from use-creusot (overrides common)
 │   ├── sl-internal/           copied from use-creusot (overrides common)
-│   └── sl-monitoring-sl/      copied from use-creusot (overrides common)
-├── commands/                  empty
+│   ├── sl-monitoring-sl/      copied from use-creusot (overrides common)
+│   └── time-loop/             new: the Creusot port of the C time-loop (§4.3.7 step 5)
+├── commands/
+│   └── time-loop.md           new: the Rust /time-loop entry point (§4.3.7 step 5)
 ├── tools/
 │   └── .gitignore             /.workshop.lock (§3.7.4); bin/rmf-lint.sh and
 │                              bin/fips-lint.sh come from
@@ -1430,10 +1436,25 @@ directories of the two layers (0.3.0, §3.6).
    `creusot-launch` and `creusot-monitoring`. Modelled on
    `use-frama-c/config/commands/rmf.md` and `ebios.md`.
 5. **Creusot `time-loop`**, in `templates/rust/skills/time-loop/` plus a
-   `templates/rust/commands/time-loop.md`: the time-budgeted loop that drives
-   the Rust `/rmf`. The C version's `SKILL.md` names Frama-C 63 times, and
-   about 200 times counting ACSL and WP, so this is a port rather than a
-   copy. It comes last because it depends on steps 1–4.
+   `templates/rust/commands/time-loop.md`: the time-budgeted loop. The C
+   version's `SKILL.md` names Frama-C 63 times, and about 200 times counting
+   ACSL and WP, so this is a port rather than a copy. *Done in 0.6.0
+   (2026-11-08), ahead of steps 1, 3 and 4:* the loop drives
+   `creusot-monitoring` directly (there is no Rust `/rmf` yet) and runs the
+   code-blind study itself on its first cycle (`rmf-sl`, or `fips-sl` under
+   the fips driver). It keeps the C loop's contract — `XXX.md` report,
+   pinned `time-loop.state` lines, `verdicts.tsv` header and status words,
+   per-cycle commit and push, the heartbeat on each harness, no
+   diminishing-returns stop, a re-run keeps the deadline — and adds what
+   the sudo-rs campaign (`sudo-rs-test.md`) taught: never build inside
+   `XXX/`, a 45-minute box per verifier, at most `nproc / 2` verifiers, an
+   ordered list of work for a cycle that would otherwise be a no-op, and
+   findings witnessed by a failing model and a run of the unmodified code.
+   The overlay is `XXX-creusot/`, set up by `creusot-launch` when it exists
+   and otherwise as a Cargo workspace depending on `creusot-std`. Its
+   description is under the 1024-character limit of the Agent Skills
+   specification. When step 4 lands, the loop drives the Rust `/rmf`
+   instead.
 
 Until a step is done, its files are absent and `--rust` installs whatever the
 Rust layer contains at that point.

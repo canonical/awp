@@ -44,12 +44,12 @@ C_LAYER_SKILLS = [
 C_COMMANDS = ["ebios", "rmf", "time-loop"]
 RUST_LAYER_SKILLS = [
     "creusot", "creusot-launch", "creusot-monitoring", "creusot-sl",
-    "sl-auditor", "sl-builder", "sl-internal", "sl-monitoring-sl",
+    "sl-auditor", "sl-builder", "sl-internal", "sl-monitoring-sl", "time-loop",
 ]
-RUST_COMMANDS = []
+RUST_COMMANDS = ["time-loop"]
 
 C_SKILLS = sorted(set(COMMON_SKILLS) | set(C_LAYER_SKILLS))            # 23
-RUST_SPEC_SKILLS = sorted(set(COMMON_SKILLS) | set(RUST_LAYER_SKILLS))  # 17
+RUST_SPEC_SKILLS = sorted(set(COMMON_SKILLS) | set(RUST_LAYER_SKILLS))  # 19
 
 # Rust-layer skills the roadmap has not delivered yet (auto-wp.md 4.3.7).
 PENDING_RUST = {"creusot-launch": "roadmap step 1 (auto-wp.md 4.3.7)"}
@@ -200,10 +200,10 @@ class TestAutoWp(AutoWpTestCase):
                             f"missing config/skills/{s}/SKILL.md")
         skills = skill_dirs(foo)
         self.assertEqual(skills, RUST_SKILLS,
-                         f"expected the 18 skills of auto-wp.md 4.3.2 minus "
+                         f"expected the 19 skills of auto-wp.md 4.3.2 minus "
                          f"{RUST_ABSENT_PENDING or 'nothing'}")
-        self.assertEqual(len(skills), 18 - len(RUST_ABSENT_PENDING))
-        self.assertEqual(command_names(foo), [])
+        self.assertEqual(len(skills), 19 - len(RUST_ABSENT_PENDING))
+        self.assertEqual(command_names(foo), RUST_COMMANDS)
         self.assertEqual([s for s in skills if s.startswith("frama-c")], [])
         self.assertEqual(
             (foo / "config/skills/sl-builder/SKILL.md").read_bytes(),
@@ -212,14 +212,14 @@ class TestAutoWp(AutoWpTestCase):
             foo / "config/skills/sl-internal/scripts/no_ceiling_gate.py"))
 
     def test_02b_rust_creusot_launch_installed(self):
-        """The part of test 2 that needs creusot-launch (spec count: 17)."""
+        """The part of test 2 that needs creusot-launch (spec count: 19)."""
         if RUST_ABSENT_PENDING:
             self.skipTest(pending_note(RUST_ABSENT_PENDING) +
-                          "; --rust installs %d skills instead of 17" % len(RUST_SKILLS))
+                          "; --rust installs %d skills instead of 19" % len(RUST_SKILLS))
         r = self.run_auto_wp("--rust", "foo")
         self.assertOk(r)
         self.assertTrue((self.tmp / "foo/config/skills/creusot-launch/SKILL.md").is_file())
-        self.assertEqual(len(skill_dirs(self.tmp / "foo")), 17)
+        self.assertEqual(len(skill_dirs(self.tmp / "foo")), 19)
 
     def test_02c_rust_only_pending_skills_absent(self):
         """Every Rust-layer skill of 4.3.2 that is not pending has a template."""
@@ -447,7 +447,7 @@ class TestAutoWp(AutoWpTestCase):
                 self.assertOk(self.run_auto_wp("--" + lang, foo.name))
                 m = json.loads((foo / "config/auto-wp.json").read_text())
                 self.assertEqual(m["language"], lang)
-                self.assertEqual(m["auto_wp_version"], "0.5.0")
+                self.assertEqual(m["auto_wp_version"], "0.6.0")
                 self.assertEqual(m["driver"], "rmf")
                 self.assertNotIn("fips_level", m)
                 self.assertRegex(m["created"], r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$")
@@ -824,18 +824,18 @@ class TestOutputAndConstraints(AutoWpTestCase):
         self.assertEqual(lines[0], "created foobar/config (language: rust)")
         self.assertEqual(lines[1], "  driver:   rmf")
         self.assertEqual(lines[2], f"  skills:   {len(RUST_SKILLS)}")
-        self.assertEqual(lines[3], "  commands: 0")
+        self.assertEqual(lines[3], f"  commands: {len(RUST_COMMANDS)}")
         self.assertEqual(lines[4:8], ["copied  foobar/.gitignore",
                                       "copied  foobar/NIST.FIPS.140-3.pdf",
                                       "copied  foobar/bin",
                                       "copied  foobar/.workshop (workshop: autowp)"])
 
-    def test_rust_output_spec_count_18(self):
+    def test_rust_output_spec_count_19(self):
         if RUST_ABSENT_PENDING:
             self.skipTest(pending_note(RUST_ABSENT_PENDING) +
-                          f"; prints 'skills:   {len(RUST_SKILLS)}', spec says 18")
+                          f"; prints 'skills:   {len(RUST_SKILLS)}', spec says 19")
         r = self.run_auto_wp("--rust", "foobar")
-        self.assertIn("  skills:   18", r.stdout.splitlines())
+        self.assertIn("  skills:   19", r.stdout.splitlines())
 
     def test_script_header_and_mode(self):
         self.assertTrue(SCRIPT.read_text().startswith("#!/usr/bin/env python3\n"))
@@ -924,7 +924,7 @@ class TestFipsDriver(AutoWpTestCase):
         m = json.loads((d / "config/auto-wp.json").read_text())
         self.assertEqual(m["driver"], "fips")
         self.assertEqual(m["fips_level"], 4)
-        self.assertEqual(m["commands"], [])          # no campaign command under --rust
+        self.assertEqual(m["commands"], RUST_COMMANDS)  # time-loop only: no /rmf or /fips for Rust yet
         self.assertTrue((d / "NIST.FIPS.140-3.pdf").is_file())
         text = (d / "README.md").read_text()
         self.assertIn("Requirement study: FIPS 140-3, security level 4 (fips-sl).", text)
