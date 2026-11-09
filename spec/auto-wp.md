@@ -5,7 +5,9 @@ pre-loaded with the agent configuration (skills and slash commands) needed to
 drive a formal-verification campaign on C or Rust code. The configuration is
 modelled on `../use-frama-c/config/` (C) and `../use-creusot/config/` (Rust).
 
-Version described: **0.6.0**. Compared with 0.5.0, the Rust layer has its
+Version described: **0.6.0**. Specified for **0.7.0**, not implemented: the
+`--harness claude|opencode|copilot|none` option (§1.1); it is the only change
+of that version. Compared with 0.5.0, the Rust layer has its
 own `/time-loop` command and `time-loop` skill (§4.3.7 step 5), so
 `/time-loop mycrate 72` works in a Rust project as in a C one; the manifest's
 `commands` is `time-loop` under `--rust`. Compared with 0.4.0, the campaign driver of
@@ -32,7 +34,8 @@ by hand or by `frama-c-launch`) is kept as the fallback.
 ## 1. Command line
 
 ```
-./auto-wp.py [--c|--rust] [--driver rmf|fips] [--level 1|2|3|4] <directory-name>
+./auto-wp.py [--c|--rust] [--driver rmf|fips] [--level 1|2|3|4]
+             [--harness claude|opencode|copilot|none] <directory-name>
 ```
 
 | Argument           | Meaning                                                                  |
@@ -41,12 +44,17 @@ by hand or by `frama-c-launch`) is kept as the fallback.
 | `--rust`           | Install the Rust configuration (Creusot).                                |
 | `--driver`         | Which skill drives the campaign: `rmf` (NIST RMF, the default) or `fips` (FIPS 140-3). Each driver installs its own campaign command (`/rmf` or `/fips`); both skills, both linters and the vendored PDF are installed whatever the driver (§4.1). |
 | `--level`          | The target FIPS 140-3 security level, 1–4. Required with `--driver fips` and refused otherwise — Ann. 7 says the level "must be chosen", so there is no default. |
+| `--harness`        | Which agent harness the project is generated for: `claude` (the default, today's behaviour), `opencode`, `copilot` or `none`. It selects the harness lines of the README, and what the Workshop definition installs. `none` installs no harness: the user installs one by hand (§1.1). **Specified for 0.7.0, not implemented.** |
 | `<directory-name>` | Path of the project directory to create. Relative paths resolve against the current working directory. |
 
 - `--c` and `--rust` are mutually exclusive; giving both is a usage error.
 - `--driver fips` without `--level` is a usage error; `--level` without
   `--driver fips` is a usage error; `--level` outside 1–4 is a usage error
   (exit 2, nothing created).
+- `--harness` takes one of the four values above; any other is a usage
+  error. `copilot` is a usage error too until the Copilot harness is
+  implemented (`spec/choose-harness.md` §10.6), with the message
+  `--harness copilot is not implemented yet` (exit 2, nothing created).
 - Exactly one positional argument is required.
 - `-h` / `--help` prints usage and exits with status 0.
 
@@ -61,6 +69,84 @@ creates `foobar/` containing `config/` (skills and commands), the links
 tools of the language layer,
 a `README.md`, a Workshop definition in `.workshop/` (§3.7), and a git
 repository (§3).
+
+### 1.1 `--harness` — choosing the agent harness (specified for 0.7.0)
+
+`--harness` is the generation-time counterpart of the test scripts'
+`HARNESS=<value>` (`spec/choose-harness.md` §1.5). It answers one question:
+which agent harness will run in this project's container, so that the
+generated files say so and, where possible, install it.
+
+| Value | Meaning |
+|---|---|
+| `claude` | Claude Code. The default, so `auto-wp.py foobar` generates what it generates today. |
+| `opencode` | OpenCode (`choose-harness.md` §2). |
+| `copilot` | GitHub Copilot CLI (`choose-harness.md` §5). Refused with a usage error until implemented (above). |
+| `none` | No harness. The project is the same, the README gives no harness install or start line, and the Workshop definition installs nothing: **the user installs a harness by hand inside the workshop** (`workshop shell`) and starts it in `tmux`. |
+
+**What does not change with the value.** The skills and commands, the tools,
+the `.workshop/` SDK list, and the five links of §3.3 (`.agents`,
+`.claude/…`, `.opencode/…`). The links stay under every value, `none`
+included: they cost nothing, they are what lets a harness installed later
+(or a second one) find the same definitions, and the Copilot CLI already
+reads `.agents/skills` and `.claude/skills`. The skills and commands live
+once in `config/` whatever the harness.
+
+**What changes with the value.**
+
+1. **`config/auto-wp.json`** gains `"harness": "<value>"` (§3.2).
+2. **The README.** Item 2 of §3.4 shows only the chosen harness's install and
+   start lines, and its section "The agent harness" describes only that one
+   (login, credential rules, permission flag). Under `none` the install and
+   start lines are replaced by one paragraph (§1.1.1).
+3. **The Workshop definition** (§3.7). For `claude`, `opencode` and
+   `copilot`, the project-local SDK installs the harness at launch: the
+   program appends the harness's install snippet
+   (`templates/common/harness/<value>.sh`, one per harness, the same line as
+   the README's install step) to `.workshop/autowp-packages/hooks/setup-base`.
+   Under `none` nothing is appended. The snippet installs for every user of
+   the workshop (a system-wide location such as `/usr/local/bin`), since
+   `setup-base` runs as root. Whether a root install of each harness is
+   usable by the `workshop` user is **unverified**; the launch test of
+   §1.1.2 settles it, and until then the README's own install step remains
+   the documented route.
+4. **The output** (§3.6) gains the line `  harness:  <value>`.
+
+The harness is not asked to authenticate at generation time: no credential is
+read or written by `auto-wp.py`, and login stays interactive in the container
+(§3.4), whatever the value.
+
+#### 1.1.1 The `none` README
+
+Under `none`, step 2 of each way (A, B, C) of §3.4 ends at "start `tmux`",
+then a paragraph, the same in both languages:
+
+> No agent harness is installed. Install one that reads `.agents/skills`,
+> `.claude/skills` or `.opencode/skills` and the commands in
+> `.claude/commands` or `.opencode/commands` (Claude Code, OpenCode and the
+> GitHub Copilot CLI do), start it in the `tmux` session with the
+> permission flag it needs for unattended work, log in inside the
+> container, and type the command of the next step. Never copy a host
+> credential into the container.
+
+Step 3 (`/time-loop grub 72`, or its Rust form) is unchanged: a harness that
+cannot run slash commands is the user's to adapt, as `choose-harness.md` §1
+says for a harness with no verified primitive. The README does not name a
+harness's flags, so it cannot go stale on one. `none` is also the value for a
+harness this repository does not know.
+
+#### 1.1.2 Tests
+
+`tests/test_auto_wp.py` gains, for both languages: each accepted value
+generates and records `harness` in the manifest; the default is `claude` and
+its output equals today's; `--harness copilot` exits 2 with nothing created
+(until implemented); an unknown value exits 2; `--harness none` generates a
+README without the install and start lines of any harness and a `setup-base`
+without a harness snippet; each of the other values produces a `setup-base`
+with its snippet and a README that names only that harness. A level 3
+check launches a generated workshop for each of `claude` and `opencode` and
+confirms the harness is on the `workshop` user's `PATH` (the **unverified**
+point of item 3), and one for `none` that confirms none of them is.
 
 ## 2. Implementation constraints
 
@@ -152,13 +238,14 @@ Symbolic links in the templates are copied as links.
   "auto_wp_version": "0.6.0",
   "driver": "fips",
   "fips_level": 3,
+  "harness": "claude",
   "created": "2026-10-27T21:30:00Z",
   "skills": ["directory-structure", "ebios-risk-manager", "..."],
   "commands": ["ebios", "fips", "time-loop"]
 }
 ```
 
-`created` is the UTC time of the run in ISO 8601. `skills` and `commands` are
+`harness` (0.7.0, §1.1) is `claude`, `opencode`, `copilot` or `none`. `created` is the UTC time of the run in ISO 8601. `skills` and `commands` are
 sorted lists of the names actually installed. `driver` is `rmf` (the
 default) or `fips`; `fips_level` is present only under `fips` and is the
 single place the target level is stored — `fips-sl`, `/fips` and
@@ -205,6 +292,7 @@ placeholders in it and changes nothing else:
 | `{{DRIVER}}` | `rmf` or `fips` |
 | `{{FEEDBACK}}` | `monitor-feedback` or `fips-feedback` |
 | `{{DRIVER_LINE}}` | `Risk study: NIST RMF (rmf-sl).`, or `Requirement study: FIPS 140-3, security level N (fips-sl).` |
+| `{{HARNESS}}` (0.7.0) | `claude`, `opencode`, `copilot` or `none`; selects which harness blocks of the template the program keeps (§1.1) and drops the others |
 | `{{DRIVER_NOTE}}` | empty under `rmf`; under `fips`, the sentence pointing at `/time-loop grub 72 --dir=grub-core/lib/libgcrypt` (GRUB as a whole is not a module; its crypto library is) |
 
 **Content of the C README** (`--c`, or no flag). In this order:
@@ -648,6 +736,7 @@ project must be a git repository.
   ```
   created foobar/config (language: c)
     driver:   rmf
+    harness:  claude
     skills:   23
     commands: 3
   copied  foobar/.gitignore
@@ -738,7 +827,9 @@ definition differs per language in full. The program replaces no
 placeholder in them (the workshop name is the fixed `autowp`, not the
 project's name, so that the commands of the README are the same for every
 project and no name rule of Workshop's is hit). The files are therefore
-template changes only, and what follows fixes their content.
+template changes only, and what follows fixes their content. The one
+exception is the harness snippet that `--harness` appends to `setup-base`
+(§1.1, item 3), so that file is the template's plus that snippet.
 
 `.workshop/autowp.yaml` for `--c`:
 

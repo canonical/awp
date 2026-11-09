@@ -13,15 +13,22 @@ This document specifies:
   variant **B′** (§5, a sketch);
 - the account, plan and terms constraints of each route (§6);
 - why a **running campaign is never switched**, and how to stop one (§7);
+- how a harness is **selected**: `auto-wp.py --harness` at generation,
+  `HARNESS` in the tests, and `--harness none` for a harness installed by
+  hand (§1.5);
 - the files each route touches and its acceptance tests (§8);
-- what is still open (§9).
+- what is still open (§9);
+- the **implementation path for GitHub Copilot**: phases, decision table,
+  steps, verification and the definition of "implemented" (§10).
 
 **Status.** Claude Code and OpenCode are implemented (`auto-wp.py` 0.6.0);
-GitHub Copilot is not. **Specified, not yet implemented**: everything in
+GitHub Copilot is not. **Specified, not yet implemented**: the `--harness` option (§1.5,
+`auto-wp.md` §1.1, for 0.7.0); everything in
 §1.1, §1.2, §1.3 (the Rust test's entry point) and §3.2; the skill paragraph
 "Primitives on each harness" (§1); the template limits of §1.4; the README
 and `tests.md` wording of §8.1; and the whole Copilot column. Until then
-`tests/lib/*.sh` behave as §1.2 and §3.2 describe.
+`tests/lib/*.sh` behave as §1.2 and §3.2 describe. The path from here to a
+working Copilot harness is §10.
 
 Facts the repository cannot show are marked **unverified**, or cite the page
 or command they come from. The Copilot CLI facts come from its documentation
@@ -108,8 +115,8 @@ Every `case $HARNESS` in `harness.sh`, `secret.sh` and `workshop.sh` today
 falls through to `*)`, which is Claude Code. `HARNESS=copilot` would
 therefore run Claude Code with the Claude credential and report green. The
 scripts must instead reject any value other than `claude` and `opencode`
-(`die "HARNESS=<v>: unknown harness"`), and `copilot` stays rejected until
-Route B lands. Test 4 of §8.2 pins this.
+(`die "HARNESS=<v>: unknown harness"`), including `none` (§1.5), and
+`copilot` stays rejected until Route B lands. Test 4 of §8.2 pins this.
 
 ### 1.3 One campaign shape, two test entry points
 
@@ -173,6 +180,40 @@ descriptions shortened to ≤ 1,024 characters (the rest moves into the
 skill body), and the frontmatter made strict YAML. A Copilot-only shortened
 copy is rejected, because it would break "the skills live once in
 `config/`". Test 0 of §8.2 pins the limits. Every Copilot item depends on it.
+
+### 1.5 Selecting a harness: `--harness` and `HARNESS`
+
+Two selectors, one vocabulary (`claude`, `opencode`, `copilot`, plus `none`
+for the first):
+
+| | Where | Values | Role |
+|---|---|---|---|
+| `auto-wp.py --harness <v>` | project generation (`auto-wp.md` §1.1, specified for 0.7.0) | `claude` (default), `opencode`, `copilot`, `none` | which harness the README documents and the Workshop definition installs; recorded as `harness` in `config/auto-wp.json` |
+| `HARNESS=<v>` | the test scripts (`tests/lib/*.sh`) | `claude` (default), `opencode`, `copilot` | which harness the test drives |
+
+Rules:
+
+- **`none` is generation-only.** A generated project with `--harness none`
+  has no harness; the user installs one by hand in the workshop
+  (`auto-wp.md` §1.1.1). `HARNESS=none` is rejected by the test scripts
+  (§1.2): a test needs a harness to drive.
+- **The tests pass the flag through.** Every test that generates a project
+  runs `auto-wp.py --harness "$HARNESS"`, so the README and `setup-base`
+  under test are the ones for the harness being driven, and C2.2 checks that
+  README against the harness bullet (test 8). `ws_install_harness` is
+  skipped when the generated `setup-base` already installed that harness
+  (§1.1 of `auto-wp.md`, item 3).
+- **A mismatch is an error.** A test that finds `harness` in the manifest
+  different from `$HARNESS` fails with a message naming both, instead of
+  driving the wrong harness.
+- **`copilot` is refused by both selectors** until implemented (§1.2,
+  `auto-wp.md` §1): a usage error (exit 2) for the flag, `die` for the
+  variable. §10.4 lists the step that lifts it.
+- **Wiring is independent of the choice** (the five links of `auto-wp.md`
+  §3.3 are always written), so switching harness later, or running two, needs
+  no regeneration; §7 still forbids switching a *running* campaign.
+- **Credentials are not a generation matter.** `--harness` never reads or
+  writes a credential; the credential modes of §1.1 belong to the tests.
 
 ## 2. Switching a generated project to OpenCode (implemented)
 
@@ -470,7 +511,7 @@ read, with an unknown 96-hour refresh behaviour (§9, point 5). Route B needs
 no new credential machinery and keeps stream-and-delete and K2 intact, at
 the price of the open questions of §9, points 1, 6 and 7.
 
-**Decision: run Route B's spike first.** If it answers the entry-point and
+**Decision: run Route B's spike first** (phase P1 of §10). If it answers the entry-point and
 sub-agent questions, Route B (or B′) is the recommended route for GitHub
 Copilot and Route A is dropped; if the CLI cannot carry a long headless
 loop, Route A is the fallback. Until the spike has run, neither is
@@ -556,7 +597,9 @@ needed whichever Copilot route follows.
 | `templates/*/skills/*/SKILL.md` | descriptions ≤ 1,024 characters, strict YAML (§1.4) | — | — |
 | `templates/c/skills/time-loop/SKILL.md` | "Primitives on each harness", the inline-verifier mode (§1); watchdog name and pidfile (§3.2) | — | a Copilot bullet |
 | `templates/{c,rust}/tools/.gitignore` | `.time-loop-watchdog.stop`, `.time-loop-watchdog.pid` | — | — |
+| `auto-wp.py`, `templates/common/harness/{claude,opencode,copilot}.sh`, `templates/{c,rust}/README.md` (harness blocks), `tests/test_auto_wp.py` | `--harness` for `claude`, `opencode`, `none` (§1.5, `auto-wp.md` §1.1) | — | `copilot` accepted (lifting the refusal) |
 | `templates/{c,rust}/README.md` | §2 steps 3, 4, 6 (API key; credential in the container) | — | the third choice in "The agent harness" |
+| `tests/*/*.sh` (every script that generates a project) | `auto-wp.py --harness "$HARNESS"`; the manifest-mismatch check (§1.5) | — | — |
 | `tests/lib/harness.sh` | unknown values (§1.2); `harness_stop`, `wait_loop_stopped`, DB path and glob, timeout message (§3.2) | credential mode; connect pre-step (§4.2) | the `copilot` case: launcher with `-i` and §5.2 flags, trust, prompt regex, transcript, K3 entries |
 | `tests/lib/secret.sh` | unknown values (§1.2) | `persisted` mode; K2 skipped (§4.4) | default `AUTOWP_TOKEN_FILE` `~/.config/auto-wp/copilot-pat` and its hint |
 | `tests/lib/workshop.sh` | unknown values (§1.2) | — | `ws_install_copilot`, the `ws_install_harness` switch |
@@ -614,3 +657,144 @@ needed whichever Copilot route follows.
    is there a later use for it, such as filing the terminus's Frama-C bug
    reports?
 10. **`opencode mini` vs the full TUI** as the tmux target.
+
+## 10. GitHub Copilot implementation path
+
+§1–§9 specify the pieces. This section orders them: what is done first, what
+decides the route, what each phase delivers, and when Copilot counts as
+implemented. Each phase has an exit that can be checked; a phase starts only
+when the previous exit holds.
+
+### 10.1 Phases
+
+| Phase | Work | Delivers | Exit |
+|---|---|---|---|
+| **P0 — prerequisites** | Templates under the Agent Skills limits (§1.4); the unknown-harness rejection (§1.2) in `harness.sh`, `secret.sh`, `workshop.sh`. Neither needs Copilot access. | The templates the Copilot CLI can load; `HARNESS=copilot` failing loudly instead of running Claude Code. | Tests 0 and 4 pass. `copilot skill list` in a freshly generated C and Rust project reports no rejected skill. |
+| **P1 — spike** | The five steps of §5, in a throwaway container, by hand, with a PAT (or a BYOK key for B′). | A dated report, `spec/choose-harness-copilot-spike.md`, with one answer per open cell (below), the commands that produced it and the raw values (exit causes, usage file, transcript location). Observed facts only. | Every cell of §10.2 has an answer or an explicit "could not be determined, because …". |
+| **P2 — decision gate** | Apply the table of §10.3 to the spike report. | A recorded decision: route (B, B′ or A), entry point, barrier mode. The unchosen routes are marked dropped in §4/§5 and §9. | The decision is in the spec and §5.5 and §9 are updated to say so. |
+| **P3 — implementation** | The steps of §10.4 for the chosen route, in that order. | The `copilot` case in the test scripts, the template wording, the watchdog. | Tests 6, 9, 10, 11 pass at level 1 (no container, no token). |
+| **P4 — verification** | Level 2 (a generated project in a container: `copilot skill list`, README quick start), then the level 3 smoke test, then one short campaign, then the real campaign (§10.5). | Evidence per level; the Copilot column of §1 with its **unverified** marks replaced by observed values. | §10.6 holds. |
+| **P5 — status** | Flip the status line, the §1 column header, §4.5 / §5 titles, and §8.1's "proposed to verified" row; update `README.md`, `tests/README.md`, `spec/tests.md`. | The documents say what the code does. | A reader can tell, from the status line alone, which harnesses work. |
+
+P0 is also the work "OpenCode now" needs (§8.1), so it is not Copilot-only.
+Route A additionally needs the §3.2 fixes before its own phase P3; Route B
+and B′ do not.
+
+### 10.2 What the spike must answer
+
+The answers feed §10.3. None is assumed.
+
+| # | Cell | Spike step | Used by |
+|---|---|---|---|
+| a | Does `/time-loop <dir> N` typed into the TUI invoke the skill, and does `-i "<prompt>"` load it? Which transcript line shows the load? | 2 | entry point (§5.1), `harness_confirm` |
+| b | Can a coordinator spawn a verifier and read back its delivered report (`.github/agents`, `/fleet`, `/subagents`)? Does `/tasks` stop one? | 3 | barrier mode (§1) |
+| c | Does a 30-minute loop of `copilot -p` wakes carry state through `time-loop.state`, and what distinguishes a reached `--max-ai-credits`, an expired PAT and a network error (exit status, final JSON event, usage file)? | 4 | watchdog (§5.3), test 11 |
+| d | The input-box marker, usable as `HARNESS_PROMPT_RE`; the session file location and format. | 5 | tests 6, 9; K4; idle check |
+| e | Where folder trust is persisted, and whether `COPILOT_ALLOW_ALL=true` alone suppresses every dialog in tmux. | 5 | `harness_trust` |
+| f | Is a project-level `.github/hooks` loaded under `COPILOT_ALLOW_ALL=true`, and does `--disable-builtin-mcps` / `--sync-session=off` behave as §5.2 says? | 2 | §5.2 flags |
+| g | Does the standalone binary run in the container under the pinned version, and on arm64? | 1 | provisioning |
+| h | Which models are available to the test account, and the AI credits of the 30-minute loop. | 4 | `COPILOT_CAMPAIGN_CREDITS` (§9 point 8) |
+
+### 10.3 Decision table
+
+| Spike outcome | Decision |
+|---|---|
+| (a) `-i` loads the skill **and** (c) a stop cause is distinguishable **and** (d) a transcript can be found | **Route B**, entry point `-i`, as §5. |
+| (a) `-i` fails but typed `/time-loop` works | Route B, entry point typed (the launcher starts the TUI, `harness_start` types as for the other harnesses). |
+| (a) neither works | Route B with the `.github/agents/time-loop.agent.md` fallback (§5.1), which adds a `.github/` layer to generated projects; record the cost in `auto-wp.md` §3.3. |
+| (b) a verifier's report comes back | Barrier mode "spawned", as for Claude Code. |
+| (b) no read-back | Barrier mode "inline" for Copilot (§1), written into the "Primitives on each harness" paragraph. Not a blocker for B. |
+| (c) no usable stop-cause oracle | The watchdog stops on **any** non-zero exit after the first retry and reports "unknown cause"; test 11 is weakened to match, and the weakening is written in §5.3. Not a blocker. |
+| the account has no paid Copilot plan or its policy forbids the CLI | **Route B′** (BYOK, §5.4) for the tests; Copilot proper stays unverified. |
+| the CLI cannot carry a long headless loop: wakes lose state, or `-p` sessions cannot resume the campaign | **Route A**: the §3.2 fixes first, then the credential mode and connect pre-step of §4. Route B is marked dropped. |
+
+Anything not covered is a new open point in §9, not a guess.
+
+### 10.4 Route B implementation steps (P3)
+
+In this order; each step is a commit with its tests.
+
+1. **`tests/lib/harness.sh`: the `copilot` case.**
+   - `HARNESS_PROMPT_RE` from spike (d).
+   - `harness_write_launcher`: reads `/run/autowp/token`, exports it as
+     `COPILOT_GITHUB_TOKEN`, deletes the file, then execs `copilot` with the
+     flags of §5.2 and, when the entry point is `-i`, the request as its
+     argument (`autowp-launch "$@"`; `harness_start` passes `$cmd`). The
+     launcher exits 1 without the token, as the other launchers do.
+   - `harness_trust`: the persistence found in spike (e), or nothing when
+     `COPILOT_ALLOW_ALL=true` is enough.
+   - `harness_confirm` and `wait_loop_stopped`: the transcript location and
+     patterns from spike (a) and (d); K3 allowlist entries for `~/.copilot`.
+   - `harness_stop`: kills the tmux session and the §5.3 watchdog (as the
+     OpenCode path does, §3.2 point 2).
+2. **`tests/lib/secret.sh`**: the default `AUTOWP_TOKEN_FILE`
+   `~/.config/auto-wp/copilot-pat`, its hint (fine-grained PAT with "Copilot
+   Requests"; classic tokens are refused by the CLI), and the expiry check
+   (the `.created` metadata, as for Claude).
+3. **`tests/lib/workshop.sh`**: `ws_install_copilot`, and the
+   `ws_install_harness` case.
+4. **Provisioning** (`tests/{c,rust}/provision.sh`): push the host's
+   standalone `copilot` binary, check host and container versions are equal
+   (`R-prov.3-copilot`, `C-prov.4-copilot`), set `COPILOT_AUTO_UPDATE=false`
+   in the profile; skipped with a note when `copilot` is not on the host
+   PATH, as for OpenCode.
+5. **The watchdog** (§5.3): written once, in the skill's "Primitives on each
+   harness" paragraph, as a Copilot bullet (one `copilot -p` per wake, the
+   flags of §5.2, the credit sum, the stop causes found in (c)), and its
+   barrier mode from (b). The paragraph's other bullets are not changed.
+6. **Templates**: the third choice in "The agent harness" of the C and Rust
+   READMEs (install line, PAT, `COPILOT_ALLOW_ALL`, the `copilot` start
+   command), and nothing else: no `.github/` layer unless §10.3 chose the
+   agent-file fallback.
+7. **Tests**: `test_harness.py` (tests 6, 9), the Copilot cases of tests 10
+   and 11 as level-1 checks against the launcher text and the watchdog
+   script; `tests/README.md` lists `HARNESS=copilot`.
+
+**Route B′** is step 2 with `COPILOT_PROVIDER_API_KEY` in place of the PAT
+and the `COPILOT_PROVIDER_*` variables in the launcher; every other step is
+the same.
+
+**Route A** (only if §10.3 selects it): the §3.2 fixes; `HARNESS_CREDENTIAL`
+in `secret.sh` and `harness.sh` (§1.1); the connect pre-step
+`C-copilot.connect` (§4.2); the K2 skip (§4.4); `spec/tests.md` §7.3.
+
+### 10.5 Verification ladder (P4)
+
+Cheapest first; a failure stops the ladder and is fixed at its level.
+
+| Level | What | Needs |
+|---|---|---|
+| 1 | tests 0, 4, 6, 9, 10, 11 (§8.2), host only | nothing |
+| 2 | `install-test.sh` for C and Rust with `copilot skill list` showing every skill; README step C2.2 for the Copilot choice | a container, no token |
+| 3 | `HARNESS=copilot` smoke test (`tests/c/smoke-test.sh`, `tests/rust/smoke-test.sh`): K4, the skill loaded, at least two `wake=` lines (C3.5 strict) | the token or BYOK key; a small credit budget |
+| 3 | one short `/time-loop` run (the gzip or sudo-rs test with a 2-hour budget): the run ends on the deadline, not on a credit limit (test 7), and no forbidden command appears (test 10) | the token; credits for 2 hours |
+| 4 | the real run (96 hours) | the token valid beyond the budget plus 30 minutes; the budget of §9 point 8 |
+
+### 10.6 Definition of "implemented"
+
+GitHub Copilot is implemented when all of the following hold, and each is
+observable:
+
+1. `HARNESS=copilot` is accepted by the scripts, and any other unknown value
+   is rejected (tests 4 and 9).
+2. The §10.5 level 1 and 2 tests pass, and the level 3 smoke test passes once
+   with `HARNESS=copilot`.
+3. One `/time-loop` run under Copilot has ended on its deadline or terminus
+   and its entry in `spec/tests.md` or the test's spec records the harness,
+   the version, the credits used and the result, including failures.
+4. The Copilot column of §1 has no **unverified** cell that a test depended
+   on; the cells that remain unverified are listed in §9.
+5. The spike report exists and the decision of §10.3 is in the spec.
+
+Until then the status line stays "Specified, not yet implemented", and the
+Copilot column keeps its "proposed" header.
+
+### 10.7 What the user has to provide
+
+- A GitHub account with a paid Copilot plan that allows the CLI (§6), or a
+  provider API key for B′.
+- A fine-grained PAT with the "Copilot Requests" permission, written to
+  `AUTOWP_TOKEN_FILE` with its `.created` metadata, expiring after the
+  longest run planned.
+- A decision on `COPILOT_CAMPAIGN_CREDITS` for the real run (§9 point 8).
+- Acceptance that campaign source code goes to the provider (§6).
