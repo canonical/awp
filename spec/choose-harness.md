@@ -61,11 +61,11 @@ are short; the details are in the section each one cites.
 | campaign entry point | §1.3 | §1.3 | §1.3, §5.1 |
 | credential mode (§1.1) | `file` | `file`; `persisted` under Route A | `file` |
 | credential | OAuth token (`claude setup-token`) → `/run/autowp/token` → `CLAUDE_CODE_OAUTH_TOKEN`, deleted after read | a provider **API key** → `AUTOWP_OPENCODE_KEY_ENV` (default `ANTHROPIC_API_KEY`); Route A: device flow (§4) | a fine-grained PAT ("Copilot Requests") → `COPILOT_GITHUB_TOKEN` (§5.2); B′: an API key → `COPILOT_PROVIDER_API_KEY` (§5.4) |
-| permission posture | `--dangerously-skip-permissions` + `skipDangerousModePermissionPrompt` | global `opencode.json` with `"action": "*"` (**unverified**: the docs show named actions) | `--allow-all-tools` (§5.2) |
+| permission posture | `--dangerously-skip-permissions` + `skipDangerousModePermissionPrompt` | global `opencode.json` with the documented rule-array form (`"action": "*"` first); the default base policy also allows actions with no config — a bare `opencode run` wrote a file with no prompt and no `--auto` (verified 2026-11-09, 2.2.5) | `--allow-all-tools` (§5.2) |
 | trust / onboarding | `~/.claude.json` onboarding + folder trust (`harness_trust`) | none; the global config | `COPILOT_ALLOW_ALL=true`, which also loads the project's hooks: a generated project ships no `.github/hooks` (§5.2) |
-| input-box prompt (tmux regex) | `❯` + space or no-break space (`$'… '`) | `Ask anything…` / `shift+tab agents` (**unverified**) | **unverified** (spike); needed only for the idle check |
-| transcript | `~/.claude/projects/*/*.jsonl` | the database `opencode debug paths` reports (default `~/.local/share/opencode/opencode.db*`), which also holds stored credentials (§3.2) | `~/.copilot` (`COPILOT_HOME`); format **unverified**; in `-p` runs `--output-format json` |
-| headless mode | `claude -p`, `--bare`: never for campaigns (`tests.md` §3.3, §3.5) | `opencode run` (flags **unverified**); `opencode mini` | `copilot -p … --allow-all-tools --no-ask-user` (§5.2) |
+| input-box prompt (tmux regex) | `❯` + space or no-break space (`$'… '`) | `Ask anything…` / `shift+tab agents` (verified 2026-11-09: capture-pane in tmux, the regex matches) | **unverified** (spike); needed only for the idle check |
+| transcript | `~/.claude/projects/*/*.jsonl` | the database `opencode debug paths` reports (default `~/.local/share/opencode/opencode.db*`), which also holds stored credentials (§3.2); session text greps out of it with `grep -a` (verified 2026-11-09) | `~/.copilot` (`COPILOT_HOME`); format **unverified**; in `-p` runs `--output-format json` |
+| headless mode | `claude -p`, `--bare`: never for campaigns (`tests.md` §3.3, §3.5) | `opencode run` (verified 2026-11-09: `opencode run -m provider/model 'prompt'` ran and answered; `-c`, `--auto`, `--agent`, `--session`, `--format` in the help); `opencode mini` | `copilot -p … --allow-all-tools --no-ask-user` (§5.2) |
 | time-loop heartbeat | `ScheduleWakeup` (armed last) + `CronCreate`/`CronList` watchdog | external watchdog re-invoking `opencode run` (`time-loop/SKILL.md`; §3.2) | external watchdog, one `copilot -p` session per wake (§5.3) |
 | sub-agent spawn | `Agent`/`Task` (`time-loop/SKILL.md` §4 step 2) | the `subagent` tool; agents of mode `subagent`; commands with `subagent: true` run in a background child session (opencode.ai/docs/agents, /commands). The parent receiving the report: **unverified** | custom agents, `/fleet`, `/subagents`; report read-back **unverified** (spike) |
 | background task + stop | background sub-agents re-invoke the session on completion; `TaskStop` | background child sessions; a stop primitive **unverified** | `/tasks` (**unverified** as stop) |
@@ -161,7 +161,9 @@ Consequences:
 The Copilot CLI enforces the Agent Skills specification
 (https://agentskills.io/specification): a `SKILL.md` frontmatter must be
 valid YAML and its `description` at most 1,024 characters. Claude Code does
-not enforce it; whether OpenCode does is **unverified**. In a freshly
+not enforce it; **neither does OpenCode** (verified 2026-11-09, 2.2.5: a
+SKILL.md with a 1,435-character `description` loads through the
+`.opencode/skills` link). In a freshly
 generated C project, `copilot skill list` (no login needed) **rejects 15
 skills**, `time-loop`, `rmf-sl`, `fips-sl`, `frama-c-launch`,
 `frama-c-monitoring`, `sl-builder` and `sl-auditor` among them, for their
@@ -272,10 +274,18 @@ checks unchanged:
 
 ### 3.2 Required fixes before a real OpenCode campaign
 
-The OpenCode path has never driven a real campaign. Besides the first-contact
-adjustments that are overridable by environment without code changes
-(`HARNESS_PROMPT_RE`, `HARNESS_START_TIMEOUT`, `HARNESS_SESSION`), these
-defects are known from reading the code. They fix the harness that is
+The OpenCode path has never driven a real campaign. The OpenCode mechanics
+the harness relies on are verified, though (2026-11-09, OpenCode 2.2.5,
+host install): skills and commands are discovered through the `.opencode`
+links, the default base policy let a bare `opencode run` write a file with
+no prompt and no `--auto`, the TUI prompt markers match `HARNESS_PROMPT_RE`,
+session text greps out of `opencode.db` with `grep -a`, headless
+`opencode run -m provider/model 'prompt'` runs and answers, and no
+Agent-Skills description-length limit is enforced (§1.4). What remains
+unverified is the harness plumbing around those mechanics. Besides the
+first-contact adjustments that are overridable by environment without code
+changes (`HARNESS_PROMPT_RE`, `HARNESS_START_TIMEOUT`, `HARNESS_SESSION`),
+these defects are known from reading the code. They fix the harness that is
 already implemented, so they come before either Copilot route.
 
 1. **The watchdog's credential.** The watchdog in `time-loop/SKILL.md` runs
