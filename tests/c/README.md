@@ -1,6 +1,6 @@
 # C tests
 
-Container tests for a project generated with `auto-wp.py --c`, on GRUB.
+Container tests for a C project generated with `auto-wp.py`, on GRUB.
 Every check is specified in `../../spec/tests.md` §5; the IDs below are those of
 that section. Run the scripts from any directory, or through the `make`
 targets at the repository root. See `../README.md` for the levels, the LXD
@@ -18,7 +18,7 @@ objects and the harness credential.
 ## `install-test.sh` — level 2
 
 In a fresh `ubuntu:24.04` container, with its stock `python3` and `git`:
-runs `auto-wp.py --c foobar`, checks the README, clones GRUB, and runs
+runs `auto-wp.py --c --harness "$HARNESS" foobar`, checks the README, clones GRUB, and runs
 `auto-wp.py` a second time.
 
 - C2.1 — `auto-wp.py` exits 0 and prints `skills:   23` and `commands: 3`.

@@ -123,7 +123,7 @@ fi
 
 # --- C2.6: the fips driver (fips-skill-spec.md 8) ------------------------------
 set +e
-fips_out=$(autowp_exec_user "$C" "cd ~ && python3 auto-wp/auto-wp.py --driver fips --level 2 --harness '$HARNESS' fipsbar" 2>&1)
+fips_out=$(autowp_exec_user "$C" "cd ~ && python3 auto-wp/auto-wp.py --c --driver fips --level 2 --harness '$HARNESS' fipsbar" 2>&1)
 fips_rc=$?
 set -e
 printf '%s\n' "$fips_out" | sed 's/^/    | /'

@@ -7,10 +7,25 @@ C with [Frama-C/WP](https://frama-c.com), or Rust with
 with Claude Code and with OpenCode.
 
 ```
-./auto-wp.py [--c|--rust] [--harness claude|opencode|copilot|none] <directory-name>
+./auto-wp.py [-h] [--c|--rust] [--driver rmf|fips] [--level 1|2|3|4]
+             [--harness claude|opencode|copilot|none] [<directory-name>]
 ```
 
-The default harness is `claude`. `opencode` selects OpenCode; `none` leaves
+Missing choices are asked in order: language, harness, then directory, only
+when both stdin and stderr are terminals. There are no language or harness
+defaults; Enter does not select an answer. Fully explicit commands never
+prompt. Scripts must supply all three choices, for example:
+
+```sh
+./auto-wp.py --c --harness claude foobar
+```
+
+Run `./auto-wp.py` in a terminal to answer all three questions, or
+`./auto-wp.py --rust foobar` to choose just the harness. Directory answers
+are literal paths: internal spaces need no quotes, and `~` is not expanded.
+EOF exits 1; Ctrl-C exits 130 and rolls back generation.
+
+`claude` selects Claude Code; `opencode` selects OpenCode; `none` leaves
 harness installation to you inside `workshop shell`. Workshop installs the
 selected harness without credentials; login happens inside the container.
 `copilot` is reserved but rejected until its runtime spike and campaign gates
@@ -34,6 +49,7 @@ your agent harness in a container (for example `/time-loop grub 72` for a
 ## Specifications
 
 - [`spec/auto-wp.md`](spec/auto-wp.md): `auto-wp.py`, the generated project, and its README
+- [`spec/interactive-mode.md`](spec/interactive-mode.md): interactive completion and non-terminal usage
 - [`spec/choose-harness.md`](spec/choose-harness.md): selecting and switching the agent harness — Claude Code, OpenCode, GitHub Copilot
 - [`spec/tests.md`](spec/tests.md): the test plan
 - [`spec/workshop-autowp-c-base-spec.md`](spec/workshop-autowp-c-base-spec.md),
@@ -125,7 +141,8 @@ workshop); 16 GB of RAM is tight for two, 32 GB is comfortable.
 
 ### 4. What a run does
 
-1. Generates the project on the host with `auto-wp.py --c` or `--rust`, in a
+1. Generates the project on the host with `auto-wp.py --c --harness "$HARNESS"`
+   (or `--rust` instead of `--c`), in a
    new private directory `~/.awp/autowp-<project>-ws.XXXXXX/` (W.1). It is on
    disk on purpose: `/tmp` may be a tmpfs, where a reboot would lose the
    campaign's work and the files would take RAM.

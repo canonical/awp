@@ -4,8 +4,8 @@ Run from the repository root:
 
     python3 -m unittest discover -s tests -v
 
-Every test runs auto-wp.py as a subprocess in a fresh temporary directory
-outside the repository.
+Every test runs auto-wp.py as a subprocess in a fresh working directory.
+Git discovery is bounded so TMPDIR may also point inside the checkout.
 
 Known pending skill: `creusot-launch` is roadmap step 1 (auto-wp.md 4.3.7,
 "Until a step is done, its files are absent"). The expected Rust skill set is
@@ -14,17 +14,25 @@ absent; every check that needs such a skill is reported as a skip, never as a
 silent pass.
 """
 
+import errno
 import hashlib
+import itertools
 import json
 import os
+import pty
 import re
+import select
 import shutil
+import signal
 import stat
 import subprocess
 import sys
 import tempfile
+import termios
+import time
 import unittest
 from pathlib import Path
+from unittest import mock
 
 REPO = Path(__file__).resolve().parent.parent
 SCRIPT = REPO / "auto-wp.py"
@@ -127,13 +135,16 @@ def parse_definition(text):
 
 
 class AutoWpTestCase(unittest.TestCase):
-    """Base: a temporary working directory outside the repository."""
+    """Base: an isolated working directory, also when TMPDIR is in the repo."""
 
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp(prefix="autowp-test-")).resolve()
         self.addCleanup(self._cleanup)
-        if REPO in self.tmp.parents:
-            self.fail(f"temporary directory {self.tmp} is inside the repository")
+        git_env = mock.patch.dict(os.environ, {
+            "GIT_CEILING_DIRECTORIES": str(self.tmp.parent),
+        })
+        git_env.start()
+        self.addCleanup(git_env.stop)
 
     def _cleanup(self):
         for dirpath, dirnames, filenames in os.walk(self.tmp):
@@ -156,7 +167,7 @@ class AutoWpTestCase(unittest.TestCase):
         return subprocess.run(
             [sys.executable, str(script), *args],
             cwd=str(cwd or self.tmp), env=e, capture_output=True, text=True,
-            timeout=120)
+            stdin=subprocess.DEVNULL, timeout=120)
 
     def assertOk(self, r):
         self.assertEqual(r.returncode, 0,
@@ -175,7 +186,7 @@ class TestAutoWp(AutoWpTestCase):
 
     # 1 ----------------------------------------------------------------------
     def test_01_c_layout(self):
-        r = self.run_auto_wp("--c", "foo")
+        r = self.run_auto_wp("--c", "--harness", "claude", "foo")
         self.assertOk(r)
         foo = self.tmp / "foo"
         for rel in ["config/skills/frama-c/SKILL.md", "config/commands/rmf.md",
@@ -190,7 +201,7 @@ class TestAutoWp(AutoWpTestCase):
 
     # 2 ----------------------------------------------------------------------
     def test_02_rust_layout(self):
-        r = self.run_auto_wp("--rust", "foo")
+        r = self.run_auto_wp("--rust", "--harness", "claude", "foo")
         self.assertOk(r)
         foo = self.tmp / "foo"
         for s in ["creusot", "creusot-launch", "creusot-monitoring", "creusot-sl"]:
@@ -216,7 +227,7 @@ class TestAutoWp(AutoWpTestCase):
         if RUST_ABSENT_PENDING:
             self.skipTest(pending_note(RUST_ABSENT_PENDING) +
                           "; --rust installs %d skills instead of 19" % len(RUST_SKILLS))
-        r = self.run_auto_wp("--rust", "foo")
+        r = self.run_auto_wp("--rust", "--harness", "claude", "foo")
         self.assertOk(r)
         self.assertTrue((self.tmp / "foo/config/skills/creusot-launch/SKILL.md").is_file())
         self.assertEqual(len(skill_dirs(self.tmp / "foo")), 19)
@@ -228,26 +239,23 @@ class TestAutoWp(AutoWpTestCase):
         self.assertEqual(missing, [])
 
     # 3 ----------------------------------------------------------------------
-    def test_03_default_is_c(self):
-        r1 = self.run_auto_wp("foo")
-        self.assertOk(r1)
-        r2 = self.run_auto_wp("--c", "bar")
-        self.assertOk(r2)
-        self.assertEqual(skill_dirs(self.tmp / "foo"), C_SKILLS)
-        self.assertEqual(command_names(self.tmp / "foo"), C_COMMANDS)
-        self.assertEqual(
-            {k: v[:3] if v[0] == "file" else v
-             for k, v in snapshot(self.tmp / "foo/config").items()
-             if k != "auto-wp.json"},
-            {k: v[:3] if v[0] == "file" else v
-             for k, v in snapshot(self.tmp / "bar/config").items()
-             if k != "auto-wp.json"})
-        m = json.loads((self.tmp / "foo/config/auto-wp.json").read_text())
-        self.assertEqual(m["language"], "c")
-        self.assertEqual(r1.stdout.replace("foo", "X"), r2.stdout.replace("bar", "X"))
-        # Whole words only: the README also contains `--bare`.
-        self.assertEqual(re.sub(r"\bfoo\b", "X", (self.tmp / "foo/README.md").read_text()),
-                         re.sub(r"\bbar\b", "X", (self.tmp / "bar/README.md").read_text()))
+    def test_03_missing_choices_nonterminal(self):
+        cases = [
+            ((), "--c/--rust, --harness, <directory-name>"),
+            (("foo",), "--c/--rust, --harness"),
+            (("--rust",), "--harness, <directory-name>"),
+            (("--c", "--harness", "claude"), "<directory-name>"),
+        ]
+        for args, missing in cases:
+            with self.subTest(args=args):
+                r = self.run_auto_wp(*args)
+                self.assertEqual(r.returncode, 2, r.stderr)
+                self.assertIn("usage:", r.stderr)
+                self.assertEqual(r.stderr.splitlines()[-1],
+                                 f"auto-wp.py: error: missing {missing} "
+                                 "(not prompting: stdin or stderr is not a terminal)")
+                self.assertEqual(r.stdout, "")
+                self.assertEqual(os.listdir(self.tmp), [])
 
     # 4 ----------------------------------------------------------------------
     def test_04_both_flags_usage_error(self):
@@ -258,10 +266,10 @@ class TestAutoWp(AutoWpTestCase):
         self.assertEqual(os.listdir(self.tmp), [])
 
     def test_04b_other_usage_errors(self):
-        """auto-wp.md 3.6: unknown option, missing or extra positional -> exit 2."""
-        for args in [(), ("a", "b"), ("--bogus", "foo"), ("--rust",)]:
+        """auto-wp.md 3.6: unknown option or extra positional -> exit 2."""
+        for args in [("a", "b"), ("--bogus", "foo")]:
             with self.subTest(args=args):
-                r = self.run_auto_wp(*args)
+                r = self.run_auto_wp("--c", "--harness", "claude", *args)
                 self.assertEqual(r.returncode, 2, r.stderr)
                 self.assertNotEqual(r.stderr.strip(), "")
                 self.assertEqual(os.listdir(self.tmp), [])
@@ -278,7 +286,7 @@ class TestAutoWp(AutoWpTestCase):
         ]
         for args, err in cases:
             with self.subTest(args=args):
-                r = self.run_auto_wp(*args)
+                r = self.run_auto_wp("--c", "--harness", "claude", *args)
                 if err is None:
                     self.assertOk(r)
                 else:
@@ -294,6 +302,12 @@ class TestAutoWp(AutoWpTestCase):
                 self.assertEqual(r.returncode, 0, r.stderr)
                 self.assertIn("usage", r.stdout.lower())
                 self.assertIn("--rust", r.stdout)
+                help_text = " ".join(r.stdout.split())
+                self.assertEqual(help_text.count(
+                    "asked interactively when omitted and stdin is a terminal"), 2)
+                self.assertIn("[<directory-name>]", help_text)
+                self.assertNotIn("default: claude", help_text)
+                self.assertEqual(r.stderr, "")
                 self.assertEqual(os.listdir(self.tmp), [])
 
     # 6 ----------------------------------------------------------------------
@@ -301,9 +315,9 @@ class TestAutoWp(AutoWpTestCase):
         for lang in ("--c", "--rust"):
             with self.subTest(lang=lang):
                 name = "foo" + lang.strip("-")
-                self.assertOk(self.run_auto_wp(lang, name))
+                self.assertOk(self.run_auto_wp(lang, "--harness", "claude", name))
                 before = snapshot(self.tmp / name)
-                r = self.run_auto_wp(lang, name)
+                r = self.run_auto_wp(lang, "--harness", "claude", name)
                 self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
                 self.assertIn("auto-wp: error:", r.stderr)
                 self.assertEqual(snapshot(self.tmp / name), before)
@@ -315,7 +329,7 @@ class TestAutoWp(AutoWpTestCase):
         (foo / "src/main.c").write_text("int main(void) { return 0; }\n")
         (foo / "notes.txt").write_text("keep me\n")
         before = snapshot(foo)
-        self.assertOk(self.run_auto_wp("--c", "foo"))
+        self.assertOk(self.run_auto_wp("--c", "--harness", "claude", "foo"))
         after = snapshot(foo)
         for k, v in before.items():
             if k == ".":
@@ -330,7 +344,7 @@ class TestAutoWp(AutoWpTestCase):
                 (foo / dot).mkdir(parents=True)
                 (foo / dot / "settings.json").write_text('{"x": 1}\n')
                 before = snapshot(foo / dot / "settings.json")
-                r = self.run_auto_wp("--c", foo.name)
+                r = self.run_auto_wp("--c", "--harness", "claude", foo.name)
                 self.assertOk(r)
                 self.assertEqual(snapshot(foo / dot / "settings.json"), before)
                 self.assertTrue((foo / dot / "skills").is_symlink())
@@ -358,7 +372,7 @@ class TestAutoWp(AutoWpTestCase):
                 (d / "keep.txt").write_text("keep\n")
                 make(d)
                 before = snapshot(d)
-                r = self.run_auto_wp("--c", name)
+                r = self.run_auto_wp("--c", "--harness", "claude", name)
                 self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
                 self.assertIn("auto-wp: error:", r.stderr)
                 self.assertEqual(snapshot(d), before)
@@ -366,7 +380,7 @@ class TestAutoWp(AutoWpTestCase):
     def test_08c_target_is_a_file(self):
         (self.tmp / "foo").write_text("plain file\n")
         before = snapshot(self.tmp)
-        r = self.run_auto_wp("--c", "foo")
+        r = self.run_auto_wp("--c", "--harness", "claude", "foo")
         self.assertEqual(r.returncode, 1)
         self.assertIn("auto-wp: error:", r.stderr)
         self.assertEqual(snapshot(self.tmp), before)
@@ -375,7 +389,7 @@ class TestAutoWp(AutoWpTestCase):
         """auto-wp.md 3.1 item 1: a symlink to a directory is used as the directory."""
         (self.tmp / "real").mkdir()
         (self.tmp / "foo").symlink_to("real")
-        self.assertOk(self.run_auto_wp("--c", "foo"))
+        self.assertOk(self.run_auto_wp("--c", "--harness", "claude", "foo"))
         self.assertTrue((self.tmp / "foo").is_symlink())
         self.assertTrue((self.tmp / "real/config/skills/frama-c/SKILL.md").is_file())
 
@@ -384,7 +398,7 @@ class TestAutoWp(AutoWpTestCase):
         for lang in ("--c", "--rust"):
             with self.subTest(lang=lang):
                 foo = self.tmp / ("foo" + lang.strip("-"))
-                self.assertOk(self.run_auto_wp(lang, foo.name))
+                self.assertOk(self.run_auto_wp(lang, "--harness", "claude", foo.name))
                 for rel, target, resolved in [
                         (".claude/skills", "../config/skills", "config/skills"),
                         (".claude/commands", "../config/commands", "config/commands"),
@@ -409,7 +423,7 @@ class TestAutoWp(AutoWpTestCase):
         for lang in ("c", "rust"):
             with self.subTest(lang=lang):
                 foo = self.tmp / ("foo" + lang)
-                self.assertOk(self.run_auto_wp("--" + lang, foo.name))
+                self.assertOk(self.run_auto_wp("--" + lang, "--harness", "claude", foo.name))
                 layers = [TEMPLATES / "common/skills", TEMPLATES / lang / "skills"]
                 skills_root = foo / "config/skills"
                 checked = executable = 0
@@ -444,10 +458,10 @@ class TestAutoWp(AutoWpTestCase):
         for lang in ("c", "rust"):
             with self.subTest(lang=lang):
                 foo = self.tmp / ("foo" + lang)
-                self.assertOk(self.run_auto_wp("--" + lang, foo.name))
+                self.assertOk(self.run_auto_wp("--" + lang, "--harness", "claude", foo.name))
                 m = json.loads((foo / "config/auto-wp.json").read_text())
                 self.assertEqual(m["language"], lang)
-                self.assertEqual(m["auto_wp_version"], "0.7.0")
+                self.assertEqual(m["auto_wp_version"], "0.8.0")
                 self.assertEqual(m["driver"], "rmf")
                 self.assertNotIn("fips_level", m)
                 self.assertRegex(m["created"], r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$")
@@ -462,17 +476,17 @@ class TestAutoWp(AutoWpTestCase):
     def test_12_other_cwd(self):
         elsewhere = self.tmp / "elsewhere"
         elsewhere.mkdir()
-        r = self.run_auto_wp("--c", "foo", cwd=elsewhere)
+        r = self.run_auto_wp("--c", "--harness", "claude", "foo", cwd=elsewhere)
         self.assertOk(r)
         self.assertEqual(len(skill_dirs(elsewhere / "foo")), 23)
         # absolute target path as well
-        r = self.run_auto_wp("--rust", str(self.tmp / "abs"), cwd=elsewhere)
+        r = self.run_auto_wp("--rust", "--harness", "claude", str(self.tmp / "abs"), cwd=elsewhere)
         self.assertOk(r)
         self.assertEqual(skill_dirs(self.tmp / "abs"), RUST_SKILLS)
 
     # 13 ---------------------------------------------------------------------
     def test_13_c_readme(self):
-        self.assertOk(self.run_auto_wp("--c", "foobar"))
+        self.assertOk(self.run_auto_wp("--c", "--harness", "claude", "foobar"))
         text = (self.tmp / "foobar/README.md").read_text()
         self.assertIn("git clone https://gitlab.freedesktop.org/gnu-grub/grub.git", text)
         self.assertIn("/time-loop grub 72", text)
@@ -494,7 +508,7 @@ class TestAutoWp(AutoWpTestCase):
             "# foobar — automated verification of C (Frama-C/WP) code"), text[:80])
 
     def test_13b_c_tools_stand_alone(self):
-        self.assertOk(self.run_auto_wp("--c", "foobar"))
+        self.assertOk(self.run_auto_wp("--c", "--harness", "claude", "foobar"))
         d = self.tmp / "foobar"
         for rel in ("bin/rmf-lint.sh", "bin/fips-lint.sh", "bin/ebios-lint.sh",
                     "bin/ledger-ratchet.sh",
@@ -518,7 +532,7 @@ class TestAutoWp(AutoWpTestCase):
 
     def test_13c_rust_has_only_common_tools(self):
         """--rust gets the common linter and watchdog, but no C-only tools."""
-        self.assertOk(self.run_auto_wp("--rust", "foobar"))
+        self.assertOk(self.run_auto_wp("--rust", "--harness", "claude", "foobar"))
         d = self.tmp / "foobar"
         self.assertEqual(sorted(p.name for p in (d / "bin").iterdir()),
                          ["rmf-lint.sh", "time-loop-watchdog.py"])
@@ -539,7 +553,7 @@ class TestAutoWp(AutoWpTestCase):
         foo = self.tmp / "foo"
         foo.mkdir()
         (foo / ".gitignore").write_text("mine\n")
-        r = self.run_auto_wp("--c", "foo")
+        r = self.run_auto_wp("--c", "--harness", "claude", "foo")
         self.assertOk(r)
         self.assertEqual((foo / ".gitignore").read_text(), "mine\n")
         self.assertIn("kept    foo/.gitignore (already exists)", r.stdout.splitlines())
@@ -548,7 +562,7 @@ class TestAutoWp(AutoWpTestCase):
 
     # 14 ---------------------------------------------------------------------
     def test_14_rust_readme(self):
-        self.assertOk(self.run_auto_wp("--rust", "foobar"))
+        self.assertOk(self.run_auto_wp("--rust", "--harness", "claude", "foobar"))
         text = (self.tmp / "foobar/README.md").read_text()
         self.assertIn("creusot-launch", text)
         for needle in ("workshop launch", "multipass launch", "cargo creusot"):
@@ -564,13 +578,13 @@ class TestAutoWp(AutoWpTestCase):
     def test_15_dot_in_bar(self):
         bar = self.tmp / "bar"
         bar.mkdir()
-        r = self.run_auto_wp("--c", ".", cwd=bar)
+        r = self.run_auto_wp("--c", "--harness", "claude", ".", cwd=bar)
         self.assertOk(r)
         title = (bar / "README.md").read_text().splitlines()[0]
         self.assertTrue(title.startswith("# bar"), title)
         for spelled in ("baz/", "./qux"):
             with self.subTest(spelled=spelled):
-                self.assertOk(self.run_auto_wp("--c", spelled))
+                self.assertOk(self.run_auto_wp("--c", "--harness", "claude", spelled))
                 name = spelled.strip("./")
                 title = (self.tmp / name / "README.md").read_text().splitlines()[0]
                 self.assertTrue(title.startswith(f"# {name} "), title)
@@ -581,7 +595,7 @@ class TestAutoWp(AutoWpTestCase):
         foo.mkdir()
         (foo / "README.md").write_text("my own readme\n")
         before = snapshot(foo / "README.md")
-        r = self.run_auto_wp("--c", "foo")
+        r = self.run_auto_wp("--c", "--harness", "claude", "foo")
         self.assertOk(r)
         self.assertEqual(snapshot(foo / "README.md"), before)
         self.assertIn("kept    foo/README.md (already exists)", r.stdout.splitlines())
@@ -591,27 +605,28 @@ class TestAutoWp(AutoWpTestCase):
         if shutil.which("git") is None:
             self.skipTest("git not installed")
         probe = subprocess.run(["git", "-C", str(self.tmp), "rev-parse",
-                                "--is-inside-work-tree"], capture_output=True, text=True)
+                                "--is-inside-work-tree"], capture_output=True, text=True,
+                               timeout=15)
         if probe.returncode == 0:
             self.fail(f"temporary directory {self.tmp} is already inside a git work tree")
-        r = self.run_auto_wp("--c", "foo")
+        r = self.run_auto_wp("--c", "--harness", "claude", "foo")
         self.assertOk(r)
         self.assertIn("git     initialized foo", r.stdout.splitlines())
         out = subprocess.run(["git", "-C", str(self.tmp / "foo"), "rev-parse",
-                              "--show-toplevel"], capture_output=True, text=True)
+                              "--show-toplevel"], capture_output=True, text=True, timeout=15)
         self.assertEqual(out.returncode, 0)
         self.assertEqual(Path(out.stdout.strip()).resolve(), (self.tmp / "foo").resolve())
         log = subprocess.run(["git", "-C", str(self.tmp / "foo"), "rev-list", "--all"],
-                             capture_output=True, text=True)
+                             capture_output=True, text=True, timeout=15)
         self.assertEqual(log.stdout.strip(), "", "auto-wp.py must not commit")
         remotes = subprocess.run(["git", "-C", str(self.tmp / "foo"), "remote"],
-                                 capture_output=True, text=True)
+                                 capture_output=True, text=True, timeout=15)
         self.assertEqual(remotes.stdout.strip(), "", "auto-wp.py must not add a remote")
         # inside an existing work tree
         outer = self.tmp / "outer"
         outer.mkdir()
-        subprocess.run(["git", "init", "-q", str(outer)], check=True)
-        r = self.run_auto_wp("--c", "outer/foo")
+        subprocess.run(["git", "init", "-q", str(outer)], check=True, timeout=15)
+        r = self.run_auto_wp("--c", "--harness", "claude", "outer/foo")
         self.assertOk(r)
         self.assertFalse(os.path.lexists(outer / "foo/.git"))
         self.assertIn("git     outer/foo is already in a git work tree", r.stdout.splitlines())
@@ -620,7 +635,7 @@ class TestAutoWp(AutoWpTestCase):
     def test_18_no_git(self):
         empty_bin = self.tmp / "emptybin"
         empty_bin.mkdir()
-        r = self.run_auto_wp("--c", "foo", env={"PATH": str(empty_bin)})
+        r = self.run_auto_wp("--c", "--harness", "claude", "foo", env={"PATH": str(empty_bin)})
         self.assertOk(r)
         self.assertIn("warning: git not found; run 'git init' in foo before /time-loop",
                       r.stderr)
@@ -641,7 +656,7 @@ class TestAutoWp(AutoWpTestCase):
         script = prog / "auto-wp.py"
 
         with self.subTest(case="target created by the run"):
-            r = self.run_auto_wp("--c", "foo", cwd=work, script=script)
+            r = self.run_auto_wp("--c", "--harness", "claude", "foo", cwd=work, script=script)
             self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
             self.assertIn("auto-wp: error:", r.stderr)
             self.assertEqual(r.stdout, "")
@@ -649,7 +664,7 @@ class TestAutoWp(AutoWpTestCase):
             self.assertEqual(os.listdir(work), [])
 
         with self.subTest(case="missing parents created by the run"):
-            r = self.run_auto_wp("--c", "a/b/foo", cwd=work, script=script)
+            r = self.run_auto_wp("--c", "--harness", "claude", "a/b/foo", cwd=work, script=script)
             self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
             self.assertEqual(os.listdir(work), [])
 
@@ -659,13 +674,13 @@ class TestAutoWp(AutoWpTestCase):
             (foo / ".claude/settings.json").write_text("{}\n")
             (foo / "src.c").write_text("int x;\n")
             before = snapshot(foo)
-            r = self.run_auto_wp("--c", "existing", cwd=work, script=script)
+            r = self.run_auto_wp("--c", "--harness", "claude", "existing", cwd=work, script=script)
             self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
             self.assertEqual(snapshot(foo), before)
 
         with self.subTest(case="re-run after fixing starts from the same state"):
             victim.chmod(0o644)
-            r = self.run_auto_wp("--c", "foo", cwd=work, script=script)
+            r = self.run_auto_wp("--c", "--harness", "claude", "foo", cwd=work, script=script)
             self.assertOk(r)
             self.assertEqual(len(skill_dirs(work / "foo")), 23)
 
@@ -673,7 +688,7 @@ class TestAutoWp(AutoWpTestCase):
         """Missing template directory: run-time error, exit 1, nothing created."""
         prog = self._copy_program()
         shutil.rmtree(prog / "templates/rust")
-        r = self.run_auto_wp("--rust", "foo", script=prog / "auto-wp.py")
+        r = self.run_auto_wp("--rust", "--harness", "claude", "foo", script=prog / "auto-wp.py")
         self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
         self.assertIn("auto-wp: error:", r.stderr)
         self.assertFalse(os.path.lexists(self.tmp / "foo"))
@@ -687,7 +702,7 @@ class TestAutoWp(AutoWpTestCase):
                         "case \"$*\" in *rev-parse*) exit 128;; esac\n"
                         "echo 'fatal: simulated failure' >&2\nexit 1\n")
         fake.chmod(0o755)
-        r = self.run_auto_wp("--c", "foo", env={"PATH": f"{fakebin}"})
+        r = self.run_auto_wp("--c", "--harness", "claude", "foo", env={"PATH": f"{fakebin}"})
         self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
         self.assertIn("auto-wp: error:", r.stderr)
         self.assertFalse(os.path.lexists(self.tmp / "foo"))
@@ -702,7 +717,7 @@ class TestAutoWp(AutoWpTestCase):
         for lang in ("c", "rust"):
             with self.subTest(lang=lang):
                 foo = self.tmp / ("foo" + lang)
-                r = self.run_auto_wp("--" + lang, foo.name)
+                r = self.run_auto_wp("--" + lang, "--harness", "claude", foo.name)
                 self.assertOk(r)
                 self.assertIn(f"copied  {foo.name}/.workshop (workshop: autowp)",
                               r.stdout.splitlines())
@@ -749,7 +764,7 @@ class TestAutoWp(AutoWpTestCase):
                 (d / "keep.txt").write_text("keep\n")
                 make(d)
                 before = snapshot(d)
-                r = self.run_auto_wp("--c", name)
+                r = self.run_auto_wp("--c", "--harness", "claude", name)
                 self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
                 self.assertIn("auto-wp: error:", r.stderr)
                 self.assertEqual(snapshot(d), before)
@@ -759,7 +774,7 @@ class TestAutoWp(AutoWpTestCase):
             (d / ".workshop").mkdir(parents=True)
             (d / ".workshop/other.yaml").write_text("name: other\n")
             before = snapshot(d / ".workshop/other.yaml")
-            r = self.run_auto_wp("--c", "other")
+            r = self.run_auto_wp("--c", "--harness", "claude", "other")
             self.assertOk(r)
             self.assertEqual(snapshot(d / ".workshop/other.yaml"), before)
             self.assertTrue((d / ".workshop/autowp.yaml").is_file())
@@ -777,7 +792,7 @@ class TestAutoWp(AutoWpTestCase):
         work = self.tmp / "work"
         work.mkdir()
         with self.subTest(case=".workshop created by the run"):
-            r = self.run_auto_wp("--c", "foo", cwd=work, script=script)
+            r = self.run_auto_wp("--c", "--harness", "claude", "foo", cwd=work, script=script)
             self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
             self.assertFalse(os.path.lexists(work / "foo"))
         with self.subTest(case="pre-existing .workshop/other.yaml kept"):
@@ -785,10 +800,377 @@ class TestAutoWp(AutoWpTestCase):
             (foo / ".workshop").mkdir(parents=True)
             (foo / ".workshop/other.yaml").write_text("name: other\n")
             before = snapshot(foo)
-            r = self.run_auto_wp("--c", "existing", cwd=work, script=script)
+            r = self.run_auto_wp("--c", "--harness", "claude", "existing", cwd=work, script=script)
             self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
             self.assertEqual(snapshot(foo), before)
             self.assertEqual(os.listdir(foo / ".workshop"), ["other.yaml"])
+
+
+class TerminalProcess:
+    """Canonical terminal input/stderr, separately drained stdout, bounded waits."""
+
+    def __init__(self, test, *args, cwd=None, env=None):
+        self.master, slave = pty.openpty()
+        self.process = None
+        test.addCleanup(self.close)
+        try:
+            attrs = termios.tcgetattr(slave)
+            attrs[3] |= termios.ICANON
+            attrs[3] &= ~termios.ECHO
+            termios.tcsetattr(slave, termios.TCSANOW, attrs)
+            self.veof = attrs[6][termios.VEOF]
+            e = dict(os.environ)
+            e.pop("GIT_DIR", None)
+            e.pop("GIT_WORK_TREE", None)
+            if env:
+                e.update(env)
+            self.process = subprocess.Popen(
+                [sys.executable, str(SCRIPT), *args], cwd=cwd or test.tmp,
+                env=e, stdin=slave, stderr=slave, stdout=subprocess.PIPE)
+        finally:
+            os.close(slave)
+        self.streams = {self.master: "stderr", self.process.stdout.fileno(): "stdout"}
+        self.output = {"stdout": b"", "stderr": b""}
+
+    def close(self):
+        if self.process is not None:
+            if self.process.poll() is None:
+                self.process.kill()
+            self.process.wait(timeout=5)
+            self.process.stdout.close()
+        os.close(self.master)
+
+    def read(self, deadline):
+        remaining = deadline - time.monotonic()
+        if remaining <= 0 or not self.streams:
+            raise AssertionError(f"terminal wait failed: {self.output!r}")
+        ready, _, _ = select.select(list(self.streams), [], [], remaining)
+        if not ready:
+            raise AssertionError(f"terminal timed out: {self.output!r}")
+        for fd in ready:
+            try:
+                chunk = os.read(fd, 65536)
+            except OSError as e:
+                if fd != self.master or e.errno != errno.EIO:
+                    raise
+                chunk = b""  # Linux signals the closed slave with EIO.
+            if chunk:
+                self.output[self.streams[fd]] += chunk
+            else:
+                del self.streams[fd]
+
+    def wait_for(self, text):
+        deadline = time.monotonic() + 15
+        while text.encode() not in self.output["stderr"]:
+            self.read(deadline)
+
+    def send(self, data):
+        os.write(self.master, data)
+
+    def finish(self):
+        deadline = time.monotonic() + 30
+        while self.streams:
+            self.read(deadline)
+        code = self.process.wait(timeout=max(0.1, deadline - time.monotonic()))
+        return subprocess.CompletedProcess(
+            self.process.args, code,
+            self.output["stdout"].decode("utf-8", errors="replace"),
+            self.output["stderr"].decode("utf-8", errors="replace").replace("\r\n", "\n"))
+
+
+class TestInteractiveCompletion(AutoWpTestCase):
+    PROMPTS = ("Choose the language:", "Choose the agent harness:", "Project directory:")
+    QUESTIONS = ("Type 1 or 2: ", "Type 1, 2, 3 or 4: ", "Project directory: ")
+
+    def assertPrompts(self, result, expected):
+        prompts = re.findall("|".join(map(re.escape, self.PROMPTS)), result.stderr)
+        self.assertEqual(prompts, expected, result.stderr)
+        for prompt in self.PROMPTS:
+            self.assertNotIn(prompt, result.stdout)
+
+    def comparable_tree(self, root):
+        tree = snapshot(root)
+        for rel in list(tree):
+            if rel == ".git" or rel.startswith(".git/"):
+                del tree[rel]
+            elif tree[rel][0] == "file":
+                tree[rel] = tree[rel][:3]  # Ignore timestamps, not content or modes.
+        manifest = json.loads((root / "config/auto-wp.json").read_text())
+        del manifest["created"]
+        tree["config/auto-wp.json"] = manifest
+        tree["README.md"] = (root / "README.md").read_text().replace(root.name, "PROJECT")
+        return tree
+
+    def test_t2_all_missing_combinations(self):
+        for explicit in itertools.product((False, True), repeat=3):
+            with self.subTest(explicit=explicit):
+                name = "project-" + "".join(str(int(x)) for x in explicit)
+                choices = [("--rust",), ("--harness", "none"), (name,)]
+                args = [arg for supplied, choice in zip(explicit, choices)
+                        if supplied for arg in choice]
+                p = TerminalProcess(self, *args)
+                for supplied, question, answer in zip(
+                        explicit, self.QUESTIONS, (b"2\n", b"4\n", name.encode() + b"\n")):
+                    if not supplied:
+                        p.wait_for(question)
+                        self.assertTrue(p.output["stderr"].endswith(question.encode()))
+                        self.assertFalse((self.tmp / name).exists())
+                        p.send(answer)
+                r = p.finish()
+                self.assertOk(r)
+                self.assertPrompts(r, [prompt for supplied, prompt in zip(explicit, self.PROMPTS)
+                                       if not supplied])
+                m = json.loads((self.tmp / name / "config/auto-wp.json").read_text())
+                self.assertEqual((m["language"], m["harness"]), ("rust", "none"))
+                self.assertIn("harness:  none", r.stdout)
+
+    def test_t2_interactive_matches_explicit_tree(self):
+        for language, number in (("c", "1"), ("rust", "2")):
+            for harness, selection in (("claude", "1"), ("opencode", "2"), ("none", "4")):
+                with self.subTest(language=language, harness=harness):
+                    name = f"prompted-{language}-{harness}"
+                    other = f"explicit-{language}-{harness}"
+                    p = TerminalProcess(self)
+                    p.wait_for(self.QUESTIONS[0])
+                    p.send(f"{number}\n{selection}\n{name}\n".encode())
+                    r = p.finish()
+                    self.assertOk(r)
+                    explicit = self.run_auto_wp("--" + language, "--harness", harness, other)
+                    self.assertOk(explicit)
+                    self.assertEqual(self.comparable_tree(self.tmp / name),
+                                     self.comparable_tree(self.tmp / other))
+                    self.assertEqual(r.stdout.replace(name, "PROJECT"),
+                                     explicit.stdout.replace(other, "PROJECT"))
+                    self.assertPrompts(r, list(self.PROMPTS))
+
+    def test_t3_open_pipe_never_read(self):
+        for args, code in ((("--rust", "--harness", "none", "foo"), 0), ((), 2)):
+            with self.subTest(args=args):
+                read_fd, write_fd = os.pipe()
+                try:
+                    r = subprocess.run(
+                        [sys.executable, str(SCRIPT), *args], cwd=self.tmp,
+                        stdin=read_fd, capture_output=True, text=True, timeout=15)
+                    self.assertEqual(r.returncode, code, r.stderr)
+                    # The writer stayed open and empty for the entire invocation.
+                    self.assertNotIn("Choose the", r.stderr)
+                finally:
+                    os.close(read_fd)
+                    os.close(write_fd)
+
+    def test_t3_pipe_contents_not_consumed(self):
+        for args, code in (((), 2), (("--c", "--harness", "none", "foo"), 0)):
+            with self.subTest(args=args):
+                read_fd, write_fd = os.pipe()
+                try:
+                    data = b"2\n4\nunwanted\n"
+                    os.write(write_fd, data)
+                    r = subprocess.run(
+                        [sys.executable, str(SCRIPT), *args], cwd=self.tmp,
+                        stdin=read_fd, capture_output=True, text=True, timeout=15)
+                    self.assertEqual(r.returncode, code, r.stderr)
+                    os.set_blocking(read_fd, False)
+                    self.assertEqual(os.read(read_fd, len(data)), data)
+                    self.assertFalse((self.tmp / "unwanted").exists())
+                    if code == 2:
+                        self.assertEqual(os.listdir(self.tmp), [])
+                finally:
+                    os.close(read_fd)
+                    os.close(write_fd)
+
+    def test_t3_terminal_stdin_redirected_stderr(self):
+        master, slave = pty.openpty()
+        try:
+            with (self.tmp / "stderr.log").open("w+") as log:
+                r = subprocess.run(
+                    [sys.executable, str(SCRIPT)], cwd=self.tmp, stdin=slave,
+                    stderr=log, stdout=subprocess.PIPE, text=True, timeout=15)
+                self.assertEqual(r.returncode, 2)
+                log.seek(0)
+                self.assertIn("missing --c/--rust, --harness, <directory-name> "
+                              "(not prompting: stdin or stderr is not a terminal)", log.read())
+                self.assertEqual(r.stdout, "")
+                self.assertEqual(os.listdir(self.tmp), ["stderr.log"])
+        finally:
+            os.close(master)
+            os.close(slave)
+
+    def test_t4_invalid_lines_recover_without_losing_buffered_answers(self):
+        p = TerminalProcess(self, env={"PYTHONIOENCODING": "latin-1"})
+        p.wait_for(self.QUESTIONS[0])
+        p.send(b"\n3 \nx\n\xff\n 1 \n\n0\nx\n\xff\n 4 \n  \n\xff\n  my dir  \n")
+        r = p.finish()
+        self.assertOk(r)
+        self.assertPrompts(r, [self.PROMPTS[0]] * 5 + [self.PROMPTS[1]] * 5 +
+                           [self.PROMPTS[2]] * 3)
+        self.assertEqual(r.stderr.count("Type 1 or 2.\n"), 3)
+        self.assertEqual(r.stderr.count("Type 1, 2, 3 or 4.\n"), 3)
+        self.assertEqual(r.stderr.count("Input must be valid UTF-8.\n"), 3)
+        self.assertEqual(r.stderr.count("Enter a project directory.\n"), 1)
+        self.assertTrue((self.tmp / "my dir/config/auto-wp.json").is_file())
+        self.assertNotIn("Traceback", r.stderr)
+
+    def test_t4_literal_directory_and_target_validation(self):
+        answers = ("-", "~/$NOT_EXPANDED;echo nope", ".", str(self.tmp / "absolute"))
+        for i, answer in enumerate(answers):
+            with self.subTest(answer=answer):
+                work = self.tmp / str(i)
+                work.mkdir()
+                p = TerminalProcess(self, "--c", "--harness", "none", cwd=work)
+                p.wait_for(self.QUESTIONS[2])
+                p.send((answer + "\n").encode())
+                r = p.finish()
+                self.assertOk(r)
+                self.assertTrue((work / answer / "config/auto-wp.json").is_file())
+        (self.tmp / "file").write_text("keep")
+        before = snapshot(self.tmp)
+        p = TerminalProcess(self, "--c", "--harness", "none")
+        p.wait_for(self.QUESTIONS[2])
+        p.send(b"file\n")
+        r = p.finish()
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("exists and is not a directory", r.stderr)
+        self.assertPrompts(r, [self.PROMPTS[2]])
+        self.assertEqual(snapshot(self.tmp), before)
+
+    def test_t5_copilot_gate(self):
+        p = TerminalProcess(self)
+        p.wait_for(self.QUESTIONS[0])
+        p.send(b"1\n3\n")
+        r = p.finish()
+        error = "auto-wp.py: error: --harness copilot is not implemented yet\n"
+        self.assertEqual(r.returncode, 2)
+        self.assertTrue(r.stderr.endswith(error), r.stderr)
+        self.assertNotIn("usage:", r.stderr)
+        self.assertPrompts(r, list(self.PROMPTS[:2]))
+        explicit = self.run_auto_wp("--harness", "copilot")
+        self.assertEqual(explicit.returncode, 2)
+        self.assertTrue(explicit.stderr.endswith(error), explicit.stderr)
+        self.assertIn("usage:", explicit.stderr)
+        self.assertEqual(r.stdout, "")
+        self.assertEqual(os.listdir(self.tmp), [])
+
+    def test_t6_prompt_eof_and_sigint(self):
+        for cancel in ("eof", "sigint"):
+            with self.subTest(cancel=cancel):
+                p = TerminalProcess(self)
+                p.wait_for(self.QUESTIONS[0])
+                p.send(b"1\n")
+                p.wait_for(self.QUESTIONS[1])
+                self.assertEqual(os.listdir(self.tmp), [])
+                if cancel == "eof":
+                    p.send(p.veof)
+                    code, message = 1, "auto-wp: error: input ended before all required choices were provided"
+                else:
+                    p.process.send_signal(signal.SIGINT)
+                    code, message = 130, "auto-wp: cancelled"
+                r = p.finish()
+                self.assertEqual(r.returncode, code, r.stderr)
+                self.assertIn(message, r.stderr)
+                self.assertNotIn("Traceback", r.stderr)
+                self.assertEqual(r.stdout, "")
+                self.assertEqual(os.listdir(self.tmp), [])
+
+    def test_t6_generation_interrupt_rolls_back(self):
+        # Execute the real entry point, injecting SIGINT after a partial copy or
+        # completed generation step. No scheduling race or model session needed.
+        injection = """
+import os, runpy, signal, sys
+from unittest.mock import patch
+from pathlib import Path
+app = runpy.run_path(sys.argv[1])
+Run = app['Run']
+stage = sys.argv[2]
+if stage == 'copy':
+    original = app['shutil'].copy2
+    def interrupt(src, dst, *args, **kwargs):
+        if Path(dst).name == 'autowp.yaml':
+            Path(dst).write_text('partial copy')
+            os.kill(os.getpid(), signal.SIGINT)
+        return original(src, dst, *args, **kwargs)
+    owner, method = app['shutil'], 'copy2'
+else:
+    original = getattr(Run, stage)
+    def interrupt(self):
+        original(self)
+        assert self.created
+        os.kill(os.getpid(), signal.SIGINT)
+    owner, method = Run, stage
+with patch.object(owner, method, interrupt):
+    sys.exit(app['main'](['--c', '--harness', 'none', sys.argv[3]]))
+"""
+        for stage in ("install_config", "copy", "init_git"):
+            for existing in (False, True):
+                with self.subTest(stage=stage, existing=existing):
+                    work = self.tmp / f"{stage}-{existing}"
+                    work.mkdir()
+                    target = work / "parent/project"
+                    if existing:
+                        for directory in (".claude", ".opencode", ".workshop", "bin"):
+                            (target / directory).mkdir(parents=True, exist_ok=True)
+                            (target / directory / "keep").write_text("unchanged\n")
+                        (target / "README.md").write_text("original readme\n")
+                        subprocess.run(["git", "init", "-q", str(target)],
+                                       check=True, timeout=15)
+                    before = snapshot(work)
+                    r = subprocess.run(
+                        [sys.executable, "-c", injection, str(SCRIPT), stage, str(target)],
+                        cwd=work, stdin=subprocess.DEVNULL, capture_output=True,
+                        text=True, timeout=30)
+                    self.assertEqual(r.returncode, 130, r.stderr)
+                    self.assertEqual(r.stderr, "auto-wp: cancelled\n")
+                    self.assertEqual(r.stdout, "")
+                    self.assertEqual(snapshot(work), before)
+
+    def test_t7_help_and_explicit_errors_before_prompts(self):
+        cases = [
+            (("--help",), None),
+            (("--bogus",), "unrecognized arguments"),
+            (("--c", "--rust"), "not allowed with argument"),
+            (("a", "b"), "unrecognized arguments"),
+            (("--harness", "typo"), "invalid choice"),
+            (("--harness", "copilot"), "--harness copilot is not implemented yet"),
+            (("--driver", "fips"), "--driver fips needs --level"),
+            (("--level", "3"), "--level is only valid with --driver fips"),
+            (("--driver", "typo"), "invalid choice"),
+            (("--driver", "fips", "--level", "5"), "invalid choice"),
+        ]
+        for args, error in cases:
+            with self.subTest(args=args):
+                r = TerminalProcess(self, *args).finish()
+                self.assertEqual(r.returncode, 0 if error is None else 2, r.stderr)
+                self.assertPrompts(r, [])
+                if error is not None:
+                    self.assertIn("usage:", r.stderr)
+                    self.assertIn(error, r.stderr)
+                self.assertEqual(os.listdir(self.tmp), [])
+
+    def test_t8_automated_generation_is_explicit(self):
+        calls = []
+        for path in sorted((REPO / "tests").rglob("*.sh")):
+            for line in path.read_text().replace("\\\n", " ").splitlines():
+                if line.lstrip().startswith("#"):
+                    continue
+                call = re.search(r"""\bpython3\s+[^\s]*auto-wp\.py["']?(.*)""", line)
+                if call and "--help" not in call[1]:
+                    calls.append((path, call[1]))
+                forwarded = re.search(r"\bws_generate\s+(\S+)", line)
+                if forwarded:
+                    self.assertIn(forwarded[1], ("c", "rust"), f"{path}: {line}")
+        doc = REPO / "spec/tests.md"
+        doc_calls = re.findall(
+            r"`[^`\n]*auto-wp\.py\s+([^`\n]+)`|^python3\s+\S*auto-wp\.py\s+(.+)$",
+            doc.read_text(), re.M)
+        self.assertTrue(calls)
+        self.assertTrue(doc_calls)
+        calls.extend((doc, inline or block) for inline, block in doc_calls)
+        for path, args in calls:
+            with self.subTest(path=path, args=args):
+                if path == REPO / "tests/lib/workshop.sh":
+                    self.assertIn('"--$lang"', args)
+                else:
+                    self.assertRegex(args, r"--(?:c|rust)\b")
+                self.assertIn("--harness", args)
 
 
 class TestHarnessSelection(AutoWpTestCase):
@@ -820,22 +1202,12 @@ class TestHarnessSelection(AutoWpTestCase):
                         snippet = (TEMPLATES / "common/harness" / f"{harness}.sh").read_text()
                         self.assertEqual(hook, base + "\n" + snippet)
                         self.assertIn(f"/usr/local/bin/{harness}", hook)
-                        subprocess.run(["bash", "-n"], input=hook, text=True, check=True)
+                        subprocess.run(["bash", "-n"], input=hook, text=True,
+                                       check=True, timeout=15)
                         other = "opencode.ai" if harness == "claude" else "claude.ai"
                         self.assertNotIn(other, readme)
                         self.assertIn(f"  harness:  {harness}", result.stdout)
                     self.assertFalse((project / ".github/hooks").exists())
-
-    def test_default_is_explicit_claude(self):
-        for name, options in (("default-project", []), ("explicit-project", ["--harness", "claude"])):
-            self.assertOk(self.run_auto_wp(*options, name))
-        default = self.tmp / "default-project"
-        explicit = self.tmp / "explicit-project"
-        self.assertEqual(
-            (default / "README.md").read_text().replace("default-project", "PROJECT"),
-            (explicit / "README.md").read_text().replace("explicit-project", "PROJECT"))
-        for rel in (".workshop/autowp-packages/hooks/setup-base",):
-            self.assertEqual((default / rel).read_bytes(), (explicit / rel).read_bytes())
 
     def test_rejected_harness_creates_nothing(self):
         for harness in ("copilot", "openrouter", "typo"):
@@ -853,7 +1225,7 @@ class TestHarnessSelection(AutoWpTestCase):
         project.mkdir()
         (project / "keep").write_text("unchanged")
         before = snapshot(project)
-        result = self.run_auto_wp("--harness", "opencode", str(project),
+        result = self.run_auto_wp("--c", "--harness", "opencode", str(project),
                                   script=prog / "auto-wp.py")
         self.assertEqual(result.returncode, 1)
         self.assertEqual(snapshot(project), before)
@@ -863,7 +1235,7 @@ class TestOutputAndConstraints(AutoWpTestCase):
     """auto-wp.md 2 and 3.6 (exact output), not numbered in 5."""
 
     def test_c_output_exact(self):
-        r = self.run_auto_wp("--c", "foobar")
+        r = self.run_auto_wp("--c", "--harness", "claude", "foobar")
         self.assertOk(r)
         self.assertEqual(r.stdout, (
             "created foobar/config (language: c)\n"
@@ -887,7 +1259,7 @@ class TestOutputAndConstraints(AutoWpTestCase):
             "git     initialized foobar\n"))
 
     def test_rust_output_counts(self):
-        r = self.run_auto_wp("--rust", "foobar")
+        r = self.run_auto_wp("--rust", "--harness", "claude", "foobar")
         self.assertOk(r)
         lines = r.stdout.splitlines()
         self.assertEqual(lines[0], "created foobar/config (language: rust)")
@@ -904,7 +1276,7 @@ class TestOutputAndConstraints(AutoWpTestCase):
         if RUST_ABSENT_PENDING:
             self.skipTest(pending_note(RUST_ABSENT_PENDING) +
                           f"; prints 'skills:   {len(RUST_SKILLS)}', spec says 19")
-        r = self.run_auto_wp("--rust", "foobar")
+        r = self.run_auto_wp("--rust", "--harness", "claude", "foobar")
         self.assertIn("  skills:   19", r.stdout.splitlines())
 
     def test_script_header_and_mode(self):
@@ -915,7 +1287,7 @@ class TestOutputAndConstraints(AutoWpTestCase):
         # index entry and require the exec bit locally.
         index = subprocess.run(
             ["git", "-C", str(REPO), "ls-files", "-s", "--", "auto-wp.py"],
-            capture_output=True, text=True, check=True).stdout.split()
+            capture_output=True, text=True, check=True, timeout=15).stdout.split()
         self.assertEqual(index[0], "100755")
         self.assertTrue(os.access(SCRIPT, os.X_OK))
 
@@ -942,7 +1314,7 @@ class TestFipsDriver(AutoWpTestCase):
     FIPS_COMMANDS = ["ebios", "fips", "time-loop"]
 
     def test_fips_generation(self):
-        r = self.run_auto_wp("--driver", "fips", "--level", "3", "foobar")
+        r = self.run_auto_wp("--c", "--harness", "claude", "--driver", "fips", "--level", "3", "foobar")
         self.assertOk(r)
         self.assertIn("  driver:   fips (FIPS 140-3 level 3)", r.stdout.splitlines())
         d = self.tmp / "foobar"
@@ -965,14 +1337,14 @@ class TestFipsDriver(AutoWpTestCase):
         self.assertTrue((d / ".opencode/skills").is_symlink())
 
     def test_default_generation_has_rmf_only(self):
-        r = self.run_auto_wp("--c", "foobar")
+        r = self.run_auto_wp("--c", "--harness", "claude", "foobar")
         self.assertOk(r)
         d = self.tmp / "foobar"
         self.assertTrue((d / "config/commands/rmf.md").is_file())
         self.assertFalse(os.path.lexists(d / "config/commands/fips.md"))
 
     def test_fips_readme(self):
-        self.run_auto_wp("--driver", "fips", "--level", "2", "foobar")
+        self.run_auto_wp("--c", "--harness", "claude", "--driver", "fips", "--level", "2", "foobar")
         text = (self.tmp / "foobar/README.md").read_text()
         self.assertIn("Requirement study: FIPS 140-3, security level 2 (fips-sl).", text)
         self.assertIn("/fips <dir> <dir>-analysis", text)
@@ -981,14 +1353,14 @@ class TestFipsDriver(AutoWpTestCase):
         self.assertNotIn("{{", text)
         self.assertNotIn("/rmf <dir>", text)
         # The default driver's README keeps its line and has no fips note.
-        self.run_auto_wp("--c", "rmfbar")
+        self.run_auto_wp("--c", "--harness", "claude", "rmfbar")
         text = (self.tmp / "rmfbar/README.md").read_text()
         self.assertIn("Risk study: NIST RMF (rmf-sl).", text)
         self.assertNotIn("libgcrypt", text)
         self.assertNotIn("{{", text)
 
     def test_fips_rust(self):
-        r = self.run_auto_wp("--driver", "fips", "--level", "4", "--rust", "foobar")
+        r = self.run_auto_wp("--harness", "claude", "--driver", "fips", "--level", "4", "--rust", "foobar")
         self.assertOk(r)
         d = self.tmp / "foobar"
         m = json.loads((d / "config/auto-wp.json").read_text())
@@ -1008,7 +1380,7 @@ class TestFipsDriver(AutoWpTestCase):
         victim.chmod(0)
         work = self.tmp / "work"
         work.mkdir()
-        r = self.run_auto_wp("--driver", "fips", "--level", "2", "foo",
+        r = self.run_auto_wp("--c", "--harness", "claude", "--driver", "fips", "--level", "2", "foo",
                              cwd=work, script=prog / "auto-wp.py")
         self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
         self.assertEqual(r.stdout, "")

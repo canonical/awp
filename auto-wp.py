@@ -1,7 +1,11 @@
 #!/usr/bin/env python3
 """auto-wp: bootstrap a formal-verification project for C (Frama-C/WP) or Rust (Creusot).
 
-Usage: ./auto-wp.py [--c|--rust] [--harness claude|opencode|copilot|none] <directory-name>
+Usage: ./auto-wp.py [-h] [--c|--rust] [--driver rmf|fips] [--level 1|2|3|4]
+                   [--harness claude|opencode|copilot|none] [<directory-name>]
+
+Missing language, harness and directory are asked interactively when both
+stdin and stderr are terminals. Scripts must supply all three explicitly.
 
 The generated project works with Claude Code and with OpenCode: both find the
 same skills and commands through the links of §3.3. See spec/auto-wp.md.
@@ -16,7 +20,7 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-VERSION = "0.7.0"
+VERSION = "0.8.0"
 TEMPLATES = Path(__file__).resolve().parent / "templates"
 LANGUAGES = {"c": "C (Frama-C/WP)", "rust": "Rust (Creusot)"}
 # The campaign driver (§2 of spec/fips-skill-spec.md): each driver installs its
@@ -51,6 +55,30 @@ class AutoWpError(Exception):
     """A run-time error: reported on stderr, exit status 1."""
 
 
+def prompt_choice(prompt, choices=None, error="Enter a project directory."):
+    while True:
+        sys.stderr.write(prompt + " ")
+        sys.stderr.flush()
+        line = sys.stdin.buffer.readline()
+        if not line:
+            raise AutoWpError("input ended before all required choices were provided")
+        try:
+            answer = line.decode(encoding="utf-8", errors="strict").strip()
+        except UnicodeDecodeError:
+            print("Input must be valid UTF-8.", file=sys.stderr)
+            continue
+        if choices is None and answer:
+            return answer
+        if choices is not None and answer in choices:
+            return choices[answer]
+        print(error, file=sys.stderr)
+
+
+def validate_harness(harness, error):
+    if harness == "copilot":
+        error("--harness copilot is not implemented yet")
+
+
 def parse_args(argv):
     parser = argparse.ArgumentParser(
         prog="auto-wp.py",
@@ -59,7 +87,8 @@ def parse_args(argv):
     )
     lang = parser.add_mutually_exclusive_group()
     lang.add_argument("--c", dest="language", action="store_const", const="c",
-                      help="install the C configuration (Frama-C/WP); the default")
+                      help="install the C configuration (Frama-C/WP); asked "
+                      "interactively when omitted and stdin is a terminal")
     lang.add_argument("--rust", dest="language", action="store_const", const="rust",
                       help="install the Rust configuration (Creusot)")
     parser.add_argument("--driver", choices=DRIVERS, default="rmf",
@@ -69,26 +98,53 @@ def parse_args(argv):
                         help="the target FIPS 140-3 security level; required "
                         "with --driver fips, refused otherwise (Ann. 7: the "
                         "level is chosen, never defaulted)")
-    parser.add_argument("--harness", choices=HARNESSES, default="claude",
-                        help="agent harness (default: claude); none leaves "
+    parser.add_argument("--harness", choices=HARNESSES,
+                        help="agent harness; asked interactively when omitted "
+                        "and stdin is a terminal; none leaves "
                         "installation to you; copilot is not implemented yet")
-    parser.add_argument("directory", metavar="<directory-name>",
+    parser.add_argument("directory", metavar="<directory-name>", nargs="?",
                         help="project directory to create (or to fill, if it exists)")
-    parser.set_defaults(language="c")
     args = parser.parse_args(argv)
-    if args.harness == "copilot":
-        parser.error("--harness copilot is not implemented yet")
+    validate_harness(args.harness, parser.error)
     if args.driver == "fips" and args.level is None:
         parser.error("--driver fips needs --level 1, 2, 3 or 4")
     if args.driver != "fips" and args.level is not None:
         parser.error("--level is only valid with --driver fips")
+    missing = [label for value, label in (
+        (args.language, "--c/--rust"), (args.harness, "--harness"),
+        (args.directory, "<directory-name>")) if value is None]
+    if missing and not (sys.stdin.isatty() and sys.stderr.isatty()):
+        parser.error(f"missing {', '.join(missing)} "
+                     "(not prompting: stdin or stderr is not a terminal)")
+    if args.language is None:
+        args.language = prompt_choice(
+            "Choose the language:\n"
+            "1. C (Frama-C/WP)\n"
+            "2. Rust (Creusot)\n"
+            "Type 1 or 2:",
+            {"1": "c", "2": "rust"}, "Type 1 or 2.")
+    if args.harness is None:
+        args.harness = prompt_choice(
+            "Choose the agent harness:\n"
+            "1. Claude Code (claude)\n"
+            "2. OpenCode (opencode)\n"
+            "3. GitHub Copilot (copilot; not implemented yet)\n"
+            "4. None (install a harness manually inside Workshop)\n"
+            "Type 1, 2, 3 or 4:",
+            {"1": "claude", "2": "opencode", "3": "copilot", "4": "none"},
+            "Type 1, 2, 3 or 4.")
+        validate_harness(
+            args.harness,
+            lambda message: parser.exit(2, f"{parser.prog}: error: {message}\n"))
+    if args.directory is None:
+        args.directory = prompt_choice("Project directory:")
     return args
 
 
 class Run:
     """One invocation. Records what it creates so it can be rolled back."""
 
-    def __init__(self, directory, language, driver="rmf", level=None, harness="claude"):
+    def __init__(self, directory, language, harness, driver="rmf", level=None):
         self.arg = directory
         self.target = Path(directory)
         self.language = language
@@ -132,13 +188,13 @@ class Run:
             missing.append(p)
             p = p.parent
         for d in reversed(missing):
-            d.mkdir()
             self.created.append(("dir", d))
+            d.mkdir()
 
     def install_config(self):
         config = self.target / "config"
-        config.mkdir()
         self.created.append(("tree", config))
+        config.mkdir()
         skills = self.copy_skills(config / "skills")
         commands = self.copy_commands(config / "commands")
         manifest = {
@@ -229,8 +285,8 @@ class Run:
                         shutil.copytree(entry, dest, symlinks=True, dirs_exist_ok=True,
                                         ignore=shutil.ignore_patterns("*~"))
             else:
-                shutil.copy2(entries[-1], dest, follow_symlinks=False)
                 self.created.append(("file", dest))
+                shutil.copy2(entries[-1], dest, follow_symlinks=False)
             self.out.append(f"copied  {self.show(name)}")
 
     def install_workshop(self):
@@ -244,19 +300,19 @@ class Run:
             return
         dest_dir = self.target / ".workshop"
         if not dest_dir.is_dir():
-            dest_dir.mkdir()
             self.created.append(("dir", dest_dir))
+            dest_dir.mkdir()
         for entry in sorted(src.iterdir()):
             if entry.name.endswith("~"):
                 continue
             dest = dest_dir / entry.name
             if entry.is_dir() and not entry.is_symlink():
+                self.created.append(("tree", dest))
                 shutil.copytree(entry, dest, symlinks=True,
                                 ignore=shutil.ignore_patterns("*~"))
-                self.created.append(("tree", dest))
             else:
-                shutil.copy2(entry, dest, follow_symlinks=False)
                 self.created.append(("file", dest))
+                shutil.copy2(entry, dest, follow_symlinks=False)
         if self.harness != "none":
             hook = dest_dir / "autowp-packages/hooks/setup-base"
             snippet = (TEMPLATES / "common/harness" / f"{self.harness}.sh").read_text()
@@ -269,10 +325,10 @@ class Run:
             path = self.target / rel
             parent = path.parent
             if not parent.is_dir():
-                parent.mkdir()
                 self.created.append(("dir", parent))
-            path.symlink_to(dest)
+                parent.mkdir()
             self.created.append(("file", path))
+            path.symlink_to(dest)
             self.out.append(f"linked  {self.show(rel).ljust(width)} -> {dest}")
 
     def write_readme(self):
@@ -348,8 +404,8 @@ class Run:
                     "use `/time-loop grub 72 --dir=grub-core/lib/libgcrypt`.")
             if anchor in text:
                 text = text.replace(anchor, anchor + note, 1)
-        readme.write_text(text)
         self.created.append(("file", readme))
+        readme.write_text(text)
         self.out.append(f"wrote   {self.show('README.md')}")
 
     def init_git(self):
@@ -402,19 +458,26 @@ class Run:
 
 
 def main(argv=None):
-    args = parse_args(argv)
-    run = Run(args.directory, args.language, args.driver, args.level, args.harness)
+    run = None
     try:
+        args = parse_args(argv)
+        run = Run(args.directory, args.language, args.harness, args.driver, args.level)
         run.execute()
+        print("\n".join(run.out))
+        for w in run.warnings:
+            print(w, file=sys.stderr)
+    except KeyboardInterrupt:
+        if run is not None:
+            run.rollback()
+        print("auto-wp: cancelled", file=sys.stderr)
+        return 130
     except (AutoWpError, OSError, subprocess.SubprocessError) as e:
-        run.rollback()
+        if run is not None:
+            run.rollback()
         if isinstance(e, shutil.Error) and e.args and isinstance(e.args[0], list):
             e = e.args[0][0][2]  # copytree's error list: report the first failure
         print(f"auto-wp: error: {e}", file=sys.stderr)
         return 1
-    print("\n".join(run.out))
-    for w in run.warnings:
-        print(w, file=sys.stderr)
     return 0
 
 

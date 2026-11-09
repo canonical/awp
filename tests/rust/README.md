@@ -1,6 +1,6 @@
 # Rust tests
 
-Container tests for a project generated with `auto-wp.py --rust`, which
+Container tests for a Rust project generated with `auto-wp.py`, which
 verifies Rust code with Creusot. Every check is specified in
 `../../spec/tests.md` §6; the IDs below are those of that section. Run the
 scripts from any directory, or through the `make` targets at the repository
@@ -18,7 +18,7 @@ credential.
 ## `install-test.sh` — level 2
 
 In a fresh `ubuntu:24.04` container, with its stock `python3` and `git`:
-runs `auto-wp.py --rust foobar` and a second time.
+runs `auto-wp.py --rust --harness "$HARNESS" foobar` and a second time.
 
 - R2.1 — exits 0, prints `commands: 0`, and installs the 16 skills of
   `auto-wp.md` §4.3.2. `creusot-launch` is not written yet (roadmap step 1,

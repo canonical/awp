@@ -51,7 +51,10 @@ or `INFO: <id>: ...` per check, and exits 0 only if no check failed. The
 - `test_auto_wp.py` — level 1 program tests: the numbered tests of
   `auto-wp.md` §5 (layout, flags, usage errors, refusals, rollback, git,
   manifest, symlinks, exec bits, READMEs, tools), for both languages. It
-  runs `auto-wp.py` in temporary directories and touches nothing else.
+  also covers `interactive-mode.md` T1–T8 using stdlib pseudo-terminals,
+  open pipes, EOF and deterministic SIGINT injection during generation.
+  It runs `auto-wp.py` in isolated directories and touches nothing else;
+  `TMPDIR` may point inside the checkout (git discovery is bounded).
 - `test_templates.py` — level 1 template checks T1–T7 (`tests.md` §3.2):
   it reads `templates/` and checks what `auto-wp.py` copies byte for byte.
 - `lib/` — shell helpers sourced by the container tests:
@@ -64,7 +67,8 @@ or `INFO: <id>: ...` per check, and exits 0 only if no check failed. The
     Claude Code; `HARNESS=opencode` drives OpenCode (its launcher exports
     the provider API key named by `AUTOWP_OPENCODE_KEY_ENV`, default
     `ANTHROPIC_API_KEY`, and runs `opencode --standalone`).
-    Generation receives the same `--harness` value and launch rejects a
+    Generation receives an explicit language and the same `--harness`
+    value (the generator has no defaults), and launch rejects a
     mismatching manifest. `none`, unknown values and `copilot` fail before
     container or credential operations. `HARNESS_CREDENTIAL=file` is the
     only enabled mode; persisted credentials remain gated on Route A.

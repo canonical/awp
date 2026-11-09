@@ -54,6 +54,12 @@ checks the generated manifest before consuming a credential. Copilot and
 persisted credentials are deliberately gated on the live spike, not
 aliases for Claude. `none` is generation-only.
 
+Since 0.8.0, every automated generator call must supply `--c` or `--rust`,
+`--harness` and the target directory. There is no implicit C or Claude.
+Missing choices prompt only when both stdin and stderr are terminals;
+`lxc exec` scripts and redirected commands fail immediately instead.
+`ws_generate` forwards the language and harness explicitly.
+
 The OpenCode heartbeat is skill-owned in manual sessions and tests alike.
 Both languages use `bin/time-loop-watchdog.py`, with a locked pidfile and
 process-start identity. Stop it with the helper's `stop` action before

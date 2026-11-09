@@ -10,7 +10,7 @@ threshold, and the download falls back to other mirrors.
 
 ## 1. What the test does
 
-1. `python3 auto-wp.py gzip-analyze --c`. The flag may come after the
+1. `python3 auto-wp.py gzip-analyze --c --harness claude`. The flags may come after the
    directory: argparse accepts both orders (checked 2026-10-30, the output is
    `skills:   21`, `commands: 3`).
 2. In `gzip-analyze`, download `gzip-1.9.zip` (with mirror fallbacks),
@@ -93,7 +93,7 @@ copy autowp-c-base/ready to $C; wait until ready; egress check
 push auto-wp.py and templates/ to ~/auto-wp
 in the container, as ubuntu:
     touch ~/.autowp-t0
-    cd ~ && python3 auto-wp/auto-wp.py gzip-analyze --c
+    cd ~ && python3 auto-wp/auto-wp.py gzip-analyze --c --harness claude
     cd gzip-analyze
     for m in <mirrors of §2>; do                               # first that answers
         curl -fsSL -o gzip-1.9.zip "$m/gzip-1.9.zip" &&
@@ -191,7 +191,7 @@ the hours-long build and the hour goes to verification.
 ### 7.1 What changes
 
 - **The project is generated on the host**, as the README says: `auto-wp.py
-  --c <tmp>/gzip-analyze`, then `workshop launch autowp` there. Unlike §3,
+  --c --harness claude <workdir>/gzip-analyze`, then `workshop launch autowp` there. Unlike §3,
   the test writes into a host directory, a new one under `~/.awp` (or
   `WORKSHOP_DIR`), removed at the end unless `KEEP=1`. It is on disk, not
   under `/tmp`: on a host where `/tmp` is a tmpfs, a reboot would lose a
@@ -218,7 +218,7 @@ the hours-long build and the hour goes to verification.
 
 | # | Check |
 |---|---|
-| W.1 | `auto-wp.py --c` on the host succeeds, and `.workshop/autowp.yaml` names the workshop `autowp` and lists `frama-c-sdk`, `rocq`, `lean` and `project-autowp-packages`, with an executable `setup-base`. |
+| W.1 | `auto-wp.py --c --harness claude gzip-analyze` on the host succeeds, and `.workshop/autowp.yaml` names the workshop `autowp` and lists `frama-c-sdk`, `rocq`, `lean` and `project-autowp-packages`, with an executable `setup-base`. |
 | W.2 | `workshop launch autowp` succeeds and `workshop info` says `status: ready`, i.e. every SDK's `check-health` passed. The launch time is INFO. |
 | W.3 | Before the campaign: `frama-c -version` is 32.1, `frama-c` is `/opt/frama-c-sdk/bin/frama-c`, and `FRAMA_C_SDK_SWITCH`/`FRAMA_C_SDK_SRC` are set. |
 | W.4 | After the setup: `bin/fetch-sources.sh` made `framac-src` a link to `/opt/frama-c-sdk/src/frama-c-32.1` (no download), and `bin/framac-onboard.sh` reports the switch present through the SDK. |

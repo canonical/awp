@@ -184,7 +184,7 @@ for the first):
 
 | | Where | Values | Role |
 |---|---|---|---|
-| `auto-wp.py --harness <v>` | project generation (`auto-wp.md` §1.1, implemented in 0.7.0) | `claude` (default), `opencode`, `copilot` (gated), `none` | which harness the README documents and the Workshop definition installs; recorded as `harness` in `config/auto-wp.json` |
+| `auto-wp.py --harness <v>` | project generation (`auto-wp.md` §1.1, implemented in 0.7.0) | `claude`, `opencode`, `copilot` (gated), `none`; no default, asked interactively when omitted and stdin and stderr are terminals (`interactive-mode.md`, 0.8.0) | which harness the README documents and the Workshop definition installs; recorded as `harness` in `config/auto-wp.json` |
 | `HARNESS=<v>` | the test scripts (`tests/lib/*.sh`) | `claude` (default), `opencode`, `copilot` | which harness the test drives |
 
 Rules:
@@ -194,7 +194,7 @@ Rules:
   (`auto-wp.md` §1.1.1). `HARNESS=none` is rejected by the test scripts
   (§1.2): a test needs a harness to drive.
 - **The tests pass the flag through.** Every test that generates a project
-  runs `auto-wp.py --harness "$HARNESS"`, so the README and `setup-base`
+  runs `auto-wp.py --c --harness "$HARNESS"` (or `--rust`), so the README and `setup-base`
   under test are the ones for the harness being driven, and C2.2 checks that
   README against the harness bullet (test 8). `ws_install_harness` is
   skipped when the generated `setup-base` already installed that harness

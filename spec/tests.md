@@ -271,7 +271,7 @@ image).
 
 **Workshop mode (planned, not implemented).** `WORKSHOP=1 provision.sh`
 would replace steps 1–3 with a workshop: generate a project with
-`auto-wp.py --c`, run `workshop launch` from it (the `frama-c-sdk`, `rocq`
+`auto-wp.py --c --harness claude foobar`, run `workshop launch` from it (the `frama-c-sdk`, `rocq`
 and `lean` SDKs from the SDK Store, channel `latest/edge`, and the
 project-local `autowp-packages`, `auto-wp.md` §3.7), and use that container
 as the base, so provisioning takes minutes. It is the first run of a
@@ -301,7 +301,7 @@ are not repeated. Steps, as `ubuntu`:
 
 ```bash
 cd ~
-python3 auto-wp/auto-wp.py --c foobar
+python3 auto-wp/auto-wp.py --c --harness claude foobar
 cd foobar
 git clone https://gitlab.freedesktop.org/gnu-grub/grub.git
 ```
@@ -314,8 +314,8 @@ git clone https://gitlab.freedesktop.org/gnu-grub/grub.git
 | C2.2 | `foobar/README.md` exists, and the in-container block of its quick start (step 2, the code block that starts with `cd foobar`), extracted from the file, starts with exactly the lines this test ran and ends with `claude --dangerously-skip-permissions`; the README also documents the OpenCode harness (its install URL and `opencode` start line). |
 | C2.3 | `git clone` exits 0 and `foobar/grub/` is a git work tree. |
 | C2.4 | `foobar` is a git work tree and `grub/` is not tracked by it. |
-| C2.5 | A second `auto-wp.py --c foobar` exits 1 and changes nothing: a `sha256sum` manifest of `foobar/` (excluding `grub/` and `.git/`), plus the file list, is identical before and after. |
-| C2.6 | `auto-wp.py --driver fips --level 2 fipsbar` exits 0, prints `driver:   fips (FIPS 140-3 level 2)`, `skills:   23` and `commands: 3`, installs `ebios.md`, `fips.md` and `time-loop.md` (no `rmf.md`), and the manifest carries `driver: fips` and `fips_level: 2`. |
+| C2.5 | A second `auto-wp.py --c --harness claude foobar` exits 1 and changes nothing: a `sha256sum` manifest of `foobar/` (excluding `grub/` and `.git/`), plus the file list, is identical before and after. |
+| C2.6 | `auto-wp.py --c --harness claude --driver fips --level 2 fipsbar` exits 0, prints `driver:   fips (FIPS 140-3 level 2)`, `skills:   23` and `commands: 3`, installs `ebios.md`, `fips.md` and `time-loop.md` (no `rmf.md`), and the manifest carries `driver: fips` and `fips_level: 2`. |
 
 ### 5.3 `smoke-test.sh` — level 3
 
@@ -393,7 +393,7 @@ The full specification is `gzip-test.md`. A one-hour campaign on a second
 code base, GNU gzip 1.9, in a copy of `autowp-c-base/ready` (the toolchain
 must already be built: a one-hour budget leaves no time to build it).
 
-1. `python3 auto-wp.py gzip-analyze --c` in the container.
+1. `python3 auto-wp.py gzip-analyze --c --harness claude` in the container.
 2. Download `gzip-1.9.zip` from the first of five mirrors that answers,
    check its pinned sha256 and its GPG signature (`gpgv` against the GNU
    keyring, signing key pinned by fingerprint), unzip it, run
@@ -456,7 +456,7 @@ Builds `autowp-rust-base` and takes the snapshot `ready`:
 4. Stop, then `lxc snapshot autowp-rust-base ready`.
 
 **Workshop mode (planned, not implemented).** As for C (§5.1): a project
-generated with `auto-wp.py --rust`, `workshop launch` with the `creusot`
+generated with `auto-wp.py --rust --harness claude foobar`, `workshop launch` with the `creusot`
 SDK (on the SDK Store since 2026-11-05, `latest/edge`), `rocq`, `lean` and
 `autowp-packages`; checks: `ready`, `cargo creusot version` lists the tools,
 `cargo creusot config` prints `No problems found.`, and the smoke project
@@ -466,7 +466,7 @@ a workshop applies.
 ### 6.2 `install-test.sh` — level 2
 
 Fresh `ubuntu:24.04` container, as in §5.2, then
-`python3 auto-wp/auto-wp.py --rust foobar`.
+`python3 auto-wp/auto-wp.py --rust --harness claude foobar`.
 
 | # | Check |
 |---|---|
@@ -497,7 +497,7 @@ were written and whether an existing `.gitignore` was changed.
 Runs once `creusot-launch` exists (roadmap step 1 in `auto-wp.md` §4.3.7);
 until then it prints `SKIP: creusot-launch not written yet` and exits 0.
 
-In a copy of `autowp-rust-base/ready`: `auto-wp.py --rust foobar`, clone a
+In a copy of `autowp-rust-base/ready`: `auto-wp.py --rust --harness claude foobar`, clone a
 small crate with no dependencies next to it (pinned URL and commit, chosen
 when the test is written), set up `origin` and the token, then start the
 harness (§3.5) and type:

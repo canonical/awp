@@ -5,7 +5,9 @@ pre-loaded with the agent configuration (skills and slash commands) needed to
 drive a formal-verification campaign on C or Rust code. The configuration is
 modelled on `../use-frama-c/config/` (C) and `../use-creusot/config/` (Rust).
 
-Version described: **0.7.0**. The `--harness` option (§1.1) selects
+Version described: **0.8.0**. Missing language, harness and directory are
+completed interactively as specified in [`interactive-mode.md`](interactive-mode.md);
+scripts must supply all three explicitly. The `--harness` option (§1.1) selects
 `claude`, `opencode` or `none`; `copilot` remains explicitly gated.
 Skills have strict YAML descriptions within 1,024 characters, and the
 common tools include the OpenCode watchdog. Compared with 0.5.0, the Rust layer has its
@@ -35,18 +37,18 @@ by hand or by `frama-c-launch`) is kept as the fallback.
 ## 1. Command line
 
 ```
-./auto-wp.py [--c|--rust] [--driver rmf|fips] [--level 1|2|3|4]
-             [--harness claude|opencode|copilot|none] <directory-name>
+./auto-wp.py [-h] [--c|--rust] [--driver rmf|fips] [--level 1|2|3|4]
+             [--harness claude|opencode|copilot|none] [<directory-name>]
 ```
 
 | Argument           | Meaning                                                                  |
 |--------------------|--------------------------------------------------------------------------|
-| `--c`              | Install the C configuration (Frama-C/WP). This is the default.           |
+| `--c`              | Install the C configuration (Frama-C/WP). No default; language is asked interactively when omitted and stdin and stderr are terminals. |
 | `--rust`           | Install the Rust configuration (Creusot).                                |
 | `--driver`         | Which skill drives the campaign: `rmf` (NIST RMF, the default) or `fips` (FIPS 140-3). Each driver installs its own campaign command (`/rmf` or `/fips`); both skills, both linters and the vendored PDF are installed whatever the driver (§4.1). |
 | `--level`          | The target FIPS 140-3 security level, 1–4. Required with `--driver fips` and refused otherwise — Ann. 7 says the level "must be chosen", so there is no default. |
-| `--harness`        | Which agent harness the project is generated for: `claude` (default), `opencode`, `copilot` (gated) or `none`. It selects the README's harness and what Workshop installs. `none` installs no harness: the user installs one by hand (§1.1). |
-| `<directory-name>` | Path of the project directory to create. Relative paths resolve against the current working directory. |
+| `--harness`        | Which agent harness the project is generated for: `claude`, `opencode`, `copilot` (gated) or `none`. No default; asked interactively when omitted and stdin and stderr are terminals. It selects the README's harness and what Workshop installs. `none` installs no harness: the user installs one by hand (§1.1). |
+| `<directory-name>` | Path of the project directory to create, asked interactively when omitted and stdin and stderr are terminals. Relative paths resolve against the current working directory. |
 
 - `--c` and `--rust` are mutually exclusive; giving both is a usage error.
 - `--driver fips` without `--level` is a usage error; `--level` without
@@ -56,13 +58,19 @@ by hand or by `frama-c-launch`) is kept as the fallback.
   error. `copilot` is a usage error too until the Copilot harness is
   implemented (`spec/choose-harness.md` §10.6), with the message
   `--harness copilot is not implemented yet` (exit 2, nothing created).
-- Exactly one positional argument is required.
+- At most one positional argument is accepted. Missing language, harness and
+  directory are asked in that order, only when both stdin and stderr are
+  terminals; otherwise all missing choices are reported together as a usage
+  error, without reading stdin (`interactive-mode.md` §4).
+- Explicit options are validated before any question. Fully explicit commands
+  do not prompt or read stdin. Menus have no default answer. Prompted paths
+  are literal, stripped of surrounding whitespace but not expanded or split.
 - `-h` / `--help` prints usage and exits with status 0.
 
 Example:
 
 ```
-./auto-wp.py --c foobar
+./auto-wp.py --c --harness claude foobar
 ```
 
 creates `foobar/` containing `config/` (skills and commands), the links
@@ -80,7 +88,7 @@ generated files say so and, where possible, install it.
 
 | Value | Meaning |
 |---|---|
-| `claude` | Claude Code. Default; selects its install, login and launch instructions. |
+| `claude` | Claude Code; selects its install, login and launch instructions. No harness is the default. |
 | `opencode` | OpenCode (`choose-harness.md` §2). |
 | `copilot` | GitHub Copilot CLI (`choose-harness.md` §5). Refused with a usage error until implemented (above). |
 | `none` | No harness. The project is the same, the README gives no harness install or start line, and the Workshop definition installs nothing: **the user installs a harness by hand inside the workshop** (`workshop shell`) and starts it in `tmux`. |
@@ -139,8 +147,9 @@ harness this repository does not know.
 #### 1.1.2 Tests
 
 `tests/test_auto_wp.py` gains, for both languages: each accepted value
-generates and records `harness` in the manifest; the default is `claude` and
-its output equals an explicit `--harness claude`; `--harness copilot` exits 2 with nothing created
+generates and records `harness` in the manifest; missing choices on non-terminal
+input exit 2 naming every missing choice (`interactive-mode.md` T1), while
+interactive selections match explicit generation (T2); `--harness copilot` exits 2 with nothing created
 (until implemented); an unknown value exits 2; `--harness none` generates a
 README without the install and start lines of any harness and a `setup-base`
 without a harness snippet; each of the other values produces a `setup-base`
@@ -782,13 +791,21 @@ project must be a git repository.
   reserved (§3.1 item 3), so an existing one is a run-time error. The `git`
   line reads `git     foobar is already in a git work tree` when nothing
   was done.
-- Usage errors (unknown option, both `--c` and `--rust`, missing or extra
-  positional argument): message on stderr, exit 2 (`argparse` default).
+- Usage errors (unknown option, both `--c` and `--rust`, extra positional
+  argument, or missing choices when stdin or stderr is not a terminal):
+  message on stderr, exit 2 (`argparse` default).
   Nothing is created.
+- All prompts and input-error messages go to stderr. EOF at a prompt prints
+  `auto-wp: error: input ended before all required choices were provided`
+  and exits 1. Ctrl-C anywhere prints `auto-wp: cancelled` and exits 130,
+  without a traceback; generation is rolled back first. No artifacts are
+  created until all answers are collected and validated. Interactive Copilot
+  selection exits 2 with the same gate error as its flag, but without usage
+  text (`interactive-mode.md` §2.2).
 - Run-time errors (target is a file, one of the paths of §3.1 item 3 already
   present, missing template directory, I/O error, `git init` failing): message
   on stderr prefixed with `auto-wp: error:`, exit 1.
-- **Rollback.** On a run-time error, at whatever point it happens, remove
+- **Rollback.** On a run-time error or Ctrl-C, at whatever point it happens, remove
   everything this run created, in reverse order: `.git/` (if this run
   initialised it), `README.md`, the five links, `.workshop/autowp.yaml` and
   `.workshop/autowp-packages/` then `.workshop/` itself (only if this run
@@ -1703,7 +1720,9 @@ subprocess.
    `templates/rust/skills/sl-builder/SKILL.md`, and
    `foo/config/skills/sl-internal/scripts/no_ceiling_gate.py` does not exist
    (the override replaces the whole directory).
-3. No language flag behaves like `--c`.
+3. Missing choices with non-terminal input exit 2, listing them in prompt
+   order and creating nothing (`interactive-mode.md` T1). With both stdin
+   and stderr on a terminal, only missing choices are prompted (T2–T7).
 4. `--c --rust foo` exits 2 and creates nothing (`foo` does not exist
    afterwards). The driver options of §1 (fips-skill-spec.md §2), in both
    option orders: `--driver fips foo` exits 2 ("needs --level"), `--level 3
@@ -1730,7 +1749,7 @@ subprocess.
     match the directories under `config/skills/` and the files under
     `config/commands/`; `driver` is `rmf` by default and `fips_level` is
     absent under it (fips-skill-spec.md §3).
-12. Running from another working directory (`cd /tmp && /path/to/auto-wp.py --c foo`)
+12. Running from another working directory (`cd /somewhere && /path/to/auto-wp.py --c --harness claude foo`)
     still finds the templates.
 13. `--c foobar` writes `foobar/README.md`, which contains
     `git clone https://gitlab.freedesktop.org/gnu-grub/grub.git`,

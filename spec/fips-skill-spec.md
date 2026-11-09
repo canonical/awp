@@ -54,7 +54,8 @@ open point 1.
 ## 2. Command line
 
 ```
-./auto-wp.py [--c|--rust] [--driver rmf|fips] [--level 1|2|3|4] <directory-name>
+./auto-wp.py [-h] [--c|--rust] [--driver rmf|fips] [--level 1|2|3|4]
+             [--harness claude|opencode|copilot|none] [<directory-name>]
 ```
 
 - `--driver rmf` is the default. The campaign command is `/rmf`, and
@@ -73,8 +74,8 @@ parsing, with `parser.error()`:
 
 | Command line | Result |
 |---|---|
-| `auto-wp.py foobar` | driver `rmf` |
-| `auto-wp.py --driver fips --level 3 foobar` | driver `fips`, level 3 |
+| `auto-wp.py --c --harness claude foobar` | driver `rmf` |
+| `auto-wp.py --c --harness claude --driver fips --level 3 foobar` | driver `fips`, level 3 |
 | `auto-wp.py --driver fips foobar` | usage error: `--driver fips needs --level 1, 2, 3 or 4` |
 | `auto-wp.py --level 3 foobar` | usage error: `--level is only valid with --driver fips` |
 | `auto-wp.py --driver fips --level 5 foobar` | usage error (argparse `choices`) |

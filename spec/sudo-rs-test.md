@@ -10,7 +10,7 @@ setup has run (§7).
 
 ## 1. What the test does
 
-1. Generate the project `sudo-rs-analyze` with `auto-wp.py --rust`.
+1. Generate the project with `auto-wp.py --rust --harness claude sudo-rs-analyze`.
 2. In it, clone sudo-rs at the pinned release (§2), next to where the
    Creusot overlay will go.
 3. Start the agent harness (`HARNESS`: Claude Code by default, or OpenCode)

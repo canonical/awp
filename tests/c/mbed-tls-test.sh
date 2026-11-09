@@ -90,7 +90,7 @@ campaign_setup_c_mbedtls() {
     local c=$1
     autowp_exec_user "$c" "set -e; touch ~/.autowp-t0; sleep 1
         if [ $CAMPAIGN_GENERATED = 1 ]; then cd '$CAMPAIGN_DIR'
-        else cd ~ && python3 auto-wp/auto-wp.py --driver fips --level $FIPS_LEVEL --harness '$HARNESS' mbedtls-analyze >/dev/null && cd mbedtls-analyze; fi
+        else cd ~ && python3 auto-wp/auto-wp.py --c --driver fips --level $FIPS_LEVEL --harness '$HARNESS' mbedtls-analyze >/dev/null && cd mbedtls-analyze; fi
         git clone -q --branch '$MBEDTLS_TAG' https://github.com/Mbed-TLS/mbedtls.git mbedtls
         test \"\$(git -C mbedtls rev-parse HEAD)\" = '$MBEDTLS_SHA' \\
             || { echo 'mbedtls pin mismatch: pinned $MBEDTLS_SHA, got' \$(git -C mbedtls rev-parse HEAD) >&2; exit 2; }
