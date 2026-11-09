@@ -195,7 +195,12 @@ tmux**, as a person would:
    (Claude Code; the token comes from §7, not from the command line), or
    `ANTHROPIC_API_KEY=... opencode --standalone` (OpenCode).
 2. Wait until the prompt is shown: poll `tmux capture-pane -p` until it
-   contains the input prompt, up to 120 s.
+   contains the input prompt, up to `HARNESS_START_TIMEOUT` (default 300 s).
+   OpenCode disables the shared service so the skill-owned watchdog inherits
+   the launcher's provider key. Its transcript follows the `db` path from
+   `opencode debug paths`, including WAL files; `harness_stop` stops the
+   project-local watchdog and its active wake before closing tmux
+   (`choose-harness.md` §3.2).
 3. Type the command literally, without Enter: `tmux send-keys -t autowp -l '/time-loop grub 3'`.
    Wait 2 s, so slash-command completion settles, then send `Enter` on its
    own (`tmux send-keys -t autowp Enter`).
@@ -548,7 +553,8 @@ With `HARNESS=opencode` the credential is a provider API key instead, and the
 same rules apply: store it once on the host
 (`~/.config/auto-wp/opencode-provider-key`, mode 600 — the default of
 `AUTOWP_TOKEN_FILE` for that harness), never copy the host's
-`~/.local/share/opencode/auth.json` into a container, and stream the key
+OpenCode data directory (the database reported by `opencode debug paths`;
+`auth.json` on older versions) into a container, and stream the key
 through the same `/run/autowp/token` route. The launcher exports it under
 the name of the provider it is for (`AUTOWP_OPENCODE_KEY_ENV`, default
 `ANTHROPIC_API_KEY`); a key of another provider needs that variable set to

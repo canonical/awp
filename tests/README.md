@@ -8,7 +8,7 @@ here and how to run it.
 
 | Level | What | Where | Duration | Needs |
 |---|---|---|---|---|
-| 1 | program and template tests | host | seconds | Python 3.10+, git |
+| 1 | program and template tests | host | seconds | Python 3.10+, git, PyYAML (`requirements.txt`) |
 | 2 | `auto-wp.py` and the README clone step, on a stock image | fresh LXD container | minutes | LXD, network |
 | 3 | a short campaign in the harness, or a tool-level regression | copy of a provisioned base container | 1–4 h | level 2, a harness credential |
 | 4 | `/time-loop grub 72`, plus a resume run (C only) | copy of a provisioned base container | 72 h + 4 h | level 3 |
@@ -22,6 +22,7 @@ hand, never by `make test` or `make test-l2`.
 From the repository root:
 
 ```
+python3 -m pip install -r tests/requirements.txt
 make test            # level 1
 make test-l2         # level 2, C and Rust (or test-c-l2, test-rust-l2)
 make check-scripts   # bash -n and shellcheck on every script
@@ -63,6 +64,12 @@ or `INFO: <id>: ...` per check, and exits 0 only if no check failed. The
     Claude Code; `HARNESS=opencode` drives OpenCode (its launcher exports
     the provider API key named by `AUTOWP_OPENCODE_KEY_ENV`, default
     `ANTHROPIC_API_KEY`, and runs `opencode --standalone`).
+    Generation receives the same `--harness` value and launch rejects a
+    mismatching manifest. `none`, unknown values and `copilot` fail before
+    container or credential operations. `HARNESS_CREDENTIAL=file` is the
+    only enabled mode; persisted credentials remain gated on Route A.
+- `test_harness.py` — fail-closed selection, prompt matching, OpenCode WAL
+  transcripts, private-server configuration and the shared watchdog lifecycle.
 - `c/` and `rust/` — the container tests for each language; see their
   README files.
 - `out/` — logs written by the `make` targets. `make clean` removes it.
@@ -91,7 +98,8 @@ Levels 3 and 4 read a long-lived credential from `AUTOWP_TOKEN_FILE` (default
 yourself once with `claude setup-token`. For OpenCode, write the provider API
 key its launcher exports (an Anthropic key by default) into the file, mode
 600. The scripts never read the host's `~/.claude/.credentials.json` or
-`~/.local/share/opencode/auth.json`, and never put the credential on a
+OpenCode data directory (`opencode debug paths`, including its database),
+and never put the credential on a
 command line, in LXD's configuration or in their output: it goes through
 stdin into a tmpfs file in the container, which the launcher reads and
 deletes. `tests.md` §7 explains why, and what an agent in the container can

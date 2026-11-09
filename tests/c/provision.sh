@@ -148,7 +148,8 @@ cat > ~/.config/opencode/opencode.json <<JSON
 JSON
 cat > ~/.config/opencode/cli.json <<JSON
 {"highlights": false}
-JSON'
+JSON
+opencode service set disabled true'
     host_ver=$(opencode --version 2>/dev/null | head -1)
     guest_ver=$(autowp_exec_user "$BASE" 'opencode --version 2>/dev/null | head -1')
     check C-prov.4-opencode "container opencode '$guest_ver' differs from host '$host_ver'" test "$host_ver" = "$guest_ver"

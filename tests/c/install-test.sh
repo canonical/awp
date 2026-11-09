@@ -26,7 +26,7 @@ RUN_LINES=("cd foobar" "git clone $CLONE_URL")
 
 # --- C2.1 ------------------------------------------------------------------
 set +e
-out=$(autowp_exec_user "$C" 'cd ~ && python3 auto-wp/auto-wp.py --c foobar' 2>&1)
+out=$(autowp_exec_user "$C" "cd ~ && python3 auto-wp/auto-wp.py --c --harness '$HARNESS' foobar" 2>&1)
 rc=$?
 set -e
 printf '%s\n' "$out" | sed 's/^/    | /'
@@ -52,18 +52,22 @@ readme_block=$(autowp_exec_user "$C" "awk '
 head_lines=$(printf '%s\n' "$readme_block" | head -n "${#RUN_LINES[@]}")
 last_line=$(printf '%s\n' "$readme_block" | tail -n 1)
 expected=$(printf '%s\n' "${RUN_LINES[@]}")
+case $HARNESS in
+    claude) expected_start="claude --dangerously-skip-permissions"; install_url=https://claude.ai/install.sh ;;
+    opencode) expected_start=opencode; install_url=https://opencode.ai/v2/install ;;
+esac
 if ! autowp_exec_user "$C" 'test -f ~/foobar/README.md'; then
     fail C2.2 "foobar/README.md does not exist"
 elif [ "$head_lines" != "$expected" ]; then
     fail C2.2 "in-container quick-start block does not start with the lines run: $(echo "$readme_block" | head -3 | tr '\n' '|')"
-elif [ "$last_line" != "claude --dangerously-skip-permissions" ]; then
-    fail C2.2 "in-container quick-start block does not end with claude: '$last_line'"
+elif [ "$last_line" != "$expected_start" ]; then
+    fail C2.2 "in-container quick-start block does not end with $HARNESS: '$last_line'"
 elif ! autowp_exec_user "$C" \
-        'grep -q "https://opencode.ai/install" ~/foobar/README.md && grep -q "^opencode$" ~/foobar/README.md'; then
-    fail C2.2 "README does not document the OpenCode harness (install URL and start line)"
+        "grep -qF '$install_url' ~/foobar/README.md"; then
+    fail C2.2 "README does not document the $HARNESS installer"
 else
     pass C2.2
-    info C2.2 "the rest of the block (tools, remote, claude) is not run at level 2 (covered by level 3)"
+    info C2.2 "the rest of the block (tools, remote, $HARNESS) is not run at level 2 (covered by level 3)"
 fi
 
 # Run the README lines (all but 'claude') in one shell, from ~.
@@ -104,7 +108,7 @@ fi
 # --- C2.5 ------------------------------------------------------------------
 before=$(autowp_manifest "$C" /home/ubuntu/foobar grub .git)
 set +e
-again=$(autowp_exec_user "$C" 'cd ~ && python3 auto-wp/auto-wp.py --c foobar' 2>&1)
+again=$(autowp_exec_user "$C" "cd ~ && python3 auto-wp/auto-wp.py --c --harness '$HARNESS' foobar" 2>&1)
 again_rc=$?
 set -e
 after=$(autowp_manifest "$C" /home/ubuntu/foobar grub .git)
@@ -119,7 +123,7 @@ fi
 
 # --- C2.6: the fips driver (fips-skill-spec.md 8) ------------------------------
 set +e
-fips_out=$(autowp_exec_user "$C" 'cd ~ && python3 auto-wp/auto-wp.py --driver fips --level 2 fipsbar' 2>&1)
+fips_out=$(autowp_exec_user "$C" "cd ~ && python3 auto-wp/auto-wp.py --driver fips --level 2 --harness '$HARNESS' fipsbar" 2>&1)
 fips_rc=$?
 set -e
 printf '%s\n' "$fips_out" | sed 's/^/    | /'

@@ -16,9 +16,12 @@
 #                       ANTHROPIC_API_KEY), same mode
 #   ACCEPT_TOKEN_EXPIRY=1  accept an unknown token lifetime (acceptance.sh)
 
-case ${HARNESS:-claude} in
+# shellcheck source=selection.sh
+. "$(dirname "${BASH_SOURCE[0]}")/selection.sh"
+
+case $HARNESS in
     opencode) AUTOWP_TOKEN_FILE=${AUTOWP_TOKEN_FILE:-$HOME/.config/auto-wp/opencode-provider-key} ;;
-    *)        AUTOWP_TOKEN_FILE=${AUTOWP_TOKEN_FILE:-$HOME/.config/auto-wp/claude-oauth-token} ;;
+    claude)   AUTOWP_TOKEN_FILE=${AUTOWP_TOKEN_FILE:-$HOME/.config/auto-wp/claude-oauth-token} ;;
 esac
 
 # secret_check_file: the token file exists, is a non-empty regular file, and
@@ -30,7 +33,7 @@ secret_check_file() {
         case ${HARNESS:-claude} in
             opencode) echo "       Write the provider API key the launcher exports into it," >&2
                       echo "       once on the host, with mode 600 (tests.md 7.1)." >&2 ;;
-            *)        echo "       Create it once on the host with 'claude setup-token' (tests.md 7.1)." >&2 ;;
+            claude)   echo "       Create it once on the host with 'claude setup-token' (tests.md 7.1)." >&2 ;;
         esac
         return 1
     fi

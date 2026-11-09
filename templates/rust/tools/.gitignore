@@ -1,2 +1,5 @@
 # Written by `workshop launch`; not part of the project history.
 /.workshop.lock
+/.time-loop-watchdog.stop
+/.time-loop-watchdog.pid
+/.time-loop-watchdog.log

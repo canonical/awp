@@ -22,6 +22,9 @@
 #                                campaign's work would then be lost on reboot)
 #   KEEP=1                       keeps the workshop and the project
 
+# shellcheck source=selection.sh
+. "$(dirname "${BASH_SOURCE[0]}")/selection.sh"
+
 WS=autowp                       # the workshop name auto-wp.py writes
 
 ws() { workshop -p "$WS_PROJECT" "$@"; }
@@ -64,7 +67,7 @@ ws_cleanup() {
 ws_generate() {
     local lang=$1 sdk=$2 def out s missing=""
     shift 2
-    out=$(python3 "$AUTOWP_REPO/auto-wp.py" "--$lang" "$@" "$WS_PROJECT" 2>&1) \
+    out=$(python3 "$AUTOWP_REPO/auto-wp.py" "--$lang" "$@" --harness "$HARNESS" "$WS_PROJECT" 2>&1) \
         || { fail W.1 "auto-wp.py failed: $(tail -2 <<<"$out" | tr '\n' ' ')"; return 1; }
     def=$WS_PROJECT/.workshop/autowp.yaml
     [ -f "$def" ] && grep -qx 'name: autowp' "$def" || missing=" name:autowp"
@@ -146,7 +149,7 @@ ws_install_claude() {
 
 ws_install_opencode() {
     local out
-    if out=$(autowp_exec_user "$WS" 'curl -fsSL https://opencode.ai/install | bash >/dev/null 2>&1; . ~/.profile; opencode --version' 2>&1); then
+    if out=$(autowp_exec_user "$WS" 'set -eo pipefail; curl -fsSL https://opencode.ai/v2/install | bash >/dev/null 2>&1; . ~/.profile; opencode --version' 2>&1); then
         info setup "OpenCode $(tail -1 <<<"$out")"
     else
         fail setup "OpenCode install failed: $(tail -2 <<<"$out" | tr '\n' ' ')"; autowp_summary; exit 1
@@ -155,8 +158,13 @@ ws_install_opencode() {
 
 # ws_install_harness: the ws_install_* call matching $HARNESS.
 ws_install_harness() {
-    case ${HARNESS:-claude} in
+    if autowp_exec_user_argv "$WS" "$HARNESS" --version; then
+        info setup "$HARNESS already installed by the generated workshop"
+        return
+    fi
+    case $HARNESS in
         opencode) ws_install_opencode ;;
-        *)        ws_install_claude ;;
+        claude)   ws_install_claude ;;
+        *) die "HARNESS=$HARNESS: unknown harness" ;;
     esac
 }

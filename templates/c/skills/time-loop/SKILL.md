@@ -1,46 +1,12 @@
 ---
 name: time-loop
 description: >-
-  A time-boxed META squeeze loop that drives the existing `/rmf XXX XXX-analysis`
-  campaign to MAXIMIZE HIGH-VALUE VERIFIED COVERAGE on a target `XXX` (any source
-  directory at repo root) within an `N`-hour wall-clock budget — NOT to maximize
-  raw PROVED-cell count. It is the generalized, parameterized form of `meta-penguin`
-  (which is this loop specialized to two Linux subsystems over 6h). It does not
-  verify code itself; it ORCHESTRATES and MONITORS the downstream squeeze
-  (`rmf-sl` code-blind risk authoring → `frama-c-launch` onboarding →
-  `frama-c-monitoring`/`framac-sl` verification convergence), so it IS an
-  `sl-monitoring-sl` instance: it judges the base loops' coverage claims and
-  residue classifications against U and L only — never their rationale. THE CORE
-  LOGIC is a per-cycle RESIDUE-CLASS TRIAGE — class A (tool / U-ceiling: SKIP,
-  retry only if the toolchain was enriched), class B (BLOCKED crypto/entropy:
-  SKIP), class C (unfinished-contract: a refutation probe would flip it — the ONLY
-  class budget is spent on) — prioritized by RMF risk rank across TWO finding-bearing
-  security planes: Plane W (Tier-1 untrusted-input RTE/memory-safety via WP) AND
-  Plane H (Tier-3 authorization/integrity LOGIC via macsl HAPPY system properties —
-  EoP/Spoofing/Tampering invariants; a driver-only HAPPY prop is class-C-not-done,
-  the in-situ proof is the lever). By DEFAULT within budget the loop delivers the full
-  VALUE ORDER — (1) finding-bearing class-C both planes, (2) rigor-completion (close
-  remaining class-C even with no new counterexample expected), (3) scope every
-  OUT-OF-PLANE residual (liveness/DoS — neither plane can express; route to a named
-  model-checker/schedulability tool) — NONE of it gated on the user asking.
-  There is no diminishing-returns stop: the loop ends only at the true terminus
-  (every goal PROVEN, VIOLATION reported, or BUG IN FRAMA-C filed, and Gate T
-  passes) and pauses at the deadline; never terminate early (Plane-W
-  exhaustion while Plane-H leverage remains = plane-blindness; stop-and-ask whether to
-  do rigor / out-of-plane = premature-convergence). Bounds: L = the
-  Frama-C/WP machine verdicts (+ provers) + the macsl HAPPY in-situ verdict + the
-  faithfulness oracle + the refutation probe; U = the code-blind XXX-analysis-rmf-report.md risk-ranked coverage target,
-  bounded by Frama-C's capability ceiling (the moving frontier of L). Dominant
-  enemy: EXEMPT-BUCKET RELABELING — a cycle reporting "exhaustive/converged" while
-  parking hard in-scope class-C work as residual/PARSE-BLOCKED/COQ-NEEDED without
-  its mandatory probe. Inherited invariants: pure WP, NO EVA (TCB-minimization);
-  admit-free audited Coq; XXX/ pristine (faithfulness baseline); honest residuals;
-  R5/Authorize PENDING (human AO signs, the loop never does). Use when asked to run
-  an N-hour exhaustive `/time-loop XXX N` campaign, or to drive `/rmf` to value-
-  maximizing convergence under a wall-clock budget.
+  Drive a time-boxed C verification campaign with code-blind risk or requirement study, Frama-C/WP proofs, residue triage, checkpoints and a self-armed heartbeat. There is no diminishing-returns stop: the loop ends only at the true terminus (every goal PROVEN, VIOLATION reported, or BUG IN FRAMA-C filed, and Gate T passes) and pauses at the deadline; never terminate early. Use /time-loop XXX N to maximize high-value verified coverage within the stored deadline, not raw goal counts.
 ---
 
 # time-loop — an N-hour high-value-coverage squeeze over any target `XXX`
+
+A time-boxed META squeeze loop that drives the existing `/rmf XXX XXX-analysis` campaign to MAXIMIZE HIGH-VALUE VERIFIED COVERAGE on a target `XXX` (any source directory at repo root) within an `N`-hour wall-clock budget — NOT to maximize raw PROVED-cell count. It is the generalized, parameterized form of `meta-penguin` (which is this loop specialized to two Linux subsystems over 6h). It does not verify code itself; it ORCHESTRATES and MONITORS the downstream squeeze (`rmf-sl` code-blind risk authoring → `frama-c-launch` onboarding → `frama-c-monitoring`/`framac-sl` verification convergence), so it IS an `sl-monitoring-sl` instance: it judges the base loops' coverage claims and residue classifications against U and L only — never their rationale. THE CORE LOGIC is a per-cycle RESIDUE-CLASS TRIAGE — class A (tool / U-ceiling: SKIP, retry only if the toolchain was enriched), class B (BLOCKED crypto/entropy: SKIP), class C (unfinished-contract: a refutation probe would flip it — the ONLY class budget is spent on) — prioritized by RMF risk rank across TWO finding-bearing security planes: Plane W (Tier-1 untrusted-input RTE/memory-safety via WP) AND Plane H (Tier-3 authorization/integrity LOGIC via macsl HAPPY system properties — EoP/Spoofing/Tampering invariants; a driver-only HAPPY prop is class-C-not-done, the in-situ proof is the lever). By DEFAULT within budget the loop delivers the full VALUE ORDER — (1) finding-bearing class-C both planes, (2) rigor-completion (close remaining class-C even with no new counterexample expected), (3) scope every OUT-OF-PLANE residual (liveness/DoS — neither plane can express; route to a named model-checker/schedulability tool) — NONE of it gated on the user asking. There is no diminishing-returns stop: the loop ends only at the true terminus (every goal PROVEN, VIOLATION reported, or BUG IN FRAMA-C filed, and Gate T passes) and pauses at the deadline; never terminate early (Plane-W exhaustion while Plane-H leverage remains = plane-blindness; stop-and-ask whether to do rigor / out-of-plane = premature-convergence). Bounds: L = the Frama-C/WP machine verdicts (+ provers) + the macsl HAPPY in-situ verdict + the faithfulness oracle + the refutation probe; U = the code-blind XXX-analysis-rmf-report.md risk-ranked coverage target, bounded by Frama-C's capability ceiling (the moving frontier of L). Dominant enemy: EXEMPT-BUCKET RELABELING — a cycle reporting "exhaustive/converged" while parking hard in-scope class-C work as residual/PARSE-BLOCKED/COQ-NEEDED without its mandatory probe. Inherited invariants: pure WP, NO EVA (TCB-minimization); admit-free audited Coq; XXX/ pristine (faithfulness baseline); honest residuals; R5/Authorize PENDING (human AO signs, the loop never does). Use when asked to run an N-hour exhaustive `/time-loop XXX N` campaign, or to drive `/rmf` to value- maximizing convergence under a wall-clock budget.
 
 This is a **meta / monitoring** Squeeze Loop. The *base* loop is the existing two-phase
 `/rmf XXX XXX-analysis` campaign (code-blind `rmf-sl` → code-aware Frama-C verification).
@@ -947,7 +913,7 @@ stop, emit the terminus/interim report.
   autonomously** the moment the loop would otherwise sit idle. Pick an **~8–12 min off-minute** recurrence
   (e.g. `6,16,26,36,46,56 * * * *`); the cron is a *restart-after-idle watchdog*, not a per-cycle poll —
   CHAIN-WITHIN-TURN drives the cadence while a turn is live, the cron only catches the turn-END.
-  **GATE (run at the START of EVERY cycle):** `CronList` (or the harness equivalent — "The heartbeat
+  **GATE (run at the START of EVERY cycle):** `CronList` (or the harness equivalent — "Primitives
   on each harness" below); if no live
   heartbeat exists, **RE-ARM it immediately** — it may have been cleared, expired, or never set. Cron jobs
   are **session-only and auto-expire after 7 days**, so on a long campaign re-arm proactively. The heartbeat
@@ -961,32 +927,38 @@ stop, emit the terminus/interim report.
   ~15–20 min for the report — never a last-minute dump. At the terminus/deadline call
   `ScheduleWakeup({ stop: true })` so no further self-fire occurs.
 
-**The heartbeat on each harness.** The contract above is harness-neutral: arm the next wake as the
+**Primitives on each harness.** This mapping overrides the Claude-specific tool names and
+delegation requirements elsewhere in this skill. The contract is harness-neutral: arm the next wake as the
 cycle's LAST action, keep an idle watchdog live, verify both at the start of every cycle, and stop by
 not re-arming. The primitives differ:
 - **Claude Code:** `ScheduleWakeup` (arm-last, ends the turn) and `CronCreate`/`CronList` (the idle
-  watchdog), as written above.
+  watchdog), as written above. Spawn with `Agent`/`Task`, read the delivered report, and stop
+  background work with `TaskStop`. Entry point: `/time-loop XXX N`.
 - **OpenCode:** there is no in-session wakeup, but the loop is resumable from `time-loop.state` (§0 —
   a fresh `/time-loop XXX N` reuses the stored start and deadline), so the heartbeat is an EXTERNAL
-  watchdog the loop arms once at activation and re-arms if absent — a detached shell loop that
-  re-invokes the campaign headlessly when the state file has gone quiet (a live turn refreshes it
-  every cycle, so a quiet state file means no session is driving):
+  watchdog the skill owns in tests and manual sessions alike, armed once at activation and
+  re-armed if absent. It re-invokes the campaign headlessly when the state file has gone quiet.
+  Disable the shared service so wakes inherit the launcher's provider key:
   ```bash
-  # armed from the project root; STOPFILE removed/created by the loop itself
-  setsid nohup bash -c 'cd "$(pwd)"; while [ ! -e .time-loop-watchdog.stop ]; do
-      sleep 480;
-      s=$(stat -c %Y XXX-analysis-acsl/time-loop.state 2>/dev/null) || continue;
-      [ $(( $(date +%s) - s )) -ge 600 ] || continue;             # idle >= 10 min
-      [ "$(date +%s)" -ge DEADLINE_EPOCH ] && touch .time-loop-watchdog.stop && continue;
-      opencode run "Load the time-loop skill and run its next cycle for XXX \
-          (budget N hours) from XXX-analysis-acsl/time-loop.state";
-  done' >/dev/null 2>&1 &
+  opencode service set disabled true
+  python3 bin/time-loop-watchdog.py start XXX-analysis-acsl/time-loop.state DEADLINE_EPOCH \
+      "Load the time-loop skill and run its next cycle for XXX (budget N hours) from XXX-analysis-acsl/time-loop.state"
   ```
   Each wake is a fresh `opencode run` session that re-enters this skill, reconciles from the last
   checkpoint and drives ONE cycle (arm-last is then implicit: the watchdog IS the armed wake). At the
-  terminus or the deadline the loop creates `.time-loop-watchdog.stop` and removes it on a fresh arm.
+  terminus or the deadline create `.time-loop-watchdog.stop`. To interrupt externally, run
+  `python3 bin/time-loop-watchdog.py stop`; it stops the recorded process group, including an
+  active wake. `status` checks the pidfile with process-start identity; `start` locks it to
+  prevent duplicate watchdogs and removes the stop flag only for an unexpired deadline.
   Verify the watchdog at the start of every cycle: a live process is not enough on its own — check
   the state file is being refreshed and, if the watchdog died (container restart), re-arm it.
+  Entry point: `/time-loop XXX N`. Verifier spawn/report read-back and background stop are
+  not yet verified: **run the verifier inline**, a known weakening of the delegation barrier,
+  rather than calling unavailable Claude tools. Keep the risk study code-blind: if no fresh
+  isolated study actor can be created, require an independently prepared report before reading
+  source. Stop tool processes by their recorded PID. Never use name-based process killing.
+- **Copilot:** not enabled; entry point, heartbeat and delegation are gated on the spike in
+  `spec/choose-harness.md` of the generator repository. Do not assume Claude primitives exist.
 
 **`--dir=<subdir>` — focus an EXISTING campaign on a subdirectory (a scope filter, not a new campaign).**
 When present, `XXX` still names the existing campaign — its `XXX-analysis-rmf-report.md`, onboarding,
@@ -1039,8 +1011,8 @@ the whole in-scope goal set is in one of the three statuses.
 **SELF-PERPETUATION IS MANDATORY AND GATED — the loop keeps ITSELF alive; it NEVER waits for the human to
 re-invoke it (the 6-hour-idle relapse, 2026-08-01).** The **FIRST action on activation** is to ARM a
 self-re-invoking heartbeat — `CronCreate` a recurring re-invocation of this loop (or `ScheduleWakeup` in a
-`/loop` session; on OpenCode, the external `opencode run` watchdog of "The heartbeat on each harness"
-below) — and to **VERIFY it is live
+`/loop` session; on OpenCode, the external `opencode run` watchdog of "Primitives on each harness"
+above) — and to **VERIFY it is live
 (`CronList`) at the start of every cycle**, re-arming if absent. A turn that ENDS (checkpoint, compaction,
 context-limit, or a completed cycle) while **no heartbeat job is armed** is a **SILENT DEATH**: the loop
 sits idle until a human happens to re-engage — which is exactly the failure this gate abolishes.

@@ -14,10 +14,8 @@
 #                                          token, minutes instead of hours
 #   WORKSHOP_BASE, WORKSHOP_TRY, WORKSHOP_DIR   see tests/lib/workshop.sh
 #
-# Until creusot-launch exists (auto-wp.md 4.3.7 roadmap step 1), the request
-# asks creusot-monitoring for the overlay itself (sudo-rs-test.md 3). It also
-# asks for the code-blind RMF risk study (rmf-sl), checked by S.8 with
-# bin/rmf-lint.sh as the C test's G.3 does.
+# The Rust time-loop skill drives creusot-monitoring and the code-blind RMF
+# study, checked by S.8 with bin/rmf-lint.sh as the C test's G.3 does.
 # Needs the harness credential (tests.md 7, AUTOWP_TOKEN_FILE) unless SETUP_ONLY=1.
 set -euo pipefail
 HERE=$(cd "$(dirname "$0")" && pwd)
@@ -50,20 +48,7 @@ OVERLAY=sudo-rs-creusot
 RMF_REPORT=sudo-rs-analysis-rmf-report.md   # the code-blind risk study (S.8)
 CARGO_ENV='[ -f ~/.cargo/env ] && . ~/.cargo/env;'
 
-REQUEST="Analyze the crate sudo-rs in directory sudo-rs with creusot-monitoring. \
-Guidance: a security audit. First, before anything reads the code, have a fresh sub-agent that \
-never sees sudo-rs/ write a code-blind NIST RMF risk study of sudo-rs with the rmf-sl skill to \
-$RMF_REPORT, next to sudo-rs/; it must pass bin/rmf-lint.sh $RMF_REPORT. creusot-monitoring \
-then uses its risk levels to rank what to prove. Never modify sudo-rs/, and never run cargo inside it (cargo rewrites its Cargo.lock): \
-build a copy (cp -a sudo-rs /tmp/sudo-rs-build). Put every Creusot artifact in the overlay \
-$OVERLAY/ next to it, a Cargo workspace of its own that depends on creusot-std (see \
-config/skills/creusot/references/install.md), since creusot-launch is not available. \
-Rank files by exposure to untrusted input: the sudoers parser (src/sudoers) and command-line \
-parsing first. Prove absence of panics, overflows and out-of-bounds accesses; treat \
-sudo-rs/proofs/sudoers.mlw as a reference model of the sudoers policy. Record PAM, exec, \
-terminal and other FFI or system-state code as out of reach rather than modelling it. \
-You have $HOURS hour(s): before they end, write the report of the run to sudo-rs.md, next \
-to sudo-rs/ (what was proved, what failed, what is out of reach, and the architecture findings)."
+REQUEST="/time-loop sudo-rs $HOURS"
 
 # S.0: the clone is the pinned commit with the expected layout.
 s0() {
@@ -124,7 +109,7 @@ else
     autowp_exec_root "$C" sh -c 'DEBIAN_FRONTEND=noninteractive apt-get install -y -q libpam0g-dev >/dev/null' \
         || die "could not install libpam0g-dev"
     autowp_push_project "$C"
-    autowp_exec_user "$C" "python3 auto-wp/auto-wp.py --rust $CAMPAIGN_PROJECT >/dev/null"
+    autowp_exec_user "$C" "python3 auto-wp/auto-wp.py --rust --harness '$HARNESS' $CAMPAIGN_PROJECT >/dev/null"
 fi
 s0 "$C"
 # sudo-rs builds here, as shipped (libpam found): the baseline for the overlay.
@@ -145,37 +130,19 @@ fi
 # --- the campaign ----------------------------------------------------------------
 
 secret_push "$C"
-# A fixed deadline and a heartbeat: there is no /time-loop for Rust yet, so
-# without one the agent ends its turn after a few hours and the session goes
-# idle (sudo-rs-test.md 6, point 1). Same mechanism as time-loop/SKILL.md:
-# ScheduleWakeup re-invokes the session; the report is rewritten every cycle,
-# so a stop at any time leaves one.
-DEADLINE=$(( $(date +%s) + HOURS * 3600 ))
-DEADLINE_UTC=$(date -u -d "@$DEADLINE" +%FT%TZ)
-REQUEST="$REQUEST \
-Deadline: $DEADLINE_UTC (epoch $DEADLINE). Work in cycles until then, and keep the session alive: \
-before ending every turn, if \$(date +%s) is below $DEADLINE, call ScheduleWakeup with delaySeconds 300 and \
-the prompt 'Continue the sudo-rs Creusot audit until epoch $DEADLINE: start the next item of the \
-list in the request (never a no-op cycle), work on it in $OVERLAY/, then update sudo-rs.md.' At the end of every cycle rewrite \
-sudo-rs.md so it is complete at any moment. \
-A cycle with nothing new is not a pause: while the deadline is ahead, every cycle must start one \
-of these, in order: an unproved function in an in-scope file; a mutation check for a proof that \
-lacks one; a finding not yet shown by a failing model in $OVERLAY/failing/; the next file by \
-exposure, including the parts of src/common, src/system and src/exec that are pure logic; a \
-stronger property (functional, not only absence of panics) for an item already proved. \
-Give each sub-agent at most 45 minutes and record what it delivers. Once the deadline has passed, write the final sudo-rs.md and \
-stop without re-arming."
+# The Rust time-loop skill owns the deadline, code-blind study and heartbeat
+# under both harnesses; no Claude-only wake tool is injected by the test.
 if ! harness_start "$C" "$D" "$REQUEST"; then
     fail S.1 "harness did not start"
     autowp_summary
     exit 1
 fi
-if harness_confirm "$C" creusot-monitoring 600; then pass S.1
-else fail S.1 "creusot-monitoring not loaded within 10 minutes (K4)"; fi
+if harness_confirm "$C" time-loop 600; then pass S.1
+else fail S.1 "time-loop not loaded within 10 minutes (K4)"; fi
 
-# No time-loop for Rust: stop at the budget plus 30 minutes for the report,
+# Stop at the budget plus 30 minutes for the report,
 # or earlier when the transcript has been idle for IDLE_S (default 1800 s).
-wait_loop_stopped "$C" "$D/sudo-rs.md" "$HARD_LIMIT" || true
+wait_loop_stopped "$C" "$D/$OVERLAY/time-loop.state" "$HARD_LIMIT" || true
 harness_pane "$C" | tail -15 | sed 's/^/    | /'
 harness_stop "$C"
 

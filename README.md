@@ -7,8 +7,14 @@ C with [Frama-C/WP](https://frama-c.com), or Rust with
 with Claude Code and with OpenCode.
 
 ```
-./auto-wp.py [--c|--rust] <directory-name>
+./auto-wp.py [--c|--rust] [--harness claude|opencode|copilot|none] <directory-name>
 ```
+
+The default harness is `claude`. `opencode` selects OpenCode; `none` leaves
+harness installation to you inside `workshop shell`. Workshop installs the
+selected harness without credentials; login happens inside the container.
+`copilot` is reserved but rejected until its runtime spike and campaign gates
+pass ([`spec/choose-harness.md`](spec/choose-harness.md)).
 
 The generated directory is stand-alone. It has its own `README.md` with the
 quick start: clone the code to analyse next to the configuration, then run
@@ -39,6 +45,7 @@ your agent harness in a container (for example `/time-loop grub 72` for a
 ## Tests
 
 ```
+python3 -m pip install -r tests/requirements.txt  # test-only YAML parser
 make test        # program and template tests (seconds)
 make help        # every target: container tests, campaigns, SDK builds
 ```

@@ -1,28 +1,12 @@
 ---
 name: ocaml
 description: >-
-  Write, read, debug, and build OCaml 5.x code — grounded in the official OCaml
-  5.4 manual (ocaml.org/manual/5.4). Covers the core language (let/let rec,
-  Hindley-Milner type inference and parametric polymorphism, tuples/lists/arrays/
-  records/variants/option/result, exhaustive pattern matching, immutability and
-  ref/mutable/arrays, the value restriction), error handling (exceptions vs
-  option/Result), the module system (structures, signatures, .ml/.mli, abstract
-  types, FUNCTORS like Map.Make/Set.Make, first-class modules), language
-  extensions (labeled/optional args, polymorphic variants, GADTs, extensible
-  variants, private types, attributes [@...]/extension nodes [%...]/ppx, EFFECT
-  HANDLERS), the 5.x concurrency story (Domain parallelism, Effect, Atomic/Mutex/
-  Condition, the memory model), the toolchain (dune, opam, ocamlc/ocamlopt,
-  ocaml/utop REPL, ocamlfind, ocamllex/ocamlyacc/menhir, ocamldoc, ocamldebug,
-  C FFI), the standard library (Stdlib, List/Array/String/Map/Set/Hashtbl/Seq/
-  Printf/FORMAT, Unix, Str), and idioms/pitfalls (|> and @@, float ops +. *., =
-  vs ==, polymorphic compare, .mli abstraction, warnings). Use whenever the user
-  writes or edits .ml/.mli files, asks about an OCaml type error, a functor, a
-  dune/opam setup, GADTs, effect handlers, or how an OCaml feature works. The
-  matched reference is the 5.4 manual; read the relevant references/ file before
-  going deep on modules, extensions, concurrency, or the toolchain.
+  Write, debug and build OCaml 5.x using the official language manual. Covers type inference, modules and functors, pattern matching, effects, mutable state, exceptions, dune and opam. Use for OCaml implementation work, including Frama-C plugins.
 ---
 
 # OCaml (5.4)
+
+Write, read, debug, and build OCaml 5.x code — grounded in the official OCaml 5.4 manual (ocaml.org/manual/5.4). Covers the core language (let/let rec, Hindley-Milner type inference and parametric polymorphism, tuples/lists/arrays/ records/variants/option/result, exhaustive pattern matching, immutability and ref/mutable/arrays, the value restriction), error handling (exceptions vs option/Result), the module system (structures, signatures, .ml/.mli, abstract types, FUNCTORS like Map.Make/Set.Make, first-class modules), language extensions (labeled/optional args, polymorphic variants, GADTs, extensible variants, private types, attributes [@...]/extension nodes [%...]/ppx, EFFECT HANDLERS), the 5.x concurrency story (Domain parallelism, Effect, Atomic/Mutex/ Condition, the memory model), the toolchain (dune, opam, ocamlc/ocamlopt, ocaml/utop REPL, ocamlfind, ocamllex/ocamlyacc/menhir, ocamldoc, ocamldebug, C FFI), the standard library (Stdlib, List/Array/String/Map/Set/Hashtbl/Seq/ Printf/FORMAT, Unix, Str), and idioms/pitfalls (|> and @@, float ops +. *., = vs ==, polymorphic compare, .mli abstraction, warnings). Use whenever the user writes or edits .ml/.mli files, asks about an OCaml type error, a functor, a dune/opam setup, GADTs, effect handlers, or how an OCaml feature works. The matched reference is the 5.4 manual; read the relevant references/ file before going deep on modules, extensions, concurrency, or the toolchain.
 
 OCaml is a statically-typed functional language with full type inference, algebraic
 data types, a powerful module system (functors), and both bytecode (`ocamlc`) and

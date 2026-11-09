@@ -1,9 +1,12 @@
 ---
 name: sl-monitoring-sl
-description: Specifies how one squeeze loop monitors another squeeze loop — squeezing the monitored loop's soft outputs (especially its accumulated skills / learned heuristics) against that loop's own upper and lower bounds, from an independent evidence base; it classifies a skill by kind (ignore-signal vs defer-to-oracle), runs the matching consistency check, and repairs by carving over-generalized skills with bound-deferring exceptions or pruning spurious ones. Use when a loop accumulates or consolidates skills that may over-reach; when you need a meta-loop or monitor that audits a base loop's learned rules for contradictions with its spec; when a learned heuristic seems to conflict with the governing policy; or when reasoning about the "disjointness principle applied to skills." Trigger phrasings include "a loop monitoring a loop", "monitor the squeeze loop", "check a skill against the upper bound", "the skill contradicts the spec", "carve out an exception", "prune a spurious skill", "who audits the learned skill", "skill-consistency gate".
+description: >-
+  Specify how an independent squeeze loop monitors another loop's outputs and learned heuristics against its upper and lower bounds. Classify ignore-signal and defer-to-oracle skills, check consistency, and accept, narrow or reject them using independent evidence.
 ---
 
 # A squeeze loop monitoring a squeeze loop
+
+Specifies how one squeeze loop monitors another squeeze loop — squeezing the monitored loop's soft outputs (especially its accumulated skills / learned heuristics) against that loop's own upper and lower bounds, from an independent evidence base; it classifies a skill by kind (ignore-signal vs defer-to-oracle), runs the matching consistency check, and repairs by carving over-generalized skills with bound-deferring exceptions or pruning spurious ones. Use when a loop accumulates or consolidates skills that may over-reach; when you need a meta-loop or monitor that audits a base loop's learned rules for contradictions with its spec; when a learned heuristic seems to conflict with the governing policy; or when reasoning about the "disjointness principle applied to skills." Trigger phrasings include "a loop monitoring a loop", "monitor the squeeze loop", "check a skill against the upper bound", "the skill contradicts the spec", "carve out an exception", "prune a spurious skill", "who audits the learned skill", "skill-consistency gate".
 
 This skill specifies a meta-pattern: how a **monitor loop** audits a **base loop**'s
 *soft, learned outputs* — chiefly the **skills** a base loop accumulates — by squeezing

@@ -1,29 +1,12 @@
 ---
 name: linux-api
 description: >-
-  A Squeeze Loop that BUILDS the Linux kernel's API as a Frama-C/WP-checkable
-  "modeled runtime" — ACSL contract stubs, logic/axiomatic models, and ghost-state
-  protocol stubs that stand in for the kernel services a unit calls, so that real
-  kernel code can later be verified against them. It is the kernel analog of
-  pycsl-stdlib-coverage: a coverage CAMPAIGN over the API surface inventoried in
-  linux/linux-api-plan.md (14 subsystems: allocation, mem/string, the user/kernel
-  boundary, locks, atomics, refcounting, containers, ERR_PTR, integer/overflow,
-  sleep/preempt context, time/timers/work, logging, MMIO/IRQ, registration), faithful
-  to the Linux sources in linux/linux-7.1.1/. Each model is squeezed between two
-  sources of truth — the kernel-doc/man/POSIX English (upper bound, the strongest
-  property each API buys) and the actual C in linux-7.1.1/ (lower bound, the fidelity
-  oracle) — and is accepted only when (a) it is faithful to the source, (b) a
-  client harness proves a downstream CONSEQUENCE through the public API, and (c) a
-  seeded-bad caller is CAUGHT (non-vacuity mutation probe). Produces the durable
-  linux/linux-acsl/ overlay consumed by frama-c-launch / frama-c-monitoring / framac-sl,
-  with an explicit Soundness Ledger (TCB) of what is trusted vs proved. Use when adding
-  a new kernel-API model, writing ACSL contract/logic/ghost stubs for a subsystem,
-  authoring a client harness, diagnosing a WP proof failure on a kernel stub, deciding
-  the per-unit memory model (Typed vs Bytes), or applying the convergence loop ("apply
-  the linux-api convergence principle to <section>" — e.g. "model the user-boundary API").
+  Build a Frama-C/WP-checkable model of Linux kernel APIs: ACSL contract stubs, logic models and ghost-state protocols. Use to verify real kernel callers against auditable service models, with coverage accounting and non-vacuity checks.
 ---
 
 # Linux Kernel API Modeling (Squeeze Loop)
+
+A Squeeze Loop that BUILDS the Linux kernel's API as a Frama-C/WP-checkable "modeled runtime" — ACSL contract stubs, logic/axiomatic models, and ghost-state protocol stubs that stand in for the kernel services a unit calls, so that real kernel code can later be verified against them. It is the kernel analog of pycsl-stdlib-coverage: a coverage CAMPAIGN over the API surface inventoried in linux/linux-api-plan.md (14 subsystems: allocation, mem/string, the user/kernel boundary, locks, atomics, refcounting, containers, ERR_PTR, integer/overflow, sleep/preempt context, time/timers/work, logging, MMIO/IRQ, registration), faithful to the Linux sources in linux/linux-7.1.1/. Each model is squeezed between two sources of truth — the kernel-doc/man/POSIX English (upper bound, the strongest property each API buys) and the actual C in linux-7.1.1/ (lower bound, the fidelity oracle) — and is accepted only when (a) it is faithful to the source, (b) a client harness proves a downstream CONSEQUENCE through the public API, and (c) a seeded-bad caller is CAUGHT (non-vacuity mutation probe). Produces the durable linux/linux-acsl/ overlay consumed by frama-c-launch / frama-c-monitoring / framac-sl, with an explicit Soundness Ledger (TCB) of what is trusted vs proved. Use when adding a new kernel-API model, writing ACSL contract/logic/ghost stubs for a subsystem, authoring a client harness, diagnosing a WP proof failure on a kernel stub, deciding the per-unit memory model (Typed vs Bytes), or applying the convergence loop ("apply the linux-api convergence principle to <section>" — e.g. "model the user-boundary API").
 
 ## Purpose and scope
 

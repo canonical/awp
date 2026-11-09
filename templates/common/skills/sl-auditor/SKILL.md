@@ -1,33 +1,12 @@
 ---
 name: sl-auditor
 description: >-
-  Audits an existing Squeeze Loop (SL) for soundness — checking whether a target
-  loop is truly compliant (pairwise-disjoint authority pairs, physically barriered
-  contexts, gate-defined "done", a genuine executable lower bound, and demonstrated
-  catching of coherent-and-wrong) or is quietly collapsing into a rubber stamp. It
-  applies the squeeze's own discipline to the loop under audit: it maps the actual
-  (upper, lower) authority pairs and hunts for an actor certifying its own work;
-  probes whether each context barrier is physical or merely honorary; confirms an
-  executable oracle disjoint from the actor it judges; checks Gate A / Gate B /
-  Gate C are present and load-bearing; seeds coherent-and-wrong artifacts to
-  calibrate the monitors (flag rate not zero, not saturated); audits the loop's
-  accumulated learned skills VIA the sl-monitoring-sl pattern; checks each known
-  collapse mode is blocked by a stabilizer; and routes whatever an internal audit
-  cannot self-certify to a disjoint base (external / cross-provider / human reviewer).
-  Emits a per-dimension findings report with severities. Where the target carries an
-  SL-1.0 `*.sl.json` self-description (owned by its coordinator), it ingests that and
-  runs `sl-internal/scripts/sl_disjointness_check.py` as the mechanical floor of the
-  disjointness/barrier/oracle dimensions (a floor, not a ceiling), and runs the
-  cross-loop source-of-truth check when the target is itself a monitor of another
-  loop. Use when asked to "audit a
-  squeeze loop", "review an existing SL", "is this squeeze loop sound", "check my SL
-  for collapse", "does this loop actually have disjoint authorities", "is the barrier
-  real or honorary", "who certifies the certifier", "is done gate-defined or self-
-  reported", "is this monitor a rubber stamp", "validate an sl.json / run the
-  disjointness checker", or "is my loop quietly collapsing".
+  Audit a Squeeze Loop for soundness: disjoint authority pairs, physical context barriers, gate-defined completion, executable lower bounds and demonstrated detection of coherent-and-wrong outputs. Use to review a loop, its evidence, or its compliance with the SL method.
 ---
 
 # sl-auditor — auditing an existing Squeeze Loop
+
+Audits an existing Squeeze Loop (SL) for soundness — checking whether a target loop is truly compliant (pairwise-disjoint authority pairs, physically barriered contexts, gate-defined "done", a genuine executable lower bound, and demonstrated catching of coherent-and-wrong) or is quietly collapsing into a rubber stamp. It applies the squeeze's own discipline to the loop under audit: it maps the actual (upper, lower) authority pairs and hunts for an actor certifying its own work; probes whether each context barrier is physical or merely honorary; confirms an executable oracle disjoint from the actor it judges; checks Gate A / Gate B / Gate C are present and load-bearing; seeds coherent-and-wrong artifacts to calibrate the monitors (flag rate not zero, not saturated); audits the loop's accumulated learned skills VIA the sl-monitoring-sl pattern; checks each known collapse mode is blocked by a stabilizer; and routes whatever an internal audit cannot self-certify to a disjoint base (external / cross-provider / human reviewer). Emits a per-dimension findings report with severities. Where the target carries an SL-1.0 `*.sl.json` self-description (owned by its coordinator), it ingests that and runs `sl-internal/scripts/sl_disjointness_check.py` as the mechanical floor of the disjointness/barrier/oracle dimensions (a floor, not a ceiling), and runs the cross-loop source-of-truth check when the target is itself a monitor of another loop. Use when asked to "audit a squeeze loop", "review an existing SL", "is this squeeze loop sound", "check my SL for collapse", "does this loop actually have disjoint authorities", "is the barrier real or honorary", "who certifies the certifier", "is done gate-defined or self- reported", "is this monitor a rubber stamp", "validate an sl.json / run the disjointness checker", or "is my loop quietly collapsing".
 
 This skill is an **audit methodology** for a *target* Squeeze Loop (SL). It does
 not design or operate a loop; it interrogates one that already runs and decides

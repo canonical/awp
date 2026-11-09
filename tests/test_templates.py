@@ -16,6 +16,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import yaml
+
 REPO = Path(__file__).resolve().parent.parent
 TEMPLATES = REPO / "templates"
 USE_CREUSOT = Path(os.environ.get("USE_CREUSOT", REPO.parent / "use-creusot"))
@@ -70,6 +72,29 @@ def front_matter(text):
 
 
 class TestTemplates(unittest.TestCase):
+
+    def test_agent_skills_frontmatter(self):
+        class UniqueLoader(yaml.SafeLoader):
+            pass
+
+        def mapping(loader, node):
+            result = {}
+            for key, value in node.value:
+                key = loader.construct_object(key)
+                if key in result:
+                    raise ValueError(f"duplicate YAML key: {key}")
+                result[key] = loader.construct_object(value)
+            return result
+
+        UniqueLoader.add_constructor(
+            yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, mapping)
+        for path in TEMPLATES.glob("*/skills/*/SKILL.md"):
+            with self.subTest(path=path):
+                data = yaml.load(front_matter(path.read_text()), Loader=UniqueLoader)
+                self.assertEqual(data["name"], path.parent.name)
+                self.assertIsInstance(data["description"], str)
+                self.assertTrue(1 <= len(data["description"]) <= 1024)
+        self.assertEqual(list(TEMPLATES.glob("**/.github/hooks")), [])
 
     # T1
     def test_T1_no_repo_root_creusot_sl(self):
@@ -173,6 +198,9 @@ class TestTemplates(unittest.TestCase):
         # the quick-start command is inserted by the program, not a placeholder.
         expected = {"c": {"DIR", "LANGUAGE", "DRIVER", "FEEDBACK", "DRIVER_LINE"},
                     "rust": {"DIR", "LANGUAGE", "DRIVER_LINE"}}
+        for placeholders in expected.values():
+            placeholders.update({"HARNESS", "HARNESS_INSTALL", "HARNESS_START",
+                                 "HARNESS_LOGIN", "HARNESS_HOST"})
         for lang in ("c", "rust"):
             with self.subTest(lang=lang):
                 text = (TEMPLATES / lang / "README.md").read_text()

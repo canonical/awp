@@ -1,28 +1,12 @@
 ---
 name: creusot-monitoring
 description: >-
-  A top-level Squeeze Loop that drives the creusot-sl loop across a whole crate.
-  Given a mission like "analyze the crate xxx in directory yyy", it builds the
-  file/dependency graph, schedules the *.rs files in the right order (leaf files
-  first, propagating each proven callee #[ensures] as the caller's #[requires]),
-  and instantiates a creusot-sl sub-loop (with its own coordinator/spec-author/
-  annotator/verifier sub-agents) on each file. It is itself a squeeze loop
-  MONITORING a squeeze loop (the sl-monitoring-sl meta-pattern): its lower bound /
-  ground truth is the creusot-sl loop's own machine verdicts, and its upper bound
-  is compliance with the mission guidance (e.g. "specify thoroughly the Rust file
-  but disregard network access"). It audits creusot-sl's accumulated learned
-  skills and inferred contracts against that guidance from a disjoint base, routes
-  tooling gaps to getting-better/ and bugs to bugs-to-report/, and capitalizes its
-  own learning under config/skills/creusot-monitoring/. Before analysing, it runs a
-  Phase-0 generic architectural audit (fan-out read-only sub-agents -> an architecture
-  report) whose extracted claims become the upper bound and whose value/risk ranking
-  focuses the schedule (e.g. attack-surface-first for a security audit). Use to verify a crate (not
-  a single file) with Creusot, to orchestrate/monitor many creusot-sl runs, to
-  schedule files leaf-first, or to collect Creusot feature requests and bug
-  reports surfaced during verification.
+  Drive creusot-sl across a Rust crate: map dependencies, schedule leaf-first proofs, propagate contracts, triage residues and maintain whole-crate coverage. Use for a crate-wide verification campaign, with independent monitoring and faithful source models.
 ---
 
 # creusot-monitoring — a Squeeze Loop driving and monitoring `creusot-sl`
+
+A top-level Squeeze Loop that drives the creusot-sl loop across a whole crate. Given a mission like "analyze the crate xxx in directory yyy", it builds the file/dependency graph, schedules the *.rs files in the right order (leaf files first, propagating each proven callee #[ensures] as the caller's #[requires]), and instantiates a creusot-sl sub-loop (with its own coordinator/spec-author/ annotator/verifier sub-agents) on each file. It is itself a squeeze loop MONITORING a squeeze loop (the sl-monitoring-sl meta-pattern): its lower bound / ground truth is the creusot-sl loop's own machine verdicts, and its upper bound is compliance with the mission guidance (e.g. "specify thoroughly the Rust file but disregard network access"). It audits creusot-sl's accumulated learned skills and inferred contracts against that guidance from a disjoint base, routes tooling gaps to getting-better/ and bugs to bugs-to-report/, and capitalizes its own learning under config/skills/creusot-monitoring/. Before analysing, it runs a Phase-0 generic architectural audit (fan-out read-only sub-agents -> an architecture report) whose extracted claims become the upper bound and whose value/risk ranking focuses the schedule (e.g. attack-surface-first for a security audit). Use to verify a crate (not a single file) with Creusot, to orchestrate/monitor many creusot-sl runs, to schedule files leaf-first, or to collect Creusot feature requests and bug reports surfaced during verification.
 
 `creusot-monitoring` is the **top** loop; `creusot-sl` (the `creusot-sl` skill (`config/skills/creusot-sl/SKILL.md`))
 is the **base** loop it drives, one `*.rs` file at a time. It is built with the

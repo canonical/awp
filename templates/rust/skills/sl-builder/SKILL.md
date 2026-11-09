@@ -1,23 +1,12 @@
 ---
 name: sl-builder
 description: >-
-  Interview a human who wants to build a Squeeze Loop (SL) for their problem,
-  then draft a concrete, structured plan. Elicits the deliverable, the upper
-  bound (soft normative authority — spec/standard/policy/contracts), the lower
-  bound (executable oracle — prover/checker/tests/runtime/reference impl), the
-  actors and their disjoint (U,L) pairs, the context barriers, the gates
-  (A editorial / B machine / C coverage-no-blend), the coherent-and-wrong
-  failure to guard, and the stabilizers/collapse modes to pre-empt — then turns
-  the answers into a roles+bounds+barriers+gates+loop-steps plan. Use when the
-  user says any of: "draft a plan to generate a squeeze loop", "draft an SL
-  validation plan", "build an SL strategy for X", "design a squeeze loop for my
-  problem", "help me set up a squeeze loop", "SL validation plan for C code with
-  Frama-C", "an SL that monitors another SL", "nested squeeze loop / monitor of
-  a monitor". Action-oriented: figure out what is known, ASK the missing
-  interview questions, then OUTPUT a plan in the template.
+  Interview a human and design a concrete Squeeze Loop: deliverable, normative upper bound, executable lower bound, disjoint actor pairs, context barriers, counterexample handling and completion gates. Use when building a new SL workflow.
 ---
 
 # SL Builder — interview a human, then draft a Squeeze Loop plan
+
+Interview a human who wants to build a Squeeze Loop (SL) for their problem, then draft a concrete, structured plan. Elicits the deliverable, the upper bound (soft normative authority — spec/standard/policy/contracts), the lower bound (executable oracle — prover/checker/tests/runtime/reference impl), the actors and their disjoint (U,L) pairs, the context barriers, the gates (A editorial / B machine / C coverage-no-blend), the coherent-and-wrong failure to guard, and the stabilizers/collapse modes to pre-empt — then turns the answers into a roles+bounds+barriers+gates+loop-steps plan. Use when the user says any of: "draft a plan to generate a squeeze loop", "draft an SL validation plan", "build an SL strategy for X", "design a squeeze loop for my problem", "help me set up a squeeze loop", "SL validation plan for C code with Frama-C", "an SL that monitors another SL", "nested squeeze loop / monitor of a monitor". Action-oriented: figure out what is known, ASK the missing interview questions, then OUTPUT a plan in the template.
 
 This skill turns a vague wish ("I want correctness for X") into a concrete
 **Squeeze Loop (SL)** plan. It does two things, in order:

@@ -1,25 +1,12 @@
 ---
 name: frama-c
 description: >-
-  Annotate C programs with ACSL specifications for verification with Frama-C
-  (the analysis platform whose WP plugin translates C + ACSL into verification
-  conditions and discharges them with SMT solvers via Why3). Covers function
-  contracts (requires/ensures/assigns), the memory predicates \valid/\valid_read/
-  \separated, \result, \old/\at, behaviors and assumes/ensures, loop annotations
-  (loop invariant/loop assigns/loop variant), assertions //@ assert and //@ check,
-  ghost code /*@ ghost ... */, logic functions and predicates, lemmas and
-  axiomatic blocks, the RTE plugin (-wp-rte: overflow/div-by-zero/mem-access/shift
-  goals), EVA value analysis, ACSL stubs for external functions, the machine model
-  (-machdep), prover/timeout selection (-wp-prover/-wp-timeout), and the escape
-  hatches (Admitted, lemma-as-axiom, trusted stubs) with their soundness cost. Use
-  whenever the user wants to "add an ACSL spec", "annotate this C for Frama-C",
-  "add requires/ensures/assigns", "add a loop invariant", "prove this C function
-  has no runtime errors", "prove absence of overflow / out-of-bounds", asks why a
-  WP goal won't discharge, or asks what \valid, \result, \old, assigns, behavior,
-  or \separated mean in an ACSL contract.
+  Annotate C with ACSL for Frama-C/WP verification. Covers contracts, memory predicates, behaviors, loop invariants and variants, ghost code, logic functions and SMT proof diagnosis. Use when writing or reviewing ACSL or proving C with WP.
 ---
 
 # Annotating C programs with ACSL
+
+Annotate C programs with ACSL specifications for verification with Frama-C (the analysis platform whose WP plugin translates C + ACSL into verification conditions and discharges them with SMT solvers via Why3). Covers function contracts (requires/ensures/assigns), the memory predicates \valid/\valid_read/ \separated, \result, \old/\at, behaviors and assumes/ensures, loop annotations (loop invariant/loop assigns/loop variant), assertions //@ assert and //@ check, ghost code /*@ ghost ... */, logic functions and predicates, lemmas and axiomatic blocks, the RTE plugin (-wp-rte: overflow/div-by-zero/mem-access/shift goals), EVA value analysis, ACSL stubs for external functions, the machine model (-machdep), prover/timeout selection (-wp-prover/-wp-timeout), and the escape hatches (Admitted, lemma-as-axiom, trusted stubs) with their soundness cost. Use whenever the user wants to "add an ACSL spec", "annotate this C for Frama-C", "add requires/ensures/assigns", "add a loop invariant", "prove this C function has no runtime errors", "prove absence of overflow / out-of-bounds", asks why a WP goal won't discharge, or asks what \valid, \result, \old, assigns, behavior, or \separated mean in an ACSL contract.
 
 Frama-C verifies C by parsing it together with **ACSL** (ANSI/ISO C Specification
 Language) annotations, and — through the **WP** plugin — computing verification

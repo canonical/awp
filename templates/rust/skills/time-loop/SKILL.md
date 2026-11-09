@@ -229,7 +229,10 @@ REDUCIBLE trusted-base entry; every proof re-checked with `--no-cache`; every fi
 witnesses; `git -C XXX status --short` empty; the report regenerated from the ledger. Any
 failure is the next thread, not a stop.
 
-## 7. The heartbeat on each harness
+## 7. Primitives on each harness
+
+This mapping overrides Claude-specific tool names and delegation requirements elsewhere
+in this skill. The risk study must still be code-blind under every harness.
 
 The loop keeps itself alive; it never waits for a human to re-invoke it. Arm the next wake as the
 cycle's **last** action (on Claude Code `ScheduleWakeup` ends the turn, so arming first would
@@ -248,20 +251,26 @@ stop by not re-arming.
   (e.g. `6,16,26,36,46,56 * * * *`, prompt `/time-loop XXX N`); check it with `CronList` at the
   start of every cycle and re-arm it if absent (cron jobs are session-only and expire after 7
   days). At the terminus or the deadline: `ScheduleWakeup({ stop: true })` and `CronDelete`.
+  Spawn with `Agent`/`Task`, read its delivered report, and stop background work with
+  `TaskStop`. Entry point: `/time-loop XXX N`.
 - **OpenCode:** no in-session wakeup; the loop is resumable from `time-loop.state`, so the
-  heartbeat is an external watchdog armed once at activation (and re-armed if dead):
+  heartbeat is an external watchdog owned by the skill, in tests and manual sessions alike:
   ```bash
-  # armed from the project root; the loop creates the stop file at the terminus or the deadline
-  setsid nohup bash -c 'cd "$(pwd)"; while [ ! -e .time-loop-watchdog.stop ]; do
-      sleep 480;
-      s=$(stat -c %Y XXX-creusot/time-loop.state 2>/dev/null) || continue;
-      [ $(( $(date +%s) - s )) -ge 600 ] || continue;             # idle >= 10 min
-      [ "$(date +%s)" -ge DEADLINE_EPOCH ] && touch .time-loop-watchdog.stop && continue;
-      opencode run "Load the time-loop skill and run its next cycle for XXX \
-          (budget N hours) from XXX-creusot/time-loop.state";
-  done' >/dev/null 2>&1 &
+  opencode service set disabled true
+  python3 bin/time-loop-watchdog.py start XXX-creusot/time-loop.state DEADLINE_EPOCH \
+      "Load the time-loop skill and run its next cycle for XXX (budget N hours) from XXX-creusot/time-loop.state"
   ```
-  A fresh arm removes `.time-loop-watchdog.stop` first.
+  The private server inherits the launcher's provider key. At the terminus or deadline create
+  `.time-loop-watchdog.stop`; externally, `python3 bin/time-loop-watchdog.py stop` stops the
+  recorded process group including an active wake. `status` checks the pidfile with process-start
+  identity. `start` locks it against duplicate watchdogs and removes the stop flag only for an
+  unexpired deadline. Check state-file freshness too; re-arm only if dead.
+  Entry point: `/time-loop XXX N`. Until verifier spawn/report read-back is verified, **run
+  the verifier inline**, a known weakening of the delegation barrier. If no fresh isolated
+  study actor can be created, require an independently prepared code-blind risk report before
+  reading source. Stop tool processes by recorded PID, never by name.
+- **Copilot:** not enabled; the spike in the generator's `spec/choose-harness.md` must
+  settle entry point, heartbeat and delegation first. Do not assume Claude primitives exist.
 
 ## Pairs with
 

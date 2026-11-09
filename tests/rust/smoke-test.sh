@@ -43,7 +43,7 @@ autowp_wait_ready "$C"
 autowp_egress_check "$C"
 autowp_push_project "$C"
 autowp_exec_user "$C" "set -e; touch ~/.autowp-t0; sleep 1
-    python3 auto-wp/auto-wp.py --rust foobar
+    python3 auto-wp/auto-wp.py --rust --harness '$HARNESS' foobar
     cd foobar
     git clone -q '$MYCRATE_URL' mycrate
     git -C mycrate checkout -q '$MYCRATE_COMMIT'
@@ -57,17 +57,7 @@ if harness_confirm "$C" creusot-launch 300; then pass R4.0-K4; else fail R4.0-K4
 
 # Wait: the request is a single task; done when the transcript has been idle
 # for 20 minutes, or at the hard limit.
-start=$(date +%s)
-while :; do
-    sleep 300
-    now=$(date +%s)
-    [ $((now - start)) -ge "$LIMIT" ] && { info wait "hard limit reached"; break; }
-    idle=$(autowp_exec_user "$C" "case $HARNESS in
-        opencode) t=~/.local/share/opencode/opencode.db ;;
-        *) t=\$(ls -t ~/.claude/projects/*/*.jsonl | head -1) ;;
-    esac; echo \$( (\$(date +%s) - \$(stat -c %Y \"\$t\")) )")
-    [ "$idle" -ge 1200 ] && break
-done
+IDLE_S=1200 wait_loop_stopped "$C" "$CAMPAIGN_DIR/mycrate-creusot/time-loop.state" "$LIMIT" || true
 harness_stop "$C"
 
 # R4.1

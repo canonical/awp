@@ -1,35 +1,12 @@
 ---
 name: rmf-sl
 description: >-
-  A squeeze loop that AUTHORS a NIST Risk Management Framework (RMF) risk
-  assessment as a trustworthy, code-disjoint deliverable — the upstream risk
-  study that the verification launch loop (frama-c-launch for C, creusot-launch
-  / creusot-monitoring for Rust) consumes as its exogenous upper bound, the
-  faithful sibling of ebios-sl. Its upper bound U is NIST RMF doctrine itself (the
-  published standards: SP 800-30 assessment mechanics, SP 800-37 the 7-step
-  lifecycle Prepare/Categorize/Select/Implement/Assess/Authorize/Monitor, SP
-  800-53 the control catalog) plus STRIDE as the threat-identification engine,
-  plus the mission + threat intelligence; its lower bound L is a mechanical
-  structure+coverage+endogeneity linter (bin/rmf-lint.sh) over the report PLUS a
-  human terminus (a disjoint completeness/realism reviewer and the Authorizing
-  Official who accepts residual risk and grants the ATO). It is a soft-side,
-  human-terminus SL: the dominant coherent-and-wrong it guards is a fluent,
-  well-chained but threat-wrong report — a coverage gap masked by fluency, or
-  scenarios silently shaped by reading the implementation (endogeneity). Unlike
-  EBIOS, 800-30 weights accidental and environmental threat origins alongside
-  adversarial ones, so the report must cover all three. The single load-bearing
-  invariant is that the assessment author is physically BARRIERED FROM THE CODE
-  (R1-R4 code-blind), which makes the output a valid exogenous U for the launch
-  and monitoring loops (frama-c-launch / frama-c-monitoring, creusot-launch /
-  creusot-monitoring). Use to produce a NIST RMF risk assessment for a system
-  under verification, in C or in Rust, to run a risk study whose ranking will
-  drive the launch loop, or to author/audit RMF sections R1-R4 independently of
-  the implementation. Built with sl-builder, monitored with sl-monitoring-sl,
-  grounded in sl-internal, audited with sl-auditor; the method content is the
-  NIST corpus (nist/800-30.txt, nist/800-37.txt, nist/800-53.txt).
+  Author a code-blind NIST RMF risk assessment for C or Rust verification. Use SP 800-37, SP 800-30, SP 800-53 and FIPS 199 as authority; validate with rmf-lint and feed ranked risks to verification without exposing the study actor to source code.
 ---
 
 # rmf-sl — author a NIST RMF risk assessment as a code-disjoint squeeze loop
+
+A squeeze loop that AUTHORS a NIST Risk Management Framework (RMF) risk assessment as a trustworthy, code-disjoint deliverable — the upstream risk study that the verification launch loop (frama-c-launch for C, creusot-launch / creusot-monitoring for Rust) consumes as its exogenous upper bound, the faithful sibling of ebios-sl. Its upper bound U is NIST RMF doctrine itself (the published standards: SP 800-30 assessment mechanics, SP 800-37 the 7-step lifecycle Prepare/Categorize/Select/Implement/Assess/Authorize/Monitor, SP 800-53 the control catalog) plus STRIDE as the threat-identification engine, plus the mission + threat intelligence; its lower bound L is a mechanical structure+coverage+endogeneity linter (bin/rmf-lint.sh) over the report PLUS a human terminus (a disjoint completeness/realism reviewer and the Authorizing Official who accepts residual risk and grants the ATO). It is a soft-side, human-terminus SL: the dominant coherent-and-wrong it guards is a fluent, well-chained but threat-wrong report — a coverage gap masked by fluency, or scenarios silently shaped by reading the implementation (endogeneity). Unlike EBIOS, 800-30 weights accidental and environmental threat origins alongside adversarial ones, so the report must cover all three. The single load-bearing invariant is that the assessment author is physically BARRIERED FROM THE CODE (R1-R4 code-blind), which makes the output a valid exogenous U for the launch and monitoring loops (frama-c-launch / frama-c-monitoring, creusot-launch / creusot-monitoring). Use to produce a NIST RMF risk assessment for a system under verification, in C or in Rust, to run a risk study whose ranking will drive the launch loop, or to author/audit RMF sections R1-R4 independently of the implementation. Built with sl-builder, monitored with sl-monitoring-sl, grounded in sl-internal, audited with sl-auditor; the method content is the NIST corpus (nist/800-30.txt, nist/800-37.txt, nist/800-53.txt).
 
 `rmf-sl` produces the **NIST Risk Management Framework** risk assessment that the **launch loop**
 consumes as its **exogenous upper bound** (the risk-level ranking). The launch loop is the

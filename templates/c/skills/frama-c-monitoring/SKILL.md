@@ -1,30 +1,12 @@
 ---
 name: frama-c-monitoring
 description: >-
-  A top-level Squeeze Loop that drives the framac-sl loop across a whole C/C++
-  codebase. Given a mission like "verify the library xxx in directory yyy", it
-  runs a Phase-0 architectural audit, builds the file/dependency graph, schedules
-  the translation units in the right order (leaf-first, propagating each proven
-  callee ensures as the caller's stub requires), and instantiates a framac-sl
-  sub-loop (coordinator/spec-author/annotator/verifier) on each unit — driven
-  unsupervised through the Workflow tool (see references/framac-workflow.md). It is
-  itself a squeeze loop MONITORING a squeeze loop (the sl-monitoring-sl meta-pattern):
-  its lower bound / ground truth is framac-sl's own WP machine verdicts (frama-c -wp
-  -wp-rte), and its upper bound is compliance with the mission guidance. Unlike a
-  single-gate Creusot monitor, the base-SL monitor here runs FOUR gates per unit —
-  faithfulness (strip-ACSL == framac-orig), Gate B (no smuggled behavioural axiom),
-  non-vacuity (mutation probe), and completeness vs a framac-gold reference — and
-  audits the SMT->Coq prover-escalation ladder for soundness (Print Assumptions:
-  only definitional axioms, zero admits). It routes tooling gaps to getting-better/
-  and bugs to bugs-to-report/, and capitalizes its own learning under
-  config/skills/frama-c-monitoring/. Use to verify a whole C/C++ codebase (not a
-  single function) with Frama-C/WP, to orchestrate/monitor many framac-sl runs, to
-  schedule units leaf-first with per-unit preprocessing flags, to calibrate verdict
-  coverage against a gold annotation set, or to collect Frama-C/WP feature requests
-  and bug reports surfaced during verification.
+  Drive framac-sl across a C/C++ codebase: architectural audit, dependency scheduling, contract propagation, WP proof coverage, residue triage and independent monitoring. Use for whole-codebase verification with faithful preprocessing and executable evidence.
 ---
 
 # frama-c-monitoring — a Squeeze Loop driving and monitoring `framac-sl`
+
+A top-level Squeeze Loop that drives the framac-sl loop across a whole C/C++ codebase. Given a mission like "verify the library xxx in directory yyy", it runs a Phase-0 architectural audit, builds the file/dependency graph, schedules the translation units in the right order (leaf-first, propagating each proven callee ensures as the caller's stub requires), and instantiates a framac-sl sub-loop (coordinator/spec-author/annotator/verifier) on each unit — driven unsupervised through the Workflow tool (see references/framac-workflow.md). It is itself a squeeze loop MONITORING a squeeze loop (the sl-monitoring-sl meta-pattern): its lower bound / ground truth is framac-sl's own WP machine verdicts (frama-c -wp -wp-rte), and its upper bound is compliance with the mission guidance. Unlike a single-gate Creusot monitor, the base-SL monitor here runs FOUR gates per unit — faithfulness (strip-ACSL == framac-orig), Gate B (no smuggled behavioural axiom), non-vacuity (mutation probe), and completeness vs a framac-gold reference — and audits the SMT->Coq prover-escalation ladder for soundness (Print Assumptions: only definitional axioms, zero admits). It routes tooling gaps to getting-better/ and bugs to bugs-to-report/, and capitalizes its own learning under config/skills/frama-c-monitoring/. Use to verify a whole C/C++ codebase (not a single function) with Frama-C/WP, to orchestrate/monitor many framac-sl runs, to schedule units leaf-first with per-unit preprocessing flags, to calibrate verdict coverage against a gold annotation set, or to collect Frama-C/WP feature requests and bug reports surfaced during verification.
 
 > **When to run this loop — extreme cases only, NOT by default (user directive, 2026-06-19).**
 > The full multi-agent squeeze is *assurance machinery*, not bug-finding: the verification result

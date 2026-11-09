@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """auto-wp: bootstrap a formal-verification project for C (Frama-C/WP) or Rust (Creusot).
 
-Usage: ./auto-wp.py [--c|--rust] <directory-name>
+Usage: ./auto-wp.py [--c|--rust] [--harness claude|opencode|copilot|none] <directory-name>
 
 The generated project works with Claude Code and with OpenCode: both find the
 same skills and commands through the links of §3.3. See spec/auto-wp.md.
@@ -16,13 +16,14 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-VERSION = "0.6.0"
+VERSION = "0.7.0"
 TEMPLATES = Path(__file__).resolve().parent / "templates"
 LANGUAGES = {"c": "C (Frama-C/WP)", "rust": "Rust (Creusot)"}
 # The campaign driver (§2 of spec/fips-skill-spec.md): each driver installs its
 # own campaign command and the other's is left out; everything else (both
 # skills, both linters, the PDF) is installed whatever the driver.
 DRIVERS = ["rmf", "fips"]
+HARNESSES = ["claude", "opencode", "copilot", "none"]
 DRIVER_COMMANDS = {"rmf": "rmf.md", "fips": "fips.md"}
 
 # Links created in the project: (path relative to the project, link target).
@@ -68,10 +69,15 @@ def parse_args(argv):
                         help="the target FIPS 140-3 security level; required "
                         "with --driver fips, refused otherwise (Ann. 7: the "
                         "level is chosen, never defaulted)")
+    parser.add_argument("--harness", choices=HARNESSES, default="claude",
+                        help="agent harness (default: claude); none leaves "
+                        "installation to you; copilot is not implemented yet")
     parser.add_argument("directory", metavar="<directory-name>",
                         help="project directory to create (or to fill, if it exists)")
     parser.set_defaults(language="c")
     args = parser.parse_args(argv)
+    if args.harness == "copilot":
+        parser.error("--harness copilot is not implemented yet")
     if args.driver == "fips" and args.level is None:
         parser.error("--driver fips needs --level 1, 2, 3 or 4")
     if args.driver != "fips" and args.level is not None:
@@ -82,12 +88,13 @@ def parse_args(argv):
 class Run:
     """One invocation. Records what it creates so it can be rolled back."""
 
-    def __init__(self, directory, language, driver="rmf", level=None):
+    def __init__(self, directory, language, driver="rmf", level=None, harness="claude"):
         self.arg = directory
         self.target = Path(directory)
         self.language = language
         self.driver = driver
         self.level = level
+        self.harness = harness
         self.layers = [TEMPLATES / "common", TEMPLATES / language]
         self.created = []  # (kind, path) in creation order
         self.out = []      # stdout lines, printed only on success
@@ -138,6 +145,7 @@ class Run:
             "language": self.language,
             "auto_wp_version": VERSION,
             "driver": self.driver,
+            "harness": self.harness,
             "created": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
             "skills": skills,
             "commands": commands,
@@ -152,6 +160,7 @@ class Run:
         self.out += [
             f"created {self.show('config')} (language: {self.language})",
             driver_line,
+            f"  harness:  {self.harness}",
             f"  skills:   {len(skills)}",
             f"  commands: {len(commands)}",
         ]
@@ -248,6 +257,10 @@ class Run:
             else:
                 shutil.copy2(entry, dest, follow_symlinks=False)
                 self.created.append(("file", dest))
+        if self.harness != "none":
+            hook = dest_dir / "autowp-packages/hooks/setup-base"
+            snippet = (TEMPLATES / "common/harness" / f"{self.harness}.sh").read_text()
+            hook.write_text(hook.read_text() + "\n" + snippet)
         self.out.append(f"copied  {self.show('.workshop')} (workshop: {WORKSHOP_NAME})")
 
     def link(self):
@@ -268,6 +281,51 @@ class Run:
             self.out.append(f"kept    {self.show('README.md')} (already exists)")
             return
         text = (TEMPLATES / self.language / "README.md").read_text()
+        harness_text = {
+            "claude": (
+                "Claude Code",
+                "command -v claude >/dev/null || "
+                "curl -fsSL https://claude.ai/install.sh | bash",
+                "claude --dangerously-skip-permissions",
+                "On first start, log in using the URL and code printed by Claude Code. "
+                "Login stays in the container. Never copy the host's "
+                "`~/.claude/.credentials.json` into it.",
+                "Outside a container, omit `--dangerously-skip-permissions` "
+                "and approve actions individually.",
+            ),
+            "opencode": (
+                "OpenCode",
+                "command -v opencode >/dev/null || "
+                "curl -fsSL https://opencode.ai/v2/install | bash",
+                "opencode service set disabled true\nopencode",
+                "OpenCode V2 is required (`opencode --version`); the older "
+                "`opencode.ai/install` endpoint installs V1. On first start, "
+                "run `/connect` and `/models`. Anthropic requires "
+                "an API key, not a Claude subscription token; OpenRouter also uses "
+                "an API key. The connection is stored in the container's OpenCode "
+                "database (`opencode debug paths`), not necessarily `auth.json`. "
+                "Never copy the host's OpenCode data directory into it. "
+                "Type `/` to list project commands. OpenCode allows actions by "
+                "default; add `permissions` rules to `opencode.json` to require approval.",
+                "Outside a container, add `permissions` rules to `opencode.json` "
+                "to require approval; the default policy allows actions.",
+            ),
+            "none": (
+                "a manually installed harness", "", "",
+                "No agent harness is installed. Inside `workshop shell` (or the "
+                "LXD container), install a harness that reads `.agents/skills`, "
+                "`.claude/skills` or `.opencode/skills`. Start it in the `tmux` "
+                "session and log in inside the container. Never copy a host "
+                "credential into it. Adapt the next step if your harness cannot "
+                "load the project commands; load the `time-loop` skill explicitly.",
+                "Choose a permission policy that asks before acting when running "
+                "outside a container.",
+            ),
+        }[self.harness]
+        for key, value in zip(
+                ("HARNESS", "HARNESS_INSTALL", "HARNESS_START", "HARNESS_LOGIN",
+                 "HARNESS_HOST"), harness_text):
+            text = text.replace("{{" + key + "}}", value)
         text = text.replace("{{DIR}}", self.target.resolve().name)
         text = text.replace("{{LANGUAGE}}", LANGUAGES[self.language])
         if self.driver == "fips":
@@ -345,7 +403,7 @@ class Run:
 
 def main(argv=None):
     args = parse_args(argv)
-    run = Run(args.directory, args.language, args.driver, args.level)
+    run = Run(args.directory, args.language, args.driver, args.level, args.harness)
     try:
         run.execute()
     except (AutoWpError, OSError, subprocess.SubprocessError) as e:

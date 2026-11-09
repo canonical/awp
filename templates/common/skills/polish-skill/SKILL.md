@@ -1,9 +1,12 @@
 ---
 name: polish-skill
-description: Polishes an existing SKILL.md file so it triggers reliably, scans well, and preserves every technical claim verbatim from the original; when a deep polish is warranted, it also splits cleanly into a SKILL.md plus reference files. Use whenever the user says "polish this skill", "clean up my skill", "make this skill better", "this SKILL.md is too long", uploads a `SKILL.md` file for polish, or asks for help reorganizing skill content under a `references/` folder. Also use when the user wants their skill checked for the common authoring failure modes: undertriggering descriptions, mis-numbered headings, mis-indented bullets, forward references, dead file paths, mixed cautionary-vs-canonical examples, run-on prose bullets, or a single `SKILL.md` past ~500 lines that should be broken up.
+description: >-
+  Polish a SKILL.md so it triggers reliably, scans well and preserves technical claims. Use when asked to clean up, shorten or reorganize a skill, including splitting detailed reference material into references/ without losing requirements.
 ---
 
 # Polish Skill
+
+Polishes an existing SKILL.md file so it triggers reliably, scans well, and preserves every technical claim verbatim from the original; when a deep polish is warranted, it also splits cleanly into a SKILL.md plus reference files. Use whenever the user says "polish this skill", "clean up my skill", "make this skill better", "this SKILL.md is too long", uploads a `SKILL.md` file for polish, or asks for help reorganizing skill content under a `references/` folder. Also use when the user wants their skill checked for the common authoring failure modes: undertriggering descriptions, mis-numbered headings, mis-indented bullets, forward references, dead file paths, mixed cautionary-vs-canonical examples, run-on prose bullets, or a single `SKILL.md` past ~500 lines that should be broken up.
 
 Your job is to take an existing skill (a `SKILL.md` file, optionally with companion files in `scripts/`, `references/`, `assets/`) and produce a polished version that is easier for a model to absorb, harder to mis-trigger, and structured for progressive disclosure when oversized — without altering any technical claim.
 

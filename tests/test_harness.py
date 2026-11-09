@@ -8,6 +8,10 @@ character is easy to lose in an edit, hence this test.
 import os
 import subprocess
 import unittest
+import json
+import tempfile
+import time
+from pathlib import Path
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)
@@ -46,6 +50,206 @@ class ClaudePrompt(unittest.TestCase):
 
     def test_rejects_text(self):
         self.assertFalse(grep(self.re, "Running unlzw baseline WP"))
+
+
+class HarnessSelection(unittest.TestCase):
+    def test_unknown_values_fail_before_side_effects(self):
+        for library in ("harness", "secret", "workshop"):
+            for value in ("none", "copilot", "typo"):
+                with self.subTest(library=library, value=value):
+                    result = subprocess.run(
+                        ["bash", "-c", f". tests/lib/{library}.sh; echo UNREACHABLE"],
+                        cwd=REPO, env=dict(os.environ, HARNESS=value),
+                        text=True, capture_output=True)
+                    self.assertEqual(result.returncode, 2)
+                    self.assertIn(f"HARNESS={value}: unknown harness", result.stderr)
+                    self.assertNotIn("UNREACHABLE", result.stdout)
+
+    def test_credential_modes_fail_closed(self):
+        for mode in ("persisted", "typo"):
+            result = subprocess.run(["bash", "-c", ". tests/lib/secret.sh"],
+                                    cwd=REPO, env=dict(os.environ, HARNESS="opencode",
+                                                     HARNESS_CREDENTIAL=mode),
+                                    capture_output=True, text=True)
+            self.assertEqual(result.returncode, 2)
+
+    def test_opencode_prompt(self):
+        regex = prompt_re("opencode")
+        for text in ("Ask anything…", "  shift+tab agents"):
+            self.assertTrue(grep(regex, text))
+        self.assertFalse(grep(regex, "Running unlzw baseline WP"))
+
+    def test_key_variable_is_not_shell_code(self):
+        result = subprocess.run(["bash", "-c", ". tests/lib/harness.sh"],
+                                cwd=REPO, env=dict(os.environ, HARNESS="opencode",
+                                                 AUTOWP_OPENCODE_KEY_ENV="BAD; echo unsafe"),
+                                capture_output=True, text=True)
+        self.assertEqual(result.returncode, 2)
+
+    def test_manifest_mismatch_prevents_launch(self):
+        with tempfile.TemporaryDirectory() as d:
+            config = Path(d) / "config"
+            config.mkdir()
+            (config / "auto-wp.json").write_text('{"harness":"claude"}')
+            script = """
+                . tests/lib/lxc.sh
+                . tests/lib/harness.sh
+                autowp_exec_user_argv() { shift; "$@"; }
+                harness_write_launcher() { echo UNREACHABLE; }
+                harness_start local "$1" '/time-loop test 1'
+            """
+            result = subprocess.run(["bash", "-c", script, "_", d], cwd=REPO,
+                                    env=dict(os.environ, HARNESS="opencode"),
+                                    capture_output=True, text=True)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("harness mismatch", result.stderr)
+            self.assertNotIn("UNREACHABLE", result.stdout)
+
+    def test_opencode_trust_writes_separate_json_files(self):
+        with tempfile.TemporaryDirectory() as d:
+            script = """
+                . tests/lib/lxc.sh
+                . tests/lib/harness.sh
+                autowp_exec_user() { shift; bash -c "$*"; }
+                opencode() { printf '%s\\n' "$*" > "$HOME/service-call"; }
+                export -f opencode
+                harness_trust local /project
+            """
+            result = subprocess.run(["bash", "-c", script], cwd=REPO,
+                                    env=dict(os.environ, HOME=d, HARNESS="opencode"),
+                                    capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            root = Path(d) / ".config/opencode"
+            self.assertIn("permissions", json.loads((root / "opencode.json").read_text()))
+            self.assertEqual(json.loads((root / "cli.json").read_text()), {"highlights": False})
+            self.assertEqual((Path(d) / "service-call").read_text().strip(),
+                             "service set disabled true")
+
+    def test_wal_at_custom_path_and_skill_not_only_prompt(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            db = root / "custom channel/opencode.db"
+            db.parent.mkdir()
+            db.write_bytes(b"old")
+            (root / ".autowp-harness-start").touch()
+            os.utime(root / ".autowp-harness-start", (time.time() - 10,) * 2)
+            wal = Path(str(db) + "-wal")
+            script = """
+                . tests/lib/lxc.sh
+                . tests/lib/harness.sh
+                autowp_exec_user() { shift; bash -c "$*"; }
+                autowp_exec_user_argv() { shift; "$@"; }
+                opencode() { printf 'db         %s\\n' "$TEST_DB"; }
+                sleep() { :; }
+                export -f opencode
+                harness_confirm local time-loop 1
+            """
+            for content, expected in ((b"/time-loop test 1", 1),
+                                      (b'\x00{"tool":"skill","name":"time-loop"}', 0)):
+                wal.write_bytes(content)
+                result = subprocess.run(["bash", "-c", script], cwd=REPO,
+                                        env=dict(os.environ, HOME=d, HARNESS="opencode",
+                                                 TEST_DB=str(db)),
+                                        capture_output=True, text=True)
+                self.assertEqual(result.returncode, expected, result.stderr)
+
+
+class Watchdog(unittest.TestCase):
+    def test_deadline_stops_an_active_wake(self):
+        watchdog = Path(REPO) / "templates/common/tools/bin/time-loop-watchdog.py"
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            fake = root / "opencode"
+            fake.write_text(
+                "#!/usr/bin/env python3\nimport os,subprocess,time\n"
+                "from pathlib import Path\n"
+                "Path('wake.pid').write_text(str(os.getpid()))\n"
+                "subprocess.Popen(['python3','-c',"
+                "'import os,signal,time; from pathlib import Path; "
+                "signal.signal(signal.SIGTERM,signal.SIG_IGN); "
+                "Path(\"tool.pid\").write_text(str(os.getpid())); time.sleep(300)'])\n"
+                "time.sleep(300)\n")
+            fake.chmod(0o755)
+            (root / "state").touch()
+            env = dict(os.environ, PATH=d + ":" + os.environ["PATH"])
+
+            def run(*args):
+                return subprocess.run(["python3", str(watchdog), *map(str, args)],
+                                      cwd=d, env=env, capture_output=True, text=True,
+                                      timeout=15)
+            try:
+                result = run("start", "state", int(time.time()) + 3, "resume",
+                             "--interval", .05, "--idle", 0)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                end = time.time() + 8
+                while run("status").returncode == 0 and time.time() < end:
+                    time.sleep(.1)
+                self.assertEqual(run("status").returncode, 1)
+                self.assertTrue((root / ".time-loop-watchdog.stop").exists())
+                pid = int((root / "wake.pid").read_text())
+                self.assertFalse(Path(f"/proc/{pid}").exists())
+                tool_pid = int((root / "tool.pid").read_text())
+                stat = Path(f"/proc/{tool_pid}/stat")
+                if stat.exists():
+                    self.assertEqual(stat.read_text().rsplit(")", 1)[1].split()[0], "Z")
+            finally:
+                run("stop")
+
+    def test_lifecycle_and_inherited_credentials(self):
+        watchdog = Path(REPO) / "templates/common/tools/bin/time-loop-watchdog.py"
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            fake = root / "opencode"
+            fake.write_text(
+                "#!/usr/bin/env python3\nimport os,time,subprocess\n"
+                "from pathlib import Path\n"
+                "Path('credential').write_text(os.environ['TEST_PROVIDER_KEY'])\n"
+                "child=subprocess.Popen(['sleep','300'])\n"
+                "Path('child.pid').write_text(str(child.pid))\n"
+                "time.sleep(300)\n")
+            fake.chmod(0o755)
+            state = root / "state"
+            state.touch()
+            env = dict(os.environ, PATH=d + ":" + os.environ["PATH"],
+                       TEST_PROVIDER_KEY="dummy-test-key")
+
+            def run(*args):
+                return subprocess.run(
+                    ["python3", str(watchdog), *map(str, args)], cwd=d, env=env,
+                    capture_output=True, text=True, timeout=15)
+
+            deadline = int(time.time()) + 60
+            try:
+                first = run("start", "state", deadline, "resume", "--interval", .05, "--idle", 0)
+                self.assertEqual(first.returncode, 0, first.stderr)
+                original = (root / ".time-loop-watchdog.pid").read_text()
+                second = run("start", "state", deadline, "resume")
+                self.assertEqual(second.returncode, 0, second.stderr)
+                self.assertEqual((root / ".time-loop-watchdog.pid").read_text(), original)
+                end = time.time() + 5
+                while not (root / "child.pid").exists() and time.time() < end:
+                    time.sleep(.05)
+                self.assertEqual((root / "credential").read_text(), "dummy-test-key")
+                child = int((root / "child.pid").read_text())
+                self.assertEqual(run("status").returncode, 0)
+                self.assertEqual(run("stop").returncode, 0)
+                self.assertEqual(run("status").returncode, 1)
+                stat = Path(f"/proc/{child}/stat")
+                if stat.exists():
+                    self.assertEqual(stat.read_text().rsplit(")", 1)[1].split()[0], "Z")
+                self.assertTrue((root / ".time-loop-watchdog.stop").exists())
+                self.assertNotEqual(run("start", "state", 1, "resume").returncode, 0)
+            finally:
+                run("stop")
+
+    def test_stale_pidfile_does_not_signal_other_process(self):
+        watchdog = Path(REPO) / "templates/common/tools/bin/time-loop-watchdog.py"
+        with tempfile.TemporaryDirectory() as d:
+            (Path(d) / ".time-loop-watchdog.pid").write_text(
+                json.dumps({"pid": os.getpid(), "start": "stale"}))
+            result = subprocess.run(["python3", str(watchdog), "stop"], cwd=d,
+                                    capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
 
 
 LOCK = '# This file is automatically @generated by Cargo.\nversion = 4\n\n[[package]]\nname = "glob"\nversion = "0.3.2"\n'

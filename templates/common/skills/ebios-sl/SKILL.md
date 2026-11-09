@@ -1,27 +1,12 @@
 ---
 name: ebios-sl
 description: >-
-  A squeeze loop that AUTHORS an EBIOS Risk Manager (ANSSI) report as a
-  trustworthy, code-disjoint deliverable — the upstream risk study that
-  frama-c-launch consumes as its exogenous upper bound. Its upper bound U is
-  EBIOS RM doctrine itself (the published ANSSI standard: the five workshops, the
-  severity/likelihood/acceptability scales, the chaining rules, the vocabulary)
-  plus the mission + threat intelligence; its lower bound L is a mechanical
-  structure+coverage+endogeneity linter (bin/ebios-lint.sh) over the report PLUS a
-  human terminus (a disjoint completeness/realism reviewer and the risk owner who
-  accepts residual risk). It is a soft-side, human-terminus SL: the dominant
-  coherent-and-wrong it guards is a fluent, well-chained but threat-wrong report —
-  a coverage gap masked by fluency, or scenarios silently shaped by reading the
-  implementation (endogeneity). The single load-bearing invariant is that the
-  scenario author is physically BARRIERED FROM THE CODE (W1-W3 code-blind), which
-  is what makes the output a valid exogenous U for frama-c-launch. Use to produce
-  an EBIOS RM report for a system under verification, to run a risk study whose
-  ranking will drive frama-c-launch/frama-c-monitoring, or to author/audit EBIOS
-  workshops 1-4 independently of the implementation. Built with sl-builder,
-  monitored with sl-monitoring-sl; the method content is the ebios-risk-manager skill.
+  Author a code-blind EBIOS Risk Manager report grounded in ANSSI doctrine and its five workshops. Use independent evidence, explicit severity and likelihood scales, validation gates and constrained feedback for a trustworthy upstream risk study.
 ---
 
 # ebios-sl — author an EBIOS RM report as a code-disjoint squeeze loop
+
+A squeeze loop that AUTHORS an EBIOS Risk Manager (ANSSI) report as a trustworthy, code-disjoint deliverable — the upstream risk study that frama-c-launch consumes as its exogenous upper bound. Its upper bound U is EBIOS RM doctrine itself (the published ANSSI standard: the five workshops, the severity/likelihood/acceptability scales, the chaining rules, the vocabulary) plus the mission + threat intelligence; its lower bound L is a mechanical structure+coverage+endogeneity linter (bin/ebios-lint.sh) over the report PLUS a human terminus (a disjoint completeness/realism reviewer and the risk owner who accepts residual risk). It is a soft-side, human-terminus SL: the dominant coherent-and-wrong it guards is a fluent, well-chained but threat-wrong report — a coverage gap masked by fluency, or scenarios silently shaped by reading the implementation (endogeneity). The single load-bearing invariant is that the scenario author is physically BARRIERED FROM THE CODE (W1-W3 code-blind), which is what makes the output a valid exogenous U for frama-c-launch. Use to produce an EBIOS RM report for a system under verification, to run a risk study whose ranking will drive frama-c-launch/frama-c-monitoring, or to author/audit EBIOS workshops 1-4 independently of the implementation. Built with sl-builder, monitored with sl-monitoring-sl; the method content is the ebios-risk-manager skill.
 
 `ebios-sl` produces the **EBIOS Risk Manager** report that `frama-c-launch` consumes as its
 **exogenous upper bound** (the risk-level ranking). It is a **peer that runs first and

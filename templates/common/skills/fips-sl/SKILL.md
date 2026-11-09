@@ -1,36 +1,12 @@
 ---
 name: fips-sl
 description: >-
-  A squeeze loop that AUTHORS a FIPS 140-3 requirement study of a cryptographic
-  module as a trustworthy, code-disjoint deliverable — the upstream requirement
-  study that the verification launch loop (frama-c-launch, then
-  frama-c-monitoring) consumes as its exogenous upper bound, the faithful
-  sibling of rmf-sl. Its upper bound U is the vendored standard itself
-  (./NIST.FIPS.140-3.pdf — the only document the skill cites) plus the module's
-  public description (purpose, services, documented interfaces, Security Policy
-  if one exists) plus the target security level from the manifest; its lower
-  bound L is a mechanical structure+coverage+source-honesty+endogeneity linter
-  (bin/fips-lint.sh) over the report PLUS a human terminus (a disjoint
-  completeness/realism reviewer and the owner of the protected information, or
-  the agency's responsible authority, who accepts the residual risk — Ann. 13).
-  It is a soft-side, human-terminus SL: the dominant coherent-and-wrong it
-  guards is a fluent, well-chained report in which the requirements are
-  INVENTED while stated as if sourced from the PDF (the PDF names the four
-  levels and the eleven requirement areas but holds almost none of the
-  requirements — rule F3 makes every requirement's source explicit, and
-  src:UNSOURCED is the honest state of most of them). The single load-bearing
-  invariant is that the study author is physically BARRIERED FROM THE CODE
-  (F1-F4 code-blind), which makes the output a valid exogenous U for the launch
-  and monitoring loops. Use to produce a FIPS 140-3 requirement study for a
-  cryptographic module at a chosen target level (1-4, from
-  config/auto-wp.json), to run a study whose ranking will drive the launch
-  loop, or to author/audit FIPS sections F1-F4 independently of the
-  implementation. Built with sl-builder, monitored with sl-monitoring-sl,
-  grounded in sl-internal, audited with sl-auditor; the method content is the
-  vendored NIST.FIPS.140-3.pdf.
+  Author a code-blind FIPS 140-3 requirement study for a cryptographic module. Use the vendored standard and selected security level as authority, validate with fips-lint, and produce the upstream requirements consumed by verification launch and monitoring.
 ---
 
 # fips-sl — author a FIPS 140-3 requirement study as a code-disjoint squeeze loop
+
+A squeeze loop that AUTHORS a FIPS 140-3 requirement study of a cryptographic module as a trustworthy, code-disjoint deliverable — the upstream requirement study that the verification launch loop (frama-c-launch, then frama-c-monitoring) consumes as its exogenous upper bound, the faithful sibling of rmf-sl. Its upper bound U is the vendored standard itself (./NIST.FIPS.140-3.pdf — the only document the skill cites) plus the module's public description (purpose, services, documented interfaces, Security Policy if one exists) plus the target security level from the manifest; its lower bound L is a mechanical structure+coverage+source-honesty+endogeneity linter (bin/fips-lint.sh) over the report PLUS a human terminus (a disjoint completeness/realism reviewer and the owner of the protected information, or the agency's responsible authority, who accepts the residual risk — Ann. 13). It is a soft-side, human-terminus SL: the dominant coherent-and-wrong it guards is a fluent, well-chained report in which the requirements are INVENTED while stated as if sourced from the PDF (the PDF names the four levels and the eleven requirement areas but holds almost none of the requirements — rule F3 makes every requirement's source explicit, and src:UNSOURCED is the honest state of most of them). The single load-bearing invariant is that the study author is physically BARRIERED FROM THE CODE (F1-F4 code-blind), which makes the output a valid exogenous U for the launch and monitoring loops. Use to produce a FIPS 140-3 requirement study for a cryptographic module at a chosen target level (1-4, from config/auto-wp.json), to run a study whose ranking will drive the launch loop, or to author/audit FIPS sections F1-F4 independently of the implementation. Built with sl-builder, monitored with sl-monitoring-sl, grounded in sl-internal, audited with sl-auditor; the method content is the vendored NIST.FIPS.140-3.pdf.
 
 `fips-sl` produces the **FIPS 140-3 requirement study** that the **launch loop** consumes as its
 **exogenous upper bound** (the priority ranking). The launch loop is the language's

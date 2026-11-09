@@ -21,14 +21,17 @@ This document specifies:
 - the **implementation path for GitHub Copilot**: phases, decision table,
   steps, verification and the definition of "implemented" (§10).
 
-**Status.** Claude Code and OpenCode are implemented (`auto-wp.py` 0.6.0);
-GitHub Copilot is not. **Specified, not yet implemented**: the `--harness` option (§1.5,
-`auto-wp.md` §1.1, for 0.7.0); everything in
-§1.1, §1.2, §1.3 (the Rust test's entry point) and §3.2; the skill paragraph
-"Primitives on each harness" (§1); the template limits of §1.4; the README
-and `tests.md` wording of §8.1; and the whole Copilot column. Until then
-`tests/lib/*.sh` behave as §1.2 and §3.2 describe. The path from here to a
-working Copilot harness is §10.
+**Status (0.7.0).** `--harness claude|opencode|none`, fail-closed test
+selection, the template limits, the Rust `/time-loop` entry point, and the
+OpenCode fixes of §3.2 are implemented. The OpenCode verifier is explicitly
+inline until delegation is verified. Host regression checks and C/Rust
+level-2 install checks pass; no live OpenCode campaign was run for this change.
+**GitHub Copilot: specified, not yet implemented.** P0 passes, including
+unauthenticated skill discovery. The user chose to keep Copilot gated rather
+than run paid sessions; P1's authenticated cells, the P2 route decision and
+P3–P5 remain pending. `HARNESS_CREDENTIAL=persisted` also fails closed until
+Route A is selected and verified. See the partial evidence record in
+[`choose-harness-copilot-spike.md`](choose-harness-copilot-spike.md).
 
 Facts the repository cannot show are marked **unverified**, or cite the page
 or command they come from. The Copilot CLI facts come from its documentation
@@ -55,7 +58,7 @@ are short; the details are in the section each one cites.
 
 | Capability | Claude Code | OpenCode | Copilot CLI (Route B, proposed) |
 |---|---|---|---|
-| install, README route | `curl -fsSL https://claude.ai/install.sh \| bash` | `curl -fsSL https://opencode.ai/install \| bash` | `curl -fsSL https://gh.io/copilot-install \| bash` (npm needs Node ≥ 22, which Ubuntu 24.04 lacks) |
+| install, README route | `curl -fsSL https://claude.ai/install.sh \| bash` | `curl -fsSL https://opencode.ai/v2/install \| bash` (the non-V2 endpoint installs incompatible V1) | `curl -fsSL https://gh.io/copilot-install \| bash` (npm needs Node ≥ 22, which Ubuntu 24.04 lacks) |
 | install, test route | the host binary pushed by `provision.sh`, version-checked, `DISABLE_AUTOUPDATER=1` (`tests.md` §3.3) | the host binary pushed (`C-prov.4-opencode`, `R-prov.3-opencode`) | the host's **standalone** binary pushed (an npm install cannot be pushed); `COPILOT_AUTO_UPDATE=false` |
 | wiring the project | `.claude/{skills,commands}` → `config/` | `.opencode/{skills,commands}` → `config/`; also reads `.claude/skills`, `.agents/skills`. Commands only from `.opencode/commands/` | skills from `.agents/skills` or `.claude/skills`, **subject to the limits of §1.4**; `.claude/commands/*.md` load as skills named after the file (§1.4); agents from `.github/agents/` |
 | campaign entry point | §1.3 | §1.3 | §1.3, §5.1 |
@@ -75,8 +78,8 @@ are short; the details are in the section each one cites.
 **The rule the table enforces.** The skills and commands live once in
 `config/` and every harness reads the same files through links. They are
 harness-neutral **except one paragraph per skill that maps the primitives**.
-In `time-loop/SKILL.md` that paragraph is today "The heartbeat on each
-harness"; it **must be extended** to "Primitives on each harness": heartbeat,
+In both languages' `time-loop/SKILL.md` that paragraph is "Primitives on
+each harness": heartbeat,
 sub-agent spawn, background task and stop, and entry point, one bullet per
 harness. The rest of the skill keeps Claude Code's names (`ScheduleWakeup`,
 `CronCreate`, `TaskStop`, `/loop`) as the reference vocabulary that this
@@ -95,8 +98,9 @@ stopgap) stays open (§9, point 2).
 
 ### 1.1 Credential modes
 
-`HARNESS_CREDENTIAL=file|persisted`, default `file`, read by `secret.sh` and
-`harness.sh`:
+`HARNESS_CREDENTIAL=file|persisted`, default `file`, validated by the shared
+`selection.sh` before container or credential operations. Only `file` is
+enabled in 0.7.0; the `persisted` behavior below is the gated Route A design:
 
 - **`file`** (today's only mode): `secret_check_file`, `secret_check_expiry`
   and `secret_push` run as now. The launcher requires `/run/autowp/token`,
@@ -111,12 +115,10 @@ stopgap) stays open (§9, point 2).
 
 ### 1.2 Unknown harness values
 
-Every `case $HARNESS` in `harness.sh`, `secret.sh` and `workshop.sh` today
-falls through to `*)`, which is Claude Code. `HARNESS=copilot` would
-therefore run Claude Code with the Claude credential and report green. The
-scripts must instead reject any value other than `claude` and `opencode`
-(`die "HARNESS=<v>: unknown harness"`), including `none` (§1.5), and
-`copilot` stays rejected until Route B lands. Test 4 of §8.2 pins this.
+Before 0.7.0, unknown values fell through to Claude Code. Now `selection.sh`,
+sourced by all three helpers and `lxc.sh`, rejects every value except
+`claude` and `opencode` before any side effect. This includes `none` and
+`copilot`. Test 4 of §8.2 pins this, including standalone sourcing.
 
 ### 1.3 One campaign shape, two test entry points
 
@@ -124,34 +126,26 @@ Since `auto-wp.py` 0.6.0 (`46fd7e3`, 2026-11-08) both templates start a
 campaign the same way: the slash command `/time-loop <dir> N`, which loads
 the language's `time-loop` skill. The Rust skill
 (`templates/rust/skills/time-loop/SKILL.md`, a Creusot port of the C one)
-carries the same "heartbeat on each harness" section as the C skill: on
+carries the same "Primitives on each harness" section as the C skill: on
 Claude Code `ScheduleWakeup` armed last plus a `CronCreate` watchdog; on
 OpenCode the external `opencode run` watchdog, keyed on
 `<dir>-creusot/time-loop.state` instead of `<dir>-analysis-acsl/`. A Rust
 *project* therefore has a heartbeat under both harnesses.
 
-The container *tests* still differ, because `tests/rust/sudo-rs-test.sh` was
-written before the Rust command existed:
+The container tests now use the same entry point:
 
 | | C (`tests/c/gzip-test.sh`) | Rust (`tests/rust/sudo-rs-test.sh`) |
 |---|---|---|
-| what the test types | `/time-loop gzip-1.9 <hours>` | a long prompt naming `creusot-monitoring` and `rmf-sl` |
-| heartbeat | in the skill ("The heartbeat on each harness") | in the prompt: a deadline and "call `ScheduleWakeup` … before ending every turn" |
-| what `harness_confirm` greps | `/time-loop`, the skill load | `creusot-monitoring`, `creusot-launch` |
+| what the test types | `/time-loop gzip-1.9 <hours>` | `/time-loop sudo-rs <hours>` |
+| heartbeat | in the skill ("Primitives on each harness") | in the skill ("Primitives on each harness") |
+| what `harness_confirm` greps | `time-loop`, the skill load | `time-loop`, the skill load |
 
 Consequences:
 
-- Under **OpenCode**, the Rust *test* has **no heartbeat**: its prompt's
-  `ScheduleWakeup` sentence names a tool OpenCode does not have, and no
-  watchdog is armed. This is a **required fix**: the Rust test types
-  `/time-loop sudo-rs <hours>` like the C test, so the skill arms the
-  heartbeat under either harness, and `harness_confirm` greps `/time-loop`.
-  The prompt's extra guidance (the code-blind study first, build in a copy,
-  the ordered list for a quiet cycle, the 45-minute box) is already in the
-  Rust skill. The change waits for the running 96-hour sudo-rs campaign to
-  end (the script is edited only by atomic rename while it runs). Who arms
-  the watchdog in the tests, the skill or `harness_start`, still follows
-  §3.3.
+- The previous Rust prompt's Claude-only `ScheduleWakeup` instruction is
+  removed. The skill contains the code-blind study, build-in-a-copy,
+  no-no-op-cycle and 45-minute-box requirements. This changes future runs
+  only; the live driver in the separate `awp` checkout was not modified.
 - A **prompt entry point** (text typed or passed at launch that loads the
   `time-loop` skill) remains what §5.1 chooses for Copilot, for both
   languages.
@@ -164,7 +158,7 @@ valid YAML and its `description` at most 1,024 characters. Claude Code does
 not enforce it; **neither does OpenCode** (verified 2026-11-09, 2.2.5: a
 SKILL.md with a 1,435-character `description` loads through the
 `.opencode/skills` link). In a freshly
-generated C project, `copilot skill list` (no login needed) **rejects 15
+generated C project before 0.7.0, `copilot skill list` (no login needed) **rejected 15
 skills**, `time-loop`, `rmf-sl`, `fips-sl`, `frama-c-launch`,
 `frama-c-monitoring`, `sl-builder` and `sl-auditor` among them, for their
 description length, and two (`polish-skill`, `sl-internal`) for YAML errors
@@ -177,7 +171,7 @@ With the real `time-loop` skill rejected, "load the `time-loop` skill"
 resolves to the 109-line command text, and the agent would run the campaign
 without the method.
 
-**Decision:** the templates are brought under the limits for every skill:
+**Implemented:** the templates are brought under the limits for every skill:
 descriptions shortened to ≤ 1,024 characters (the rest moves into the
 skill body), and the frontmatter made strict YAML. A Copilot-only shortened
 copy is rejected, because it would break "the skills live once in
@@ -190,7 +184,7 @@ for the first):
 
 | | Where | Values | Role |
 |---|---|---|---|
-| `auto-wp.py --harness <v>` | project generation (`auto-wp.md` §1.1, specified for 0.7.0) | `claude` (default), `opencode`, `copilot`, `none` | which harness the README documents and the Workshop definition installs; recorded as `harness` in `config/auto-wp.json` |
+| `auto-wp.py --harness <v>` | project generation (`auto-wp.md` §1.1, implemented in 0.7.0) | `claude` (default), `opencode`, `copilot` (gated), `none` | which harness the README documents and the Workshop definition installs; recorded as `harness` in `config/auto-wp.json` |
 | `HARNESS=<v>` | the test scripts (`tests/lib/*.sh`) | `claude` (default), `opencode`, `copilot` | which harness the test drives |
 
 Rules:
@@ -223,7 +217,7 @@ The project needs nothing: both wirings exist since 0.4.0. In the container
 (workshop quick-start step 2, or the LXD fallback):
 
 1. Install the harness — replace the Claude Code install line with
-   `curl -fsSL https://opencode.ai/install | bash` (or install both; they do
+   `curl -fsSL https://opencode.ai/v2/install | bash` (or install both; they do
    not conflict).
 2. Start it in the `tmux` session: `opencode` instead of
    `claude --dangerously-skip-permissions`. OpenCode needs no permission
@@ -274,6 +268,16 @@ checks unchanged:
 
 ### 3.2 Required fixes before a real OpenCode campaign
 
+**Implemented in 0.7.0.** The numbered list below records the original
+failure modes and their fixes. Both skills share the executable
+`bin/time-loop-watchdog.py` instead of duplicating a shell loop: it owns a
+locked JSON pidfile (PID and process-start identity), a stop flag and a log.
+This keeps lifecycle behavior testable without a model session. The
+launcher also writes `opencode.json` and `cli.json` separately; previously
+both JSON documents were accidentally concatenated into `opencode.json`.
+The V2 installer is `https://opencode.ai/v2/install`: the legacy endpoint
+was observed installing V1 1.19.5, which lacks the required `service` command.
+
 The OpenCode path has never driven a real campaign. The OpenCode mechanics
 the harness relies on are verified, though (2026-11-09, OpenCode 2.2.5,
 host install): skills and commands are discovered through the `.opencode`
@@ -307,15 +311,16 @@ already implemented, so they come before either Copilot route.
    sees the run go idle. `pkill -f time-loop-watchdog` is not a fix: run
    through `autowp_exec_user` its own `sh -c` wrapper matches the pattern,
    and it leaves a running `opencode run` child alive. **Fix:**
-   - the skill arms the watchdog under a fixed name with a pidfile
-     (`exec -a time-loop-watchdog bash -c …`, `echo $! >
-     .time-loop-watchdog.pid`);
+   - the skill arms `bin/time-loop-watchdog.py start` with the stored
+     deadline, state path and resume prompt; its pidfile is locked against
+     duplicate starts and checked against process-start identity;
    - under `HARNESS=opencode`, `harness_stop` creates
-     `.time-loop-watchdog.stop`, kills the pid from the pidfile, then any
-     `opencode run` child of it, and waits up to 60 s;
+     `.time-loop-watchdog.stop` through the helper's `stop` action, sends
+     TERM to the recorded process group, then KILL after at most 5 s;
    - `wait_loop_stopped` reports whether a watchdog is alive;
    - the generated `.gitignore` (`templates/{c,rust}/tools/.gitignore`)
-     gains `.time-loop-watchdog.stop` and `.time-loop-watchdog.pid`, which the
+     gains `.time-loop-watchdog.stop`, `.time-loop-watchdog.pid` and
+     `.time-loop-watchdog.log`, which the
      per-cycle checkpoint would otherwise commit.
 3. **The transcript may be a WAL file, at a path that depends on the
    channel.** If OpenCode's SQLite database runs in WAL mode
@@ -343,7 +348,8 @@ the test harness owns it under `HARNESS=opencode` (`harness_start` arms it,
 `harness_stop` kills it), which makes the fixes test-side, keeps the skill
 shorter and would also serve a prompt entry point that loads no skill. A user running
 OpenCode without the tests still needs the skill's version, so the skill keeps
-it either way. Which one the tests use is open (§9, point 4).
+it either way. **Decision:** the skill owns the shared helper in both cases; tests only
+observe and stop it. There must never be a second test-owned watchdog.
 
 ## 4. GitHub Copilot, Route A — as an OpenCode provider (proposed)
 
@@ -583,9 +589,9 @@ To change harness:
 1. **Stop the campaign.**
    - Under Claude Code: a `STOP` in the session, or let the deadline pass,
      after which the loop pauses with an interim report.
-   - Under OpenCode (and Copilot): create `.time-loop-watchdog.stop` in the
-     project root, kill the pid in `.time-loop-watchdog.pid` (§3.2 point 2),
-     then stop the session. A `STOP` in the TUI stops the current turn only.
+   - Under OpenCode: run `python3 bin/time-loop-watchdog.py stop` in the
+     project root (§3.2 point 2), then stop the session. A `STOP` in the
+     TUI stops the current turn only. Copilot's stop mechanism remains gated.
 2. **Start the new harness** in the same project and restart the campaign
    with its entry point (§1.3): `/time-loop <dir> N`, in C and in Rust,
    which reuses the stored start and deadline, ignores `N` and resumes from
@@ -649,7 +655,7 @@ needed whichever Copilot route follows.
    and Copilot primitive returns a sub-agent's delivered report?
 3. **OpenCode transcript oracle** (§3.2 point 3): WAL mode, verbatim prompt,
    an export or server API.
-4. **Watchdog ownership in the tests** (§3.3).
+4. **Watchdog ownership resolved:** the skill owns the common helper (§3.3).
 5. **Copilot session lifetime (Route A)**: whether OpenCode's refresh keeps
    the Copilot session working unattended for 96 hours ("saves tokens and
    refreshes them when supported"); whether the GitHub OAuth token expires is

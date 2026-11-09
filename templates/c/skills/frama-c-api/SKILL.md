@@ -1,30 +1,12 @@
 ---
 name: frama-c-api
 description: >-
-  Develop Frama-C PLUGINS and analyzers in OCaml against the Frama-C kernel API
-  (https://frama-c.com/api/ — the Frama_c_kernel library). This is the
-  programmer-facing API, distinct from the `frama-c` skill (writing ACSL) and
-  `frama-c-monitoring` (the squeeze loop). Covers: plugin anatomy (the
-  Plugin.Register functor, command-line options via Self.False/String/Int/…,
-  logging via Self.result/feedback/warning/abort, registering the entry point
-  with Db.Main.extend / Boot.Main.extend, the dune setup with frama-c.kernel, and
-  Ptests); the CIL C AST (Cil_types: file/global/fundec/stmt/instr/exp/lval/typ/
-  varinfo, Cil helpers, Cil_datatype, Cil_const, Ast.get, Globals) and the
-  Visitor framework (Visitor.frama_c_inplace/copy, the visitAction constructors
-  DoChildren/SkipChildren/ChangeTo/ChangeDoChildrenPost, Printer); the project &
-  state model (Project, State_builder functors for persistent projectified state,
-  Datatype, Type, state dependencies); ACSL/annotation APIs (Annotations,
-  Property, Property_status, Emitter, Logic_const, Logic_typing, Kernel_function);
-  values & locations (Locations, Cvalue, Base, Ival) and the analysis plugins
-  (Eva, Wp) reached via Dynamic. Use whenever the user writes/reads a Frama-C
-  plugin in OCaml, asks about Cil_types/the AST, the visitor, projects/State_builder,
-  Annotations/Property, or how to call Eva/WP from OCaml. Load-bearing caveat: the
-  plugin API is NOT stable across Frama-C versions — pin to your installed version
-  (this repo: 32.1 Germanium); the web API may document a different one. Built on
-  OCaml (see the `ocaml` skill — Frama-C is functor-heavy).
+  Develop Frama-C plugins and analyzers in OCaml against the kernel API. Covers Plugin.Register, options, AST traversal, types, annotations, projects and states. Use for plugin development, not for writing ACSL contracts.
 ---
 
 # Frama-C plugin-development API (the kernel API)
+
+Develop Frama-C PLUGINS and analyzers in OCaml against the Frama-C kernel API (https://frama-c.com/api/ — the Frama_c_kernel library). This is the programmer-facing API, distinct from the `frama-c` skill (writing ACSL) and `frama-c-monitoring` (the squeeze loop). Covers: plugin anatomy (the Plugin.Register functor, command-line options via Self.False/String/Int/…, logging via Self.result/feedback/warning/abort, registering the entry point with Db.Main.extend / Boot.Main.extend, the dune setup with frama-c.kernel, and Ptests); the CIL C AST (Cil_types: file/global/fundec/stmt/instr/exp/lval/typ/ varinfo, Cil helpers, Cil_datatype, Cil_const, Ast.get, Globals) and the Visitor framework (Visitor.frama_c_inplace/copy, the visitAction constructors DoChildren/SkipChildren/ChangeTo/ChangeDoChildrenPost, Printer); the project & state model (Project, State_builder functors for persistent projectified state, Datatype, Type, state dependencies); ACSL/annotation APIs (Annotations, Property, Property_status, Emitter, Logic_const, Logic_typing, Kernel_function); values & locations (Locations, Cvalue, Base, Ival) and the analysis plugins (Eva, Wp) reached via Dynamic. Use whenever the user writes/reads a Frama-C plugin in OCaml, asks about Cil_types/the AST, the visitor, projects/State_builder, Annotations/Property, or how to call Eva/WP from OCaml. Load-bearing caveat: the plugin API is NOT stable across Frama-C versions — pin to your installed version (this repo: 32.1 Germanium); the web API may document a different one. Built on OCaml (see the `ocaml` skill — Frama-C is functor-heavy).
 
 The OCaml API for **writing Frama-C plugins and analyzers** — the programmer's view of the kernel,
 documented at **https://frama-c.com/api/** (entry point: the **`Frama_c_kernel`** library, 250+

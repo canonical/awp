@@ -1,9 +1,11 @@
-# Container test operations — lessons from driving live campaigns
+# Preface
 
-Preface: operational lessons for running the LXD container tests
+Operational lessons for running the LXD container tests
 (`tests/c`, `tests/rust`) and following a long campaign, distilled from the
 Mbed TLS fips campaign of 2026-11-06..09. Read with `tests/README.md` and
-`spec/tests.md`. IMPORTANT: Read the `.kb/agents.md` file.
+`spec/tests.md`.
+
+IMPORTANT: Read the `.kb/agents.md` file.
 
 
 # Laws
@@ -44,6 +46,24 @@ by day 3 — background the check-only run instead of bounding it.
 
 
 # Concepts
+
+## Harness selection and watchdog ownership
+
+The test drivers pass `HARNESS` through to `auto-wp.py --harness`; launch
+checks the generated manifest before consuming a credential. Copilot and
+persisted credentials are deliberately gated on the live spike, not
+aliases for Claude. `none` is generation-only.
+
+The OpenCode heartbeat is skill-owned in manual sessions and tests alike.
+Both languages use `bin/time-loop-watchdog.py`, with a locked pidfile and
+process-start identity. Stop it with the helper's `stop` action before
+closing tmux; deleting only the tmux session leaves detached wakes alive.
+The shared OpenCode service must be disabled so wakes inherit the key.
+
+Use `https://opencode.ai/v2/install` for the specified V2 harness.
+The legacy `/install` endpoint installs V1, which cannot run the
+`service set disabled true` pre-step. Root installers use an accessible
+HOME under `/opt/autowp/` and link to `/usr/local/bin`, not into `/root`.
 
 ## Harness prompt regex (Claude Code)
 

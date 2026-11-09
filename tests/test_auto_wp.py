@@ -447,7 +447,7 @@ class TestAutoWp(AutoWpTestCase):
                 self.assertOk(self.run_auto_wp("--" + lang, foo.name))
                 m = json.loads((foo / "config/auto-wp.json").read_text())
                 self.assertEqual(m["language"], lang)
-                self.assertEqual(m["auto_wp_version"], "0.6.0")
+                self.assertEqual(m["auto_wp_version"], "0.7.0")
                 self.assertEqual(m["driver"], "rmf")
                 self.assertNotIn("fips_level", m)
                 self.assertRegex(m["created"], r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$")
@@ -517,10 +517,11 @@ class TestAutoWp(AutoWpTestCase):
         self.assertIn("/.workshop.lock", (d / ".gitignore").read_text())
 
     def test_13c_rust_has_only_common_tools(self):
-        """--rust gets bin/ with the common layer's rmf-lint.sh only (4.1), no C tool."""
+        """--rust gets the common linter and watchdog, but no C-only tools."""
         self.assertOk(self.run_auto_wp("--rust", "foobar"))
         d = self.tmp / "foobar"
-        self.assertEqual(sorted(p.name for p in (d / "bin").iterdir()), ["rmf-lint.sh"])
+        self.assertEqual(sorted(p.name for p in (d / "bin").iterdir()),
+                         ["rmf-lint.sh", "time-loop-watchdog.py"])
         lint = d / "bin/rmf-lint.sh"
         self.assertTrue(lint.is_file() and not lint.is_symlink())
         self.assertTrue(os.access(lint, os.X_OK))
@@ -706,8 +707,7 @@ class TestAutoWp(AutoWpTestCase):
                 self.assertIn(f"copied  {foo.name}/.workshop (workshop: autowp)",
                               r.stdout.splitlines())
                 ws = foo / ".workshop"
-                for rel in ("autowp.yaml", "autowp-packages/sdk.yaml",
-                            "autowp-packages/hooks/setup-base"):
+                for rel in ("autowp.yaml", "autowp-packages/sdk.yaml"):
                     p = ws / rel
                     self.assertTrue(p.is_file() and not p.is_symlink(), rel)
                     self.assertEqual(p.read_bytes(),
@@ -791,6 +791,74 @@ class TestAutoWp(AutoWpTestCase):
             self.assertEqual(os.listdir(foo / ".workshop"), ["other.yaml"])
 
 
+class TestHarnessSelection(AutoWpTestCase):
+    def test_selected_harness_in_both_languages(self):
+        for language in ("c", "rust"):
+            for harness in ("claude", "opencode", "none"):
+                with self.subTest(language=language, harness=harness):
+                    target = f"{language}-{harness}"
+                    result = self.run_auto_wp("--" + language, "--harness", harness, target)
+                    self.assertOk(result)
+                    project = self.tmp / target
+                    manifest = json.loads((project / "config/auto-wp.json").read_text())
+                    self.assertEqual(manifest["harness"], harness)
+                    readme = (project / "README.md").read_text()
+                    self.assertNotIn("{{", readme)
+                    hook = (project / ".workshop/autowp-packages/hooks/setup-base").read_text()
+                    base = (TEMPLATES / language / "workshop/autowp-packages/hooks/setup-base").read_text()
+                    for rel in (".agents", ".claude/skills", ".claude/commands",
+                                ".opencode/skills", ".opencode/commands"):
+                        self.assertTrue((project / rel).is_symlink())
+                    if harness == "none":
+                        self.assertEqual(hook, base)
+                        self.assertIn("No agent harness is installed", readme)
+                        self.assertIn("workshop shell", readme)
+                        self.assertNotIn("https://claude.ai", readme)
+                        self.assertNotIn("https://opencode.ai", readme)
+                        self.assertNotIn("--dangerously-skip-permissions", readme)
+                    else:
+                        snippet = (TEMPLATES / "common/harness" / f"{harness}.sh").read_text()
+                        self.assertEqual(hook, base + "\n" + snippet)
+                        self.assertIn(f"/usr/local/bin/{harness}", hook)
+                        subprocess.run(["bash", "-n"], input=hook, text=True, check=True)
+                        other = "opencode.ai" if harness == "claude" else "claude.ai"
+                        self.assertNotIn(other, readme)
+                        self.assertIn(f"  harness:  {harness}", result.stdout)
+                    self.assertFalse((project / ".github/hooks").exists())
+
+    def test_default_is_explicit_claude(self):
+        for name, options in (("default-project", []), ("explicit-project", ["--harness", "claude"])):
+            self.assertOk(self.run_auto_wp(*options, name))
+        default = self.tmp / "default-project"
+        explicit = self.tmp / "explicit-project"
+        self.assertEqual(
+            (default / "README.md").read_text().replace("default-project", "PROJECT"),
+            (explicit / "README.md").read_text().replace("explicit-project", "PROJECT"))
+        for rel in (".workshop/autowp-packages/hooks/setup-base",):
+            self.assertEqual((default / rel).read_bytes(), (explicit / rel).read_bytes())
+
+    def test_rejected_harness_creates_nothing(self):
+        for harness in ("copilot", "openrouter", "typo"):
+            with self.subTest(harness=harness):
+                result = self.run_auto_wp("--harness", harness, "project")
+                self.assertEqual(result.returncode, 2)
+                self.assertFalse((self.tmp / "project").exists())
+                if harness == "copilot":
+                    self.assertIn("--harness copilot is not implemented yet", result.stderr)
+
+    def test_missing_installer_rolls_back(self):
+        prog = self._copy_program()
+        (prog / "templates/common/harness/opencode.sh").unlink()
+        project = self.tmp / "existing"
+        project.mkdir()
+        (project / "keep").write_text("unchanged")
+        before = snapshot(project)
+        result = self.run_auto_wp("--harness", "opencode", str(project),
+                                  script=prog / "auto-wp.py")
+        self.assertEqual(result.returncode, 1)
+        self.assertEqual(snapshot(project), before)
+
+
 class TestOutputAndConstraints(AutoWpTestCase):
     """auto-wp.md 2 and 3.6 (exact output), not numbered in 5."""
 
@@ -800,6 +868,7 @@ class TestOutputAndConstraints(AutoWpTestCase):
         self.assertEqual(r.stdout, (
             "created foobar/config (language: c)\n"
             "  driver:   rmf\n"
+            "  harness:  claude\n"
             "  skills:   23\n"
             "  commands: 3\n"
             "copied  foobar/.gitignore\n"
@@ -823,9 +892,10 @@ class TestOutputAndConstraints(AutoWpTestCase):
         lines = r.stdout.splitlines()
         self.assertEqual(lines[0], "created foobar/config (language: rust)")
         self.assertEqual(lines[1], "  driver:   rmf")
-        self.assertEqual(lines[2], f"  skills:   {len(RUST_SKILLS)}")
-        self.assertEqual(lines[3], f"  commands: {len(RUST_COMMANDS)}")
-        self.assertEqual(lines[4:8], ["copied  foobar/.gitignore",
+        self.assertEqual(lines[2], "  harness:  claude")
+        self.assertEqual(lines[3], f"  skills:   {len(RUST_SKILLS)}")
+        self.assertEqual(lines[4], f"  commands: {len(RUST_COMMANDS)}")
+        self.assertEqual(lines[5:9], ["copied  foobar/.gitignore",
                                       "copied  foobar/NIST.FIPS.140-3.pdf",
                                       "copied  foobar/bin",
                                       "copied  foobar/.workshop (workshop: autowp)"])

@@ -17,8 +17,10 @@
 # actions), so its launcher just runs `opencode --standalone`.
 # --bare is never used: it ignores the OAuth token (tests.md 3.3).
 
-HARNESS=${HARNESS:-claude}
+# shellcheck source=selection.sh
+. "$(dirname "${BASH_SOURCE[0]}")/selection.sh"
 HARNESS_SESSION=${HARNESS_SESSION:-autowp}
+HARNESS_START_TIMEOUT=${HARNESS_START_TIMEOUT:-300}
 # The harness input box; override if the UI changes.
 # Claude Code: the prompt character is followed by a space or, since Claude
 # Code 2.1.3xx, a no-break space (U+00A0). The NBSP is embedded at runtime
@@ -29,7 +31,7 @@ HARNESS_SESSION=${HARNESS_SESSION:-autowp}
 # embedded with $'...\u00a0' ANSI-C quoting so the byte survives edits.
 case $HARNESS in
     opencode) HARNESS_PROMPT_RE=${HARNESS_PROMPT_RE:-'Ask anything|shift\+tab agents'} ;;
-    *)        HARNESS_PROMPT_RE=${HARNESS_PROMPT_RE:-$'(^|[│ ])(>|❯)( |\u00a0)|\\? for shortcuts'} ;;
+    claude)   HARNESS_PROMPT_RE=${HARNESS_PROMPT_RE:-$'(^|[│ ])(>|❯)( |\u00a0)|\\? for shortcuts'} ;;
 esac
 
 # Writes the launcher that reads the credential into the environment and
@@ -54,7 +56,7 @@ rm -f /run/autowp/token
 exec opencode --standalone
 EOF
         ;;
-    *)
+    claude)
         autowp_exec_user "$c" 'mkdir -p ~/.local/bin && cat > ~/.local/bin/autowp-launch && chmod 755 ~/.local/bin/autowp-launch' <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
@@ -69,6 +71,7 @@ export DISABLE_AUTOUPDATER=1
 exec claude --dangerously-skip-permissions
 EOF
         ;;
+    *) die "HARNESS=$HARNESS: unknown harness" ;;
     esac
 }
 
@@ -80,17 +83,17 @@ harness_trust() {
     local c=$1 dir=$2
     case $HARNESS in
     opencode)
-        autowp_exec_user "$c" 'mkdir -p ~/.config/opencode && cat > ~/.config/opencode/opencode.json && cat > ~/.config/opencode/cli.json' <<'EOF'
+        autowp_exec_user "$c" 'mkdir -p ~/.config/opencode && cat > ~/.config/opencode/opencode.json' <<'EOF'
 {"$schema": "https://opencode.ai/config.json",
  "permissions": [
      {"action": "*", "resource": "*", "effect": "allow"},
      {"action": "read", "resource": "*.env", "effect": "allow"},
      {"action": "read", "resource": "*.env.*", "effect": "allow"}
  ]}
-{"highlights": false}
 EOF
+        autowp_exec_user "$c" 'printf "%s\n" "{\"highlights\": false}" > ~/.config/opencode/cli.json && opencode service set disabled true'
         ;;
-    *)
+    claude)
         autowp_exec_user "$c" "python3 - '$dir'" <<'EOF'
 import json, os, sys
 p = os.path.expanduser("~/.claude.json")
@@ -111,6 +114,7 @@ st["skipDangerousModePermissionPrompt"] = True
 json.dump(st, open(s, "w"), indent=2)
 EOF
         ;;
+    *) die "HARNESS=$HARNESS: unknown harness" ;;
     esac
 }
 
@@ -126,18 +130,25 @@ harness_running() {
 # The token must already be in /run/autowp/token (secret_push).
 harness_start() {
     local c=$1 dir=$2 cmd=$3 i
-    harness_write_launcher "$c"
-    harness_trust "$c" "$dir"
+    autowp_exec_user_argv "$c" python3 - "$dir/config/auto-wp.json" "$HARNESS" <<'PY' || return 1
+import json, sys
+with open(sys.argv[1]) as f:
+    actual = json.load(f).get("harness")
+if actual != sys.argv[2]:
+    sys.exit(f"harness mismatch: manifest={actual!r}, HARNESS={sys.argv[2]!r}")
+PY
     if harness_running "$c"; then
         echo "ERROR: tmux session $HARNESS_SESSION already running in $c" >&2
         return 1
     fi
+    harness_write_launcher "$c" || return 1
+    harness_trust "$c" "$dir" || return 1
     autowp_exec_user "$c" "date -u +%s > ~/.autowp-harness-start; \
         tmux new-session -d -s $HARNESS_SESSION -x 220 -y 50 -c '$dir' ~/.local/bin/autowp-launch"
     # 2. wait for the input prompt, up to HARNESS_START_TIMEOUT (default 300 s:
     #    a cold first start — binary just pushed, page cache empty, a large
     #    project tree to scan — can take minutes before the input box shows)
-    local tries=$(( ${HARNESS_START_TIMEOUT:-300} / 2 ))
+    local tries=$(( HARNESS_START_TIMEOUT / 2 ))
     for i in $(seq 1 "$tries"); do
         if harness_pane "$c" | grep -qE "$HARNESS_PROMPT_RE"; then
             break
@@ -149,7 +160,7 @@ harness_start() {
         sleep 2
     done
     if ! harness_pane "$c" | grep -qE "$HARNESS_PROMPT_RE"; then
-        echo "ERROR: no input prompt after 120 s; screen:" >&2
+        echo "ERROR: no input prompt after $HARNESS_START_TIMEOUT s; screen:" >&2
         harness_pane "$c" | tail -20 >&2
         return 1
     fi
@@ -160,23 +171,58 @@ harness_start() {
     return 0
 }
 
-# Newest transcript (printed path): Claude Code's session JSONL, or OpenCode's
-# session database (grep'd binary-safe with grep -a).
+# Claude's newest JSONL, or OpenCode's database and sidecars (binary-safe scan).
+harness_opencode_db() {
+    local db
+    db=$(autowp_exec_user "$1" "opencode debug paths | sed -n 's/^db[[:space:]]\\+//p'") || return 1
+    [ -n "$db" ] || { echo "ERROR: opencode debug paths did not report db" >&2; return 1; }
+    printf '%s\n' "$db"
+}
+
 harness_transcript() {
     case $HARNESS in
-        opencode) autowp_exec_user "$1" 'ls -t ~/.local/share/opencode/opencode.db 2>/dev/null' ;;
-        *)        autowp_exec_user "$1" 'ls -t ~/.claude/projects/*/*.jsonl 2>/dev/null | head -n1' ;;
+        opencode)
+            local db
+            db=$(harness_opencode_db "$1") || return 1
+            autowp_exec_user_argv "$1" python3 -c \
+                'import glob,sys; print("\n".join(glob.glob(glob.escape(sys.argv[1]) + "*")))' "$db"
+            ;;
+        claude) autowp_exec_user "$1" 'ls -t ~/.claude/projects/*/*.jsonl 2>/dev/null | head -n1' ;;
+        *) die "HARNESS=$HARNESS: unknown harness" ;;
     esac
 }
 
 # harness_confirm <container> <command-or-skill-name> [timeout]: step 4.
 harness_confirm() {
     local c=$1 name=$2 timeout=${3:-300} waited=0 t
+    local -a transcripts
     while [ "$waited" -lt "$timeout" ]; do
-        t=$(harness_transcript "$c")
-        if [ -n "$t" ] && autowp_exec_user "$c" \
-            "find '$t' -newer ~/.autowp-harness-start -print -quit | grep -q . \
-             && grep -qaE '<command-name>/?$name</command-name>|\"skill\": *\"$name\"|/$name ' '$t'"; then
+        t=$(harness_transcript "$c") || return 1
+        mapfile -t transcripts <<<"$t"
+        if [ -n "$t" ] && autowp_exec_user_argv "$c" python3 - "$HARNESS" "$name" "${transcripts[@]}" <<'PY'
+import os, re, sys
+harness, name = sys.argv[1:3]
+name = re.escape(name.encode())
+if harness == "opencode":
+    pattern = rb'"(?:skill|name)"\s*:\s*"' + name + rb'"|(?:skills/|skill.{0,80})' + name + rb'(?:/SKILL\.md|\b)'
+else:
+    pattern = rb'<command-name>/?' + name + rb'</command-name>|"skill": *"' + name + rb'"|/' + name + rb' '
+start = os.path.getmtime(os.path.expanduser("~/.autowp-harness-start"))
+for path in sys.argv[3:]:
+    try:
+        if os.path.getmtime(path) > start:
+            with open(path, "rb") as f:
+                tail = b""
+                while chunk := f.read(1024 * 1024):
+                    data = tail + chunk
+                    if re.search(pattern, data):
+                        sys.exit(0)
+                    tail = data[-4096:]
+    except FileNotFoundError:
+        pass
+sys.exit(1)
+PY
+        then
             return 0
         fi
         sleep 10
@@ -187,6 +233,9 @@ harness_confirm() {
 
 harness_stop() {
     local c=$1
+    if [ "$HARNESS" = opencode ]; then
+        autowp_exec_user "$c" "cd '$CAMPAIGN_DIR' && python3 bin/time-loop-watchdog.py stop" || return 1
+    fi
     autowp_exec_user "$c" "tmux send-keys -t $HARNESS_SESSION C-c 2>/dev/null; sleep 1; \
         tmux send-keys -t $HARNESS_SESSION C-c 2>/dev/null; sleep 2; \
         tmux kill-session -t $HARNESS_SESSION 2>/dev/null; true"
@@ -229,7 +278,7 @@ campaign_setup_c() {
     local c=$1
     autowp_exec_user "$c" 'set -e; touch ~/.autowp-t0; sleep 1
         cd ~
-        python3 auto-wp/auto-wp.py --c foobar
+        python3 auto-wp/auto-wp.py --c --harness '"$HARNESS"' foobar
         cd foobar
         git clone -q https://gitlab.freedesktop.org/gnu-grub/grub.git
         bin/fetch-sources.sh
@@ -254,7 +303,7 @@ campaign_setup_c_gzip() {
     local c=$1
     autowp_exec_user "$c" "set -e; touch ~/.autowp-t0; sleep 1
         if [ $CAMPAIGN_GENERATED = 1 ]; then cd '$CAMPAIGN_DIR'
-        else cd ~ && python3 auto-wp/auto-wp.py gzip-analyze --c >/dev/null && cd gzip-analyze; fi
+        else cd ~ && python3 auto-wp/auto-wp.py gzip-analyze --c --harness '$HARNESS' >/dev/null && cd gzip-analyze; fi
         got=
         for m in $GZIP_MIRRORS; do
             if curl -fsSL --max-time 300 -o gzip-1.9.zip \"\$m/gzip-1.9.zip\" &&
@@ -314,11 +363,17 @@ k1_tracked() {
 
 # k3 <container> <id>: informational list of files changed outside the allowlist.
 k3() {
-    local c=$1 id=$2 out
+    local c=$1 id=$2 out db=""
+    if [ "$HARNESS" = opencode ]; then
+        db=$(harness_opencode_db "$c") || return 1
+    fi
     out=$(autowp_exec_user "$c" 'find ~ /tmp -xdev -newer ~/.autowp-t0 -type f 2>/dev/null \
         | grep -vE "^'"$AUTOWP_HOME"'/('"$CAMPAIGN_PROJECT"'|toolchain|\.claude|\.claude\.json|\.opencode|\.cache|\.opam|\.elan|\.cargo|\.rustup|\.local/share/creusot|\.local/share/claude|\.local/state/claude|\.local/share/opencode|\.local/state/opencode|\.config|\.bash_history|\.gitconfig|remote\.git|\.autowp-)|^/tmp/" \
         | head -30' || true)
-    info "$id" "outside the allowlist: ${out:-nothing}" 
+    if [ -n "$db" ]; then
+        out=$(python3 -c 'import sys; print("\n".join(p for p in sys.stdin.read().splitlines() if not p.startswith(sys.argv[1])))' "$db" <<<"$out")
+    fi
+    info "$id" "outside the allowlist: ${out:-nothing}"
     info "$id" "writes into ~/toolchain: $(autowp_exec_user "$c" 'find ~/toolchain -xdev -newer ~/.autowp-t0 -type f 2>/dev/null | head -10 | tr "\n" " "')"
 }
 
@@ -394,11 +449,8 @@ json_get() { python3 -c 'import json,sys; v=json.loads(sys.argv[1]).get(sys.argv
 # transcript and the state file have both been idle for IDLE_S (default 1800 s,
 # longer than the ~20-min watchdog wake-up of time-loop), or at the hard limit.
 wait_loop_stopped() {
-    local c=$1 f=$2 limit=$3 idle_s=${IDLE_S:-1800} t0 idle glob
-    case $HARNESS in
-        opencode) glob='~/.local/share/opencode/opencode.db' ;;
-        *)        glob='$(ls -t ~/.claude/projects/*/*.jsonl 2>/dev/null | head -1)' ;;
-    esac
+    local c=$1 f=$2 limit=$3 idle_s=${IDLE_S:-1800} t0 idle t
+    local -a transcripts
     t0=$(date +%s)
     while :; do
         sleep 300
@@ -406,10 +458,24 @@ wait_loop_stopped() {
             info wait "hard limit of $((limit / 3600)) h reached"
             return 1
         fi
-        idle=$(autowp_exec_user "$c" "now=\$(date +%s); m=0
-            for x in $glob '$f'; do
-                [ -e \"\$x\" ] && { s=\$(stat -c %Y \"\$x\"); [ \"\$s\" -gt \"\$m\" ] && m=\$s; }
-            done; echo \$(( now - m ))")
+        if [ "$HARNESS" = opencode ] &&
+           autowp_exec_user "$c" "cd '$CAMPAIGN_DIR' && python3 bin/time-loop-watchdog.py status"; then
+            info wait "watchdog alive; campaign is not idle"
+            continue
+        fi
+        t=$(harness_transcript "$c") || return 1
+        mapfile -t transcripts <<<"$t"
+        idle=$(autowp_exec_user_argv "$c" python3 - "$f" "${transcripts[@]}" <<'PY'
+import os, sys, time
+mtimes = []
+for p in sys.argv[1:]:
+    try:
+        mtimes.append(os.path.getmtime(p))
+    except FileNotFoundError:
+        pass
+print(int(time.time() - max(mtimes, default=time.time())))
+PY
+        )
         [ "$idle" -ge "$idle_s" ] && return 0
     done
 }

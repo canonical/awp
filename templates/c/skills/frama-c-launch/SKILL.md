@@ -1,33 +1,12 @@
 ---
 name: frama-c-launch
 description: >-
-  A top-level Squeeze Loop that ONBOARDS a heterogeneous C/C++ codebase for
-  Frama-C verification and hands a validated "onboarding package" to the
-  frama-c-monitoring loop (which it sits on top of). Given a mission like
-  "onboard the library xxx in directory yyy for verification", it derives the
-  per-unit preprocessing context (configure/build -> compile_commands.json or a
-  hand-built -cpp-extra-args + feature defines + force-includes + -machdep),
-  confirms the toolchain (frama-c -wp-detect + the framac-coq8 opam switch) — installing/building it from
-  source into the switch when absent (§0 recipe: provers via opam + `why3 config detect`, frama-c 32.1 via
-  `dune build @install`, macsl),
-  runs/owns the Phase-0 architectural audit (the WP-amenability scope map + the
-  attack-surface ranking), scaffolds the durable <target>-acsl/ overlay (the
-  setup.sh/verify.sh/patches/harness/sessions layout, with the faithfulness
-  baseline pinned to the right pristine commit), and proves ONE leaf unit
-  end-to-end as a feasibility smoke proof. It is itself a squeeze loop MONITORING
-  the prep work (sl-monitoring-sl): a disjoint onboarding-monitor squeezes the
-  prober's flag-set and the architect's scope map against the SHIPPED build
-  configuration and the real attack surface, catching the coherent-and-wrong an
-  onboarding script cannot — a config that parses but selects the wrong feature
-  set, a scope map that silently drops an attack-surface module, or a
-  faithfulness baseline pinned to the wrong commit/submodule. Use to set up a NEW
-  codebase for the frama-c-monitoring/framac-sl loops, to discover a target's
-  Frama-C build flags, to run the Phase-0 scope/attack-surface audit, to scaffold
-  a <target>-acsl/ overlay, or when onboarding many heterogeneous codebases
-  repeatedly and the build/scope/baseline judgment needs disjoint cross-checking.
+  Onboard a heterogeneous C/C++ codebase for Frama-C verification: derive per-unit preprocessing context, validate dependencies and smoke proofs, and hand an evidence-backed onboarding package to frama-c-monitoring. Use before a whole-codebase WP campaign.
 ---
 
 # frama-c-launch — a Squeeze Loop that onboards a codebase for `frama-c-monitoring`
+
+A top-level Squeeze Loop that ONBOARDS a heterogeneous C/C++ codebase for Frama-C verification and hands a validated "onboarding package" to the frama-c-monitoring loop (which it sits on top of). Given a mission like "onboard the library xxx in directory yyy for verification", it derives the per-unit preprocessing context (configure/build -> compile_commands.json or a hand-built -cpp-extra-args + feature defines + force-includes + -machdep), confirms the toolchain (frama-c -wp-detect + the framac-coq8 opam switch) — installing/building it from source into the switch when absent (§0 recipe: provers via opam + `why3 config detect`, frama-c 32.1 via `dune build @install`, macsl), runs/owns the Phase-0 architectural audit (the WP-amenability scope map + the attack-surface ranking), scaffolds the durable <target>-acsl/ overlay (the setup.sh/verify.sh/patches/harness/sessions layout, with the faithfulness baseline pinned to the right pristine commit), and proves ONE leaf unit end-to-end as a feasibility smoke proof. It is itself a squeeze loop MONITORING the prep work (sl-monitoring-sl): a disjoint onboarding-monitor squeezes the prober's flag-set and the architect's scope map against the SHIPPED build configuration and the real attack surface, catching the coherent-and-wrong an onboarding script cannot — a config that parses but selects the wrong feature set, a scope map that silently drops an attack-surface module, or a faithfulness baseline pinned to the wrong commit/submodule. Use to set up a NEW codebase for the frama-c-monitoring/framac-sl loops, to discover a target's Frama-C build flags, to run the Phase-0 scope/attack-surface audit, to scaffold a <target>-acsl/ overlay, or when onboarding many heterogeneous codebases repeatedly and the build/scope/baseline judgment needs disjoint cross-checking.
 
 `frama-c-launch` is the **launch / onboarding** loop. It sits **on top of**
 `frama-c-monitoring` (`../frama-c-monitoring/SKILL.md`): it prepares a heterogeneous

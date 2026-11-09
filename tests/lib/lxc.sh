@@ -30,6 +30,8 @@
 
 # shellcheck disable=SC2034  # variables are used by the sourcing scripts
 AUTOWP_LIB=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+# shellcheck source=selection.sh
+. "$AUTOWP_LIB/selection.sh"
 AUTOWP_REPO=$(cd "$AUTOWP_LIB/../.." && pwd)
 AUTOWP_OUT=${AUTOWP_OUT:-$AUTOWP_REPO/tests/out}
 AUTOWP_NET=${AUTOWP_NET:-autowp-net}
@@ -282,4 +284,3 @@ autowp_manifest() {
     autowp_exec_user "$c" "cd $dir && find . $prune -printf '%y %m %p -> %l\n' | LC_ALL=C sort \
         && find . $prune -type f -print0 | LC_ALL=C sort -z | xargs -0 -r sha256sum"
 }
-
