@@ -16,9 +16,9 @@ This document specifies:
 - the files each route touches and its acceptance tests (§8);
 - what is still open (§9).
 
-**Status.** Claude Code and OpenCode are implemented (`auto-wp.py` 0.5.0);
+**Status.** Claude Code and OpenCode are implemented (`auto-wp.py` 0.6.0);
 GitHub Copilot is not. **Specified, not yet implemented**: everything in
-§1.1, §1.2, §1.3 (the Rust heartbeat) and §3.2; the skill paragraph
+§1.1, §1.2, §1.3 (the Rust test's entry point) and §3.2; the skill paragraph
 "Primitives on each harness" (§1); the template limits of §1.4; the README
 and `tests.md` wording of §8.1; and the whole Copilot column. Until then
 `tests/lib/*.sh` behave as §1.2 and §3.2 describe.
@@ -111,29 +111,43 @@ scripts must instead reject any value other than `claude` and `opencode`
 (`die "HARNESS=<v>: unknown harness"`), and `copilot` stays rejected until
 Route B lands. Test 4 of §8.2 pins this.
 
-### 1.3 Two campaign shapes
+### 1.3 One campaign shape, two test entry points
 
-The C and Rust templates start a campaign differently, and the heartbeat
-comes from a different place:
+Since `auto-wp.py` 0.6.0 (`46fd7e3`, 2026-11-08) both templates start a
+campaign the same way: the slash command `/time-loop <dir> N`, which loads
+the language's `time-loop` skill. The Rust skill
+(`templates/rust/skills/time-loop/SKILL.md`, a Creusot port of the C one)
+carries the same "heartbeat on each harness" section as the C skill: on
+Claude Code `ScheduleWakeup` armed last plus a `CronCreate` watchdog; on
+OpenCode the external `opencode run` watchdog, keyed on
+`<dir>-creusot/time-loop.state` instead of `<dir>-analysis-acsl/`. A Rust
+*project* therefore has a heartbeat under both harnesses.
 
-| | C | Rust |
+The container *tests* still differ, because `tests/rust/sudo-rs-test.sh` was
+written before the Rust command existed:
+
+| | C (`tests/c/gzip-test.sh`) | Rust (`tests/rust/sudo-rs-test.sh`) |
 |---|---|---|
-| entry point | the slash command `/time-loop <dir> N` (and `/rmf`, `/fips`, `/ebios`), which loads the `time-loop` skill | a prompt naming the skills ("onboard … with `creusot-launch`, then analyze it with `creusot-monitoring`"); there is no `time-loop` skill and no command |
-| heartbeat | in the skill ("The heartbeat on each harness") | in the prompt: the test appends a deadline and "call `ScheduleWakeup` … before ending every turn" (`tests/rust/sudo-rs-test.sh`) |
+| what the test types | `/time-loop gzip-1.9 <hours>` | a long prompt naming `creusot-monitoring` and `rmf-sl` |
+| heartbeat | in the skill ("The heartbeat on each harness") | in the prompt: a deadline and "call `ScheduleWakeup` … before ending every turn" |
 | what `harness_confirm` greps | `/time-loop`, the skill load | `creusot-monitoring`, `creusot-launch` |
 
 Consequences:
 
-- Under **OpenCode**, a Rust campaign has **no heartbeat**: the prompt's
+- Under **OpenCode**, the Rust *test* has **no heartbeat**: its prompt's
   `ScheduleWakeup` sentence names a tool OpenCode does not have, and no
-  watchdog is armed. This is a **required fix**, not an accepted limitation:
-  under `HARNESS=opencode` the Rust tests' prompt must arm the external
-  watchdog of `time-loop/SKILL.md` instead of naming `ScheduleWakeup`. Who arms
-  it, the prompt or `harness_start`, follows the watchdog-ownership decision
-  (§3.3).
-- The Rust shape **is** a prompt entry point, which is what §5.1 chooses for
-  Copilot. If Copilot keeps the prompt route, both languages use the Rust
-  shape there.
+  watchdog is armed. This is a **required fix**: the Rust test types
+  `/time-loop sudo-rs <hours>` like the C test, so the skill arms the
+  heartbeat under either harness, and `harness_confirm` greps `/time-loop`.
+  The prompt's extra guidance (the code-blind study first, build in a copy,
+  the ordered list for a quiet cycle, the 45-minute box) is already in the
+  Rust skill. The change waits for the running 96-hour sudo-rs campaign to
+  end (the script is edited only by atomic rename while it runs). Who arms
+  the watchdog in the tests, the skill or `harness_start`, still follows
+  §3.3.
+- A **prompt entry point** (text typed or passed at launch that loads the
+  `time-loop` skill) remains what §5.1 chooses for Copilot, for both
+  languages.
 
 ### 1.4 Template limits (the Agent Skills specification)
 
@@ -146,7 +160,8 @@ skills**, `time-loop`, `rmf-sl`, `fips-sl`, `frama-c-launch`,
 `frama-c-monitoring`, `sl-builder` and `sl-auditor` among them, for their
 description length, and two (`polish-skill`, `sl-internal`) for YAML errors
 (unquoted colons in a one-line description). The Rust `creusot-monitoring`
-fails too. Measured lengths go up to 2,983 characters (`time-loop`).
+fails too. Measured lengths go up to 2,983 characters (the C `time-loop`);
+the Rust `time-loop`, written to the limit, has 882.
 
 The CLI also loads `.claude/commands/*.md` as skills named after the file.
 With the real `time-loop` skill rejected, "load the `time-loop` skill"
@@ -185,8 +200,8 @@ The project needs nothing: both wirings exist since 0.4.0. In the container
    rule as `~/.claude/.credentials.json`).
 6. The campaign starts as in §1.3: in a C project with `/time-loop <dir> N`,
    `/rmf`, `/fips` or `/ebios` (OpenCode lists them from
-   `.opencode/commands/`; type `/`); in a Rust project with a prompt naming
-   `creusot-monitoring`. A long Rust campaign needs the watchdog of §1.3.
+   `.opencode/commands/`; type `/`); in a Rust project with
+   `/time-loop <crate> N`. In both, the skill arms the OpenCode watchdog.
 
 ## 3. Running the container tests with OpenCode (implemented)
 
@@ -266,7 +281,7 @@ already implemented, so they come before either Copilot route.
 4. **The start timeout's message.** `HARNESS_START_TIMEOUT` defaults to
    300 s, but the failure message says "after 120 s" (`harness.sh:152`), and
    `tests.md` §3.5 says 120 s. The three must agree (300 s).
-5. **The Rust heartbeat** (§1.3).
+5. **The Rust test's entry point** (§1.3): type `/time-loop`, not a prompt.
 
 Tests 1–3 of §8.2 turn points 1–4 into checks.
 
@@ -275,7 +290,7 @@ Tests 1–3 of §8.2 turn points 1–4 into checks.
 Two placements meet §3.2 points 1–2: the skill arms the watchdog (today), or
 the test harness owns it under `HARNESS=opencode` (`harness_start` arms it,
 `harness_stop` kills it), which makes the fixes test-side, keeps the skill
-shorter and serves the Rust shape (§1.3) without a skill. A user running
+shorter and would also serve a prompt entry point that loads no skill. A user running
 OpenCode without the tests still needs the skill's version, so the skill keeps
 it either way. Which one the tests use is open (§9, point 4).
 
@@ -387,7 +402,7 @@ Then come the file changes of §8.1.
 
 The CLI has no project-defined slash commands in `copilot help commands`,
 but loads `.claude/commands/*.md` as skills named after the file (§1.4).
-**First choice:** the Rust shape of §1.3, a prompt passed at launch with
+**First choice:** a prompt entry point (§1.3), passed at launch with
 `-i "<prompt>"` (an interactive session that executes it at start). Under
 `copilot` the launcher receives `harness_start`'s `$cmd` as the `-i`
 argument and the typing step is skipped; `harness_confirm` greps the skill
@@ -521,10 +536,11 @@ To change harness:
      project root, kill the pid in `.time-loop-watchdog.pid` (§3.2 point 2),
      then stop the session. A `STOP` in the TUI stops the current turn only.
 2. **Start the new harness** in the same project and restart the campaign
-   with its entry point (§1.3): in C, `/time-loop <dir> N`, which reuses the
-   stored start and deadline, ignores `N` and resumes from the last
-   checkpoint; in Rust, the same prompt with the same deadline.
-3. **A fresh budget** needs `--fresh` (C). Under an external watchdog it
+   with its entry point (§1.3): `/time-loop <dir> N`, in C and in Rust,
+   which reuses the stored start and deadline, ignores `N` and resumes from
+   the last checkpoint. (A campaign started from a prompt, like the running
+   sudo-rs test, is resumed with the same prompt and the same deadline.)
+3. **A fresh budget** needs `--fresh` (both languages). Under an external watchdog it
    also needs a re-armed watchdog, because the watchdog's loop embeds the
    deadline and `N` literally.
 
@@ -540,12 +556,12 @@ needed whichever Copilot route follows.
 | `templates/*/skills/*/SKILL.md` | descriptions ≤ 1,024 characters, strict YAML (§1.4) | — | — |
 | `templates/c/skills/time-loop/SKILL.md` | "Primitives on each harness", the inline-verifier mode (§1); watchdog name and pidfile (§3.2) | — | a Copilot bullet |
 | `templates/{c,rust}/tools/.gitignore` | `.time-loop-watchdog.stop`, `.time-loop-watchdog.pid` | — | — |
-| `templates/{c,rust}/README.md` | §2 steps 3, 4, 6 (API key; credential in the container; the Rust entry point) | — | the third choice in "The agent harness" |
+| `templates/{c,rust}/README.md` | §2 steps 3, 4, 6 (API key; credential in the container) | — | the third choice in "The agent harness" |
 | `tests/lib/harness.sh` | unknown values (§1.2); `harness_stop`, `wait_loop_stopped`, DB path and glob, timeout message (§3.2) | credential mode; connect pre-step (§4.2) | the `copilot` case: launcher with `-i` and §5.2 flags, trust, prompt regex, transcript, K3 entries |
 | `tests/lib/secret.sh` | unknown values (§1.2) | `persisted` mode; K2 skipped (§4.4) | default `AUTOWP_TOKEN_FILE` `~/.config/auto-wp/copilot-pat` and its hint |
 | `tests/lib/workshop.sh` | unknown values (§1.2) | — | `ws_install_copilot`, the `ws_install_harness` switch |
 | `tests/c/provision.sh`, `tests/rust/provision.sh` | `opencode service set disabled true` (§3.2) | — | push of the standalone binary, version check |
-| `tests/rust/*-test.sh` | under `HARNESS=opencode`, the watchdog in place of `ScheduleWakeup` (§1.3) | — | — |
+| `tests/rust/*-test.sh` | type `/time-loop sudo-rs <hours>` instead of the prompt, so the skill arms the heartbeat under either harness (§1.3) | — | — |
 | `tests/test_templates.py` | test 0 | — | — |
 | `tests/test_harness.py` | tests 4, 6 | — | test 9; the Copilot prompt regex |
 | `tests/test_auto_wp.py` | the `.gitignore` entries, where pinned | — | where the harness name is pinned |
