@@ -4,14 +4,19 @@
 argument completion to `auto-wp.py`. It changes only how the language,
 harness and project directory are obtained; generation, validation,
 credentials and rollback retain the behavior of
-[`auto-wp.md`](auto-wp.md) and [`choose-harness.md`](choose-harness.md).
+[`auto-wp.md`](auto-wp.md) and [`choose-harness.md`](choose-harness.md),
+except for the sections listed in §7, which the implementing change amends.
+The implementation is version **0.8.0** (`VERSION` in `auto-wp.py`, the
+manifest's `version`, and the `auto-wp.md` header).
 
 ## 1. Command line
 
 ```text
-./auto-wp.py [--c|--rust] [--harness claude|opencode|copilot|none]
-             [--driver rmf|fips] [--level 1|2|3|4] [<directory-name>]
+./auto-wp.py [-h] [--c|--rust] [--driver rmf|fips] [--level 1|2|3|4]
+             [--harness claude|opencode|copilot|none] [<directory-name>]
 ```
+
+(The option order matches `auto-wp.md` §1.)
 
 When an argument is missing, ask for it interactively. Ask only for missing
 arguments, in this fixed order:
@@ -22,14 +27,24 @@ arguments, in this fixed order:
 
 Explicit arguments are never replaced or confirmed. A fully specified
 invocation runs without questions, including when launched from a terminal.
-No new `--interactive` option is required.
+No new option is added: there is no `--interactive`, `--yes` or
+`--no-input` flag. Whether stdin is a terminal (§4) is the only switch.
 
 The implicit C and Claude defaults are removed for these missing arguments:
 there is no preselected menu answer, and pressing Enter does not choose one.
 The existing `--driver rmf` default is unchanged. This feature adds no
 driver or FIPS-level questions.
 
+`Run.__init__` keeps no harness default: its `harness` parameter becomes
+required, so "claude by default" lives nowhere in the program.
+
 ## 2. Prompts
+
+All prompt text is written to **stderr** (§3). Each menu ends with a
+question line followed by a single space and **no newline**; the answer is
+typed on the same line. Write the prompt with `sys.stderr.write` and
+`flush()`, then read with `sys.stdin.readline()`. Do not use
+`input(prompt)`, which writes the prompt to stdout.
 
 ### 2.1 Language
 
@@ -37,7 +52,7 @@ driver or FIPS-level questions.
 Choose the language:
 1. C (Frama-C/WP)
 2. Rust (Creusot)
-Type 1 or 2:
+Type 1 or 2: 
 ```
 
 `1` has exactly the effect of `--c`; `2` has exactly the effect of `--rust`.
@@ -50,7 +65,7 @@ Choose the agent harness:
 2. OpenCode (opencode)
 3. GitHub Copilot (copilot; not implemented yet)
 4. None (install a harness manually inside Workshop)
-Type 1, 2, 3 or 4:
+Type 1, 2, 3 or 4: 
 ```
 
 The four answers map to `--harness claude`, `--harness opencode`,
@@ -58,61 +73,91 @@ The four answers map to `--harness claude`, `--harness opencode`,
 choice, not a missing value: it generates the project without installing a
 harness and keeps the manual-install instructions.
 
-**Copilot remains gated.** While the implementation gate in
-`choose-harness.md` is closed, selecting `3` reports
-`--harness copilot is not implemented yet` and exits 2, without asking for
-the directory or creating anything. It must not select another harness.
-Once Copilot is enabled, remove the unavailable annotation and accept `3`
-through the same validation path as the explicit flag.
+**Copilot remains gated.** While the gate of `choose-harness.md` §10.6 is
+closed (it opens when the steps of §10.4 are done), selecting `3` prints, on
+stderr,
+
+```text
+auto-wp.py: error: --harness copilot is not implemented yet
+```
+
+and exits 2, without asking for the directory or creating anything. It must
+not select another harness. This is the same line the explicit flag prints,
+minus argparse's `usage:` block, which is not printed for an interactive
+answer. Once Copilot is enabled, remove the unavailable annotation and accept
+`3` through the same validation path as the explicit flag.
 
 ### 2.3 Directory
 
 ```text
-Project directory:
+Project directory: 
 ```
 
 Read one line as the directory argument. Strip leading and trailing
 whitespace; preserve internal spaces. Do not split it into words or require
-shell quotes. An empty answer prints `Enter a project directory.` and
-repeats this prompt.
+shell quotes. An answer that is empty after stripping prints
+`Enter a project directory.` (stderr, own line) and repeats this prompt.
+Nothing else is validated here: any other non-empty answer, including `-`,
+is a literal path, and the target rules apply afterwards.
 
-Relative paths resolve against the process's original working directory.
-`.` and absolute paths are accepted. Input is a literal path: do not run
-shell expansion, expand environment variables or `~`, or interpret shell
-commands. For example, enter `/home/user/my project`, not a quoted string.
+Relative paths resolve against the current working directory, as for a
+positional argument (`auto-wp.md` §1). `.` and absolute paths are accepted.
+Input is a literal path: do not run shell expansion, expand environment
+variables or `~`, or interpret shell commands. For example, enter
+`/home/user/my project`, not a quoted string.
 
-Once supplied, the directory follows the existing target rules: an eligible
-existing directory may be populated, but reserved paths are never
-overwritten. A filesystem or target-validation failure retains the normal
-runtime error and exit 1; it does not restart the questionnaire.
+Once supplied, the directory follows the existing target rules
+(`auto-wp.md` §3.1, §3.6); a target failure exits 1 and does not restart
+the questionnaire.
 
 ## 3. Input, validation and cancellation
 
 - Write menus, prompts and input-error messages to stderr; leave stdout
   for the existing successful-generation output.
 - Strip surrounding whitespace from menu answers. Accept only the listed
-  numeric strings. Empty or invalid menu input prints the allowed choices
-  and repeats the same question, without losing previous answers.
+  numeric strings. An empty or invalid menu answer prints `Type 1 or 2.`
+  (or `Type 1, 2, 3 or 4.`) on its own line, then the **whole menu** again,
+  without losing previous answers.
+- Input that is not valid UTF-8 is treated as an invalid answer (the menu
+  or directory prompt repeats). Read stdin with `errors="strict"` and catch
+  `UnicodeDecodeError` per line; never print a traceback for it.
 - Parse and validate explicit arguments before asking anything. Unknown
   flags, conflicting language flags, invalid harness names, excess
   positional arguments, and invalid `--driver`/`--level` combinations
-  remain usage errors (exit 2). Explicit `--harness copilot` retains its
+  remain usage errors (exit 2, argparse format: `usage:` block, then
+  `auto-wp.py: error: …`). Explicit `--harness copilot` retains its
   existing gate.
 - `--help` prints help and exits 0 without prompting or creating files.
-- EOF during a prompt prints `auto-wp: error: input ended before all
-  required choices were provided` and exits 1.
-- Ctrl-C during a prompt prints `auto-wp: cancelled` and exits 130, without
-  a Python traceback.
+  The help strings no longer claim defaults: `--c` and `--harness` say
+  "asked interactively when omitted and stdin is a terminal", and the
+  positional is shown as optional.
+- EOF during a prompt prints, on stderr,
+  `auto-wp: error: input ended before all required choices were provided`
+  and exits 1.
+- Ctrl-C (`KeyboardInterrupt`) **anywhere** — during a prompt or during
+  generation — prints `auto-wp: cancelled` on stderr and exits 130,
+  without a Python traceback. If generation had started, it is rolled back
+  first, as for any other runtime error (`auto-wp.md` §3.6).
 - Collect and validate all required answers before starting generation.
   Until then, create no project directories, files, git repositories or
   other artifacts. Never request or read a credential.
 
 ## 4. Non-interactive use and compatibility
 
-Prompt only when standard input is a terminal (`sys.stdin.isatty()`).
-If any required choice is missing and stdin is not a terminal, report all
-missing choices in a usage error and exit 2 immediately, without reading
-stdin. Do not consume a pipe or silently restore the old defaults.
+Prompt only when **both** standard input and standard error are terminals
+(`sys.stdin.isatty() and sys.stderr.isatty()`): with stderr redirected, the
+prompts would be invisible and the program would wait silently.
+
+If any required choice is missing and that condition is false, exit 2
+immediately, without consuming stdin, and print on stderr the argparse
+`usage:` block followed by one line naming every missing choice in prompt
+order, e.g.
+
+```text
+auto-wp.py: error: missing --c/--rust, --harness, <directory-name> (not prompting: stdin or stderr is not a terminal)
+```
+
+Do not consume a pipe or silently restore the old defaults.
 
 For example:
 
@@ -131,10 +176,14 @@ For example:
 ```
 
 This intentionally changes invocations that previously relied on implicit
-C or Claude selection. Before implementation is considered complete,
-update repository automation to supply its intended language and
-`--harness` explicitly. `HARNESS` remains a test-driver variable, not an
-implicit generator argument; drivers pass `--harness "$HARNESS"` as before.
+C or Claude selection. Before the implementation is complete, every
+`auto-wp.py` invocation in the repository's automation and specs supplies
+its language and `--harness` explicitly (§7, test T8). The test drivers
+already pass `--harness "$HARNESS"` (`tests/lib/harness.sh`,
+`tests/lib/workshop.sh`, `tests/c/install-test.sh`, `tests/rust/*.sh`);
+the remaining implicit invocations are in `spec/tests.md`, which run in
+containers through `lxc exec … <<EOF` with non-terminal stdin and would
+otherwise exit 2.
 
 ## 5. Implementation boundaries
 
@@ -145,35 +194,87 @@ Resolve missing values before constructing/executing `Run`; pass the
 resolved values through the same validation and generation path used by
 explicit arguments.
 
-Implementation will touch `auto-wp.py`, its host tests, dependent container
-test invocations, and CLI usage documentation. This specification alone
-does not change any of those files or enable Copilot.
+The host-test helper `run_auto_wp` (`tests/test_auto_wp.py`) passes
+`stdin=subprocess.DEVNULL`, so no host test can block on a prompt when
+run from a terminal. Pseudo-terminal tests use the standard library
+(`pty`, `os`, `select`); no new test dependency is added.
 
-## 6. Acceptance criteria
+Implementation touches `auto-wp.py`, its host tests, the files listed in §7,
+and `README.md`. This specification alone does not change any of those
+files or enable Copilot.
+
+## 6. Acceptance criteria and tests
 
 1. With no arguments and terminal input, the three questions appear in
    order. Answers `2`, `4`, and a directory generate a Rust project whose
-   manifest records `harness: none` and whose Workshop hook installs no
-   harness.
-2. Each combination of missing and explicit arguments asks only the
-   missing questions, in order. Explicit values are retained.
+   manifest records `"harness": "none"`, whose stdout shows
+   `harness:  none`, and whose Workshop hook installs no harness.
+2. All eight combinations of missing and explicit language, harness and
+   directory ask only the missing questions, in order. Explicit values are
+   retained.
 3. Both language choices and each enabled harness choice generate the
    same configuration as their explicit-command-line equivalents.
-4. Invalid and blank menu answers repeat only that menu. Blank directory
-   input repeats only the directory prompt. A directory with internal
-   spaces is treated as one path.
-5. Choosing Copilot while gated exits 2 with the specified message and no
-   artifacts. Explicit Copilot selection behaves the same way.
-6. With non-terminal stdin, missing arguments fail immediately with exit
-   2 and a list of missing choices; fully explicit invocations succeed
-   without reading stdin.
-7. Help and explicit usage errors never prompt. EOF and Ctrl-C produce
-   the specified status and no artifacts or traceback, even after earlier
-   questions were answered.
+4. Invalid, blank and non-UTF-8 menu answers repeat only that menu. Blank
+   directory input repeats only the directory prompt. A directory with
+   internal spaces is treated as one path.
+5. Choosing Copilot while gated exits 2 with the line of §2.2 and no
+   artifacts. Explicit Copilot selection prints the same error line.
+6. When stdin or stderr is not a terminal, missing arguments fail
+   immediately with exit 2 and the line of §4; fully explicit invocations
+   succeed without consuming stdin.
+7. Help and explicit usage errors never prompt. EOF exits 1 and Ctrl-C
+   exits 130, with the specified messages, no traceback and no artifacts,
+   even after earlier questions were answered or generation had started.
 8. Existing target-validation and rollback behavior is preserved.
    Automated generator and container tests use explicit choices rather
    than relying on the old defaults.
 
-Test prompt resolution with controlled input and terminal detection; cover
-the actual terminal path with a pseudo-terminal integration test. Do not
-launch a model session to test this feature.
+`tests/test_auto_wp.py` gains these tests (no model session is launched):
+
+- **T1** (replaces `test_03_default_is_c`, the `()` and `("--rust",)` cases
+  of `test_04b_other_usage_errors`, and `test_default_is_explicit_claude`):
+  with `stdin=DEVNULL`, `foo` alone exits 2, stderr names `--c/--rust` and
+  `--harness`, and nothing is created; `--rust` alone exits 2 naming
+  `--harness` and `<directory-name>`; `--c --harness claude` alone exits 2
+  naming `<directory-name>`.
+- **T2** (criteria 1–3): on a pty, answers `2\n4\nfoo\n` give a tree
+  identical (except `created` and the directory name) to
+  `--rust --harness none foo`; likewise `1` with `claude` and `opencode`;
+  `--rust foo` on a pty asks only the harness question (stderr contains
+  `Choose the agent harness` and neither `Choose the language` nor
+  `Project directory`); all eight combinations of criterion 2.
+- **T3** (criterion 6): a fully explicit invocation with stdin an open pipe
+  that is never written exits 0 within the timeout; a missing-argument
+  invocation with `input="2\n4\nfoo\n"` exits 2 and creates nothing; a pty
+  stdin with stderr redirected to a file also exits 2.
+- **T4** (criterion 4): on a pty, `\n`, `3 \n`, `x\n`, `\xff\n`, `1\n` for
+  the language give four re-prompts and then proceed; directory `  \n`
+  then `my dir\n` gives one `Enter a project directory.` and a project at
+  `my dir`.
+- **T5** (criterion 5): on a pty, `1\n3\n` exits 2 with the §2.2 line, no
+  directory prompt, and an empty working directory.
+- **T6** (criterion 7): on a pty, `1\n` then closing the master exits 1
+  with the EOF message; `1\n` then `SIGINT` while blocked exits 130 with
+  `auto-wp: cancelled` and no `Traceback`.
+- **T7**: `--help` with `stdin=DEVNULL` exits 0, and its text no longer
+  calls `--c` or `claude` the default.
+- **T8**: every `auto-wp.py` invocation in `tests/**/*.sh` and
+  `spec/tests.md` carries `--c` or `--rust` and `--harness`.
+
+## 7. Sections this change amends
+
+The implementing change edits these, in the same commit:
+
+| File | Where | Today | After |
+|---|---|---|---|
+| `spec/auto-wp.md` | header | "Version described: 0.7.0" | 0.8.0, with a pointer to this spec |
+| `spec/auto-wp.md` | §1 usage and table | `<directory-name>` required; `--c` "This is the default"; `--harness` "`claude` (default)" | optional directory; no defaults, asked interactively (this spec) |
+| `spec/auto-wp.md` | §1 rules | "Exactly one positional argument is required." | at most one; a missing one is asked for or reported (§4) |
+| `spec/auto-wp.md` | §1.1 values table | `claude` marked Default | no default |
+| `spec/auto-wp.md` | §1.1.2 | "the default is `claude` and its output equals an explicit `--harness claude`" | replaced by T1 |
+| `spec/auto-wp.md` | §3.6 | a missing positional is a usage error, exit 2 | only when not prompting (§4); EOF exit 1, Ctrl-C exit 130 |
+| `spec/auto-wp.md` | §5 test 3 | "No language flag behaves like `--c`." | replaced by T1 |
+| `spec/choose-harness.md` | §3 table, `auto-wp.py --harness` row | `claude` (default) | no default; asked interactively. The `HARNESS=` row (test driver default `claude`) is unchanged |
+| `spec/tests.md` | §5.2 and §6.2 commands, C2.5, the gzip step | `auto-wp.py --c foobar`, `auto-wp.py gzip-analyze --c`, `auto-wp.py --rust foobar` | add `--harness claude` (or `"$HARNESS"`) |
+| `README.md` | usage line | `<directory-name>` required | the §1 usage line |
+| `auto-wp.py` | module docstring and help strings | "the default", "default: claude" | §3 `--help` wording |
