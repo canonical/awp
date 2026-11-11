@@ -136,11 +136,26 @@ templates/common/skills/fips-sl/
     ├── report-format.md              the pinned report format: the linter's contract
     ├── skeleton.md                   the minimal conformant report: the linter's known-good fixture (§5)
     ├── area-properties.md            the eleven areas → verification properties (§4.5)
-    └── crosswalk-format.md           a thin pointer to the crosswalk schema,
-                                      frama-c-monitoring/templates/crosswalk-template.md,
-                                      with the FIPS tag bindings (§7.1), like
-                                      rmf-sl/references/crosswalk-format.md
+    ├── crosswalk-format.md           a thin pointer to the crosswalk schema,
+    │                                 frama-c-monitoring/templates/crosswalk-template.md,
+    │                                 with the FIPS tag bindings (§7.1), like
+    │                                 rmf-sl/references/crosswalk-format.md
+    └── compliance-dossier.md         the always-generated compliance dossier
+                                      XXX-fips-compliance/ (SKILL.md §10)
 ```
+
+**The compliance dossier** (added 2026-11-10, after the 96-hour Mbed TLS
+campaign left its results spread over a study, a gaps file, a findings
+log and an interim report). Every report emitted under the `fips` driver —
+each `/fips` run and each `/time-loop` interim or final report, C and Rust —
+regenerates `XXX-fips-compliance/` in full at the project root: nine files
+(README, module definition, requirements matrix, `XXX-found-violations.md`,
+design gaps, `other-findings.md` for every finding not tied to a
+requirement, proof evidence, trusted base, residuals and sign-off). It is
+code-aware, so the verification coordinator writes it and the code-blind
+study author never reads it; the return half stays the code-free feedback
+packet. Test T9 checks that the skill, the reference and the three report
+emitters name it.
 
 `rmf-sl/references/stride-families.md` and `attack-mapping.md` have no
 counterpart. The eleven areas take the place of STRIDE and of the 800-53

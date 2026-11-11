@@ -386,8 +386,21 @@ class TestFipsSkill(unittest.TestCase):
         self.assertIsNotNone(m, "no name: in front matter")
         self.assertEqual(m.group(1), "fips-sl")
         for ref in ("references/report-format.md", "references/skeleton.md",
-                    "references/area-properties.md", "references/crosswalk-format.md"):
+                    "references/area-properties.md", "references/crosswalk-format.md",
+                    "references/compliance-dossier.md"):
             self.assertTrue((self.FIPS_SL / ref).is_file(), ref)
+        # The compliance dossier is always generated (fips-sl 10): the skill
+        # names it, the reference lists the nine files, and every report
+        # emitter under the fips driver regenerates it.
+        self.assertIn("## 10. The compliance dossier", text)
+        dossier = (self.FIPS_SL / "references/compliance-dossier.md").read_text()
+        for f in ("README.md", "module-definition.md", "requirements-matrix.md",
+                  "XXX-found-violations.md", "design-gaps.md", "other-findings.md",
+                  "proof-evidence.md", "trusted-base.md", "residuals-and-signoff.md"):
+            self.assertIn(f"`{f}`", dossier, f)
+        for emitter in ("c/commands/fips.md", "c/skills/time-loop/SKILL.md",
+                        "rust/skills/time-loop/SKILL.md"):
+            self.assertIn("XXX-fips-compliance/", (TEMPLATES / emitter).read_text(), emitter)
         # The SL registry passes the mechanical disjointness check (single-loop mode).
         checker = TEMPLATES / "common/skills/sl-internal/scripts/sl_disjointness_check.py"
         r = subprocess.run(["python3", str(checker), str(self.FIPS_SL / "fips-sl.sl.json")],

@@ -35,6 +35,7 @@ Without a `driver` key (a project generated before the driver existed), assume `
 | Plane W (WP) | Tier-1 untrusted-input `RS#` | `VO#` of class `zeroize`, `no-plain-ssp-out` |
 | Plane H (macsl system properties) | Tier-3 authorization/integrity `RS#` | `VO#` of the six system-level classes of `fips-sl/references/area-properties.md` |
 | outside both planes | — | `approved-only` (a call-graph check, not a WP proof) |
+| compliance dossier | — | `XXX-fips-compliance/`, regenerated with every interim or final report (`fips-sl` §10) |
 | terminus | Authorizing Official | the owner of the protected information, or the agency's responsible authority (Ann. 13) |
 
 The driving loop itself is the same under both drivers: the same deadline and `time-loop.state`, the
@@ -621,7 +622,9 @@ on other lines. Each wake:
    `XXX/` (`/time-loop toto 72` → `toto.md`). When `XXX` is a path, the file name uses the same root-safe
    slug as the artifact prefix (`zephyr/kernel` → `zephyr-kernel.md`), so the report is never written
    inside the source tree. Each new report replaces the previous one in that file; git history keeps the
-   earlier versions.
+   earlier versions. **Under the `fips` driver, every interim or final report also regenerates the
+   compliance dossier `XXX-fips-compliance/` in full** (`fips-sl` §10,
+   `fips-sl/references/compliance-dossier.md`), committed with the same checkpoint.
 
 ## 5. Executable oracle setup
 `L` is invoked as the base campaign's `XXX-analysis-acsl/verify.sh` (or the `--linux` generated

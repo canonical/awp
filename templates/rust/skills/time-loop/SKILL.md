@@ -38,6 +38,7 @@ The `driver` key of `config/auto-wp.json` selects the code-blind risk study. Wit
 | linter | `bin/rmf-lint.sh` | `bin/fips-lint.sh` |
 | ranked item and scale | `RS#`, `High`/`Moderate`/`Low` | `VO#`, `P1`/`P2`/`P3` |
 | terminus signs | Authorizing Official | the owner of the protected information |
+| compliance dossier | — | `XXX-fips-compliance/`, regenerated with every `XXX.md` (`fips-sl` §10) |
 
 ## 0. Artifacts (all in the project root, next to `XXX/`, never inside it)
 
@@ -209,7 +210,9 @@ Logging "nothing new" and re-arming is a loop-behaviour bug.
 
 `XXX.md`, in the project root next to `XXX/`, is rewritten at the end of every cycle so it is
 complete at any moment (`/time-loop sudo-rs 96` → `sudo-rs.md`); git history keeps the earlier
-versions. Its counts come from `verdicts.tsv` and the finding ledger, never from memory. Sections:
+versions. Its counts come from `verdicts.tsv` and the finding ledger, never from memory. Under the
+`fips` driver, each rewrite also regenerates the compliance dossier `XXX-fips-compliance/` in full
+(`fips-sl` §10). Sections:
 1. summary (deadline, status: final or interim, the numbers);
 2. method and toolchain versions;
 3. proved, by item, with what each proof assumes;

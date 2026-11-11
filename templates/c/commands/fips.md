@@ -15,6 +15,7 @@ Run the two-phase FIPS 140-3 + Frama-C campaign on the target directory.
   never defaulted). Regenerate the project with `--driver fips --level N` or add the key by hand.
 - **ALL generated artifacts use `PREFIX` and live at the repository root** (never inside `DIR` — it is vendored source that must stay pristine for the faithfulness baseline). Two kinds:
   - **Consolidated (single file, updated in place each run):** `PREFIX-fips-report.md`, `PREFIX-found-issues.md`, `PREFIX-fips-gaps.md`, and the overlay `PREFIX-acsl/`. These hold *current truth*.
+  - **The compliance dossier (regenerated in full at the end of every run):** `XXX-fips-compliance/`, where `XXX` is the root-safe slug of `DIR` (not `PREFIX`) — nine files, every finding included, per `fips-sl` §10 and `fips-sl/references/compliance-dossier.md`. Phase 2 writes it last, after the feedback packet; it is code-aware, so the Phase-1 `fips-sl` agent never reads it.
   - **Numbered (one per cycle, never overwritten):** the feedback packet `PREFIX-fips-feedback-NN.md` (zero-padded, e.g. `-01`, `-02`) — the verification evidence the residual-risk owner (Ann. 13) adjudicates. Each run emits the **next** index so the sequence is the revalidation history.
   - Substitute `DIR` for `XXX/` and `PREFIX` for the `XXX-` artifact names in the prompt below.
 

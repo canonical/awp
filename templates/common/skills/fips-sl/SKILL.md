@@ -1,7 +1,7 @@
 ---
 name: fips-sl
 description: >-
-  Author a code-blind FIPS 140-3 requirement study for a cryptographic module. Use the vendored standard and selected security level as authority, validate with fips-lint, and produce the upstream requirements consumed by verification launch and monitoring.
+  Author a code-blind FIPS 140-3 requirement study for a cryptographic module. Use the vendored standard and selected security level as authority, validate with fips-lint, and produce the upstream requirements consumed by verification launch and monitoring. Also defines the compliance dossier XXX-fips-compliance/ that every fips-driver report regenerates.
 ---
 
 # fips-sl — author a FIPS 140-3 requirement study as a code-disjoint squeeze loop
@@ -49,6 +49,10 @@ deliberately.
   residual risk (Ann. 13); **F5 sign-off is left PENDING** here. Validation itself is the CST
   laboratory and the CMVP, **outside this loop** — a proof is evidence for the laboratory, never a
   validation.
+- **Companion deliverable, always generated: the compliance dossier `XXX-fips-compliance/`**
+  (§10). Every run that emits a report under the `fips` driver regenerates it in full. The
+  verification coordinator writes it (it is code-aware); this loop's author and reviewer never read
+  it.
 - **"Correct" means (checkable):** (a) **structurally** conformant to the pinned format — F1–F5
   present, every tag with exactly one home line, every `RQ#` carrying exactly one source token,
   chaining well-formed, every area covered (requirement or `N/A` with a reason), the standing
@@ -281,6 +285,27 @@ PENDING until then). No self-report ends the study — and no proof inside it re
 - **C4 Gate-defined done:** ✓ linter + reviewer + area-coverage + honesty + endogeneity-clear +
   owner sign-off; no self-report.
 
+## 10. The compliance dossier — always generated
+The study (F1–F5) says what the module must do; the verification ledgers say what the code does. The
+**compliance dossier** joins them for a reader: a directory `XXX-fips-compliance/` (`XXX` = the source directory's root-safe slug) at the project
+root with nine files — `README.md`, `module-definition.md`, `requirements-matrix.md`,
+`XXX-found-violations.md`, `design-gaps.md`, `other-findings.md`, `proof-evidence.md`,
+`trusted-base.md`, `residuals-and-signoff.md`. Contents, sources, status vocabulary and the ISO/IEC
+19790 clause table: **`references/compliance-dossier.md`**.
+
+- **Always.** Every `/fips` run, and every `/time-loop` interim or final report under the `fips`
+  driver, regenerates the whole directory from the ledgers. All nine files exist after each
+  generation, even when one has nothing to report. It is committed with the cycle's checkpoint.
+- **Every finding, FIPS or not.** A violation of an `RQ#` goes to `XXX-found-violations.md`, with
+  the clause explained; a requirement whose mechanism is absent goes to `design-gaps.md`; every other
+  finding — code defects without a requirement, observations, tool defects, errors in the campaign's
+  own annotations — goes to `other-findings.md`.
+- **Code barrier.** The dossier is code-aware, so the verification coordinator writes it, and the
+  `fips-sl` author and reviewer never read it. The return half stays the code-free feedback packet
+  (§8).
+- **No validation claim; sign-off PENDING.** Like F5, the dossier is evidence for the laboratory, and
+  says so in its first paragraph.
+
 ## Reference files
 - **The standard** — the only source document: `./NIST.FIPS.140-3.pdf`, vendored at the project root
   (US government work). Its §1 table in `references/report-format.md` says exactly what it does and
@@ -290,6 +315,9 @@ PENDING until then). No self-report ends the study — and no proof inside it re
 - `references/skeleton.md` — the minimal conformant report; the linter's known-good fixture.
 - `references/area-properties.md` — the eleven areas → verification properties (the engine that
   makes the report drive `frama-c-monitoring`; a declared design choice, not PDF text).
+- `references/compliance-dossier.md` — the always-generated compliance dossier
+  `XXX-fips-compliance/` (§10): its nine files, sources, rules, status vocabulary and the ISO/IEC
+  19790 clause of each area.
 - `references/crosswalk-format.md` — the thin pointer to the canonical crosswalk schema with the
   FIPS tag bindings.
 - `bin/fips-lint.sh` (project root) — the mechanical `L` (structure + coverage + source honesty +
