@@ -233,11 +233,11 @@ tmux new -s wp
 
 ### The agent harness: {{HARNESS}}
 
-The skills and commands are wired for both harnesses: `config/` holds them
+The skills and commands are shared across harness layouts: `config/` holds them
 once, `.claude/{skills,commands}` and `.opencode/{skills,commands}` link to
-it, and `.agents` is there for the harnesses that look there. Every command
-in this README (`/time-loop`, `/{{DRIVER}}`, `/ebios`) is available through
-these links, including when a harness is installed manually later.
+it, and `.agents` is there for the harnesses that look there. These links
+make the project skills discoverable, including when a harness is installed
+manually later. Command invocation depends on the harness.
 
 Workshop installs the selected harness at launch unless this project was
 generated with `--harness none`. The install line in step 2 is a fallback
@@ -246,6 +246,8 @@ for LXD or an older workshop; it skips a harness already on `PATH`.
 {{HARNESS_LOGIN}}
 
 ### 3. In the harness
+
+{{HARNESS_CAMPAIGN_NOTE}}
 
 Whichever way you took, type:
 

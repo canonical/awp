@@ -25,11 +25,13 @@ Run `./auto-wp.py` in a terminal to answer all three questions, or
 are literal paths: internal spaces need no quotes, and `~` is not expanded.
 EOF exits 1; Ctrl-C exits 130 and rolls back generation.
 
-`claude` selects Claude Code; `opencode` selects OpenCode; `none` leaves
+`claude` selects Claude Code; `opencode` selects OpenCode; `copilot`
+selects GitHub Copilot CLI for supervised, manual use; `none` leaves
 harness installation to you inside `workshop shell`. Workshop installs the
 selected harness without credentials; login happens inside the container.
-`copilot` is reserved but rejected until its runtime spike and campaign gates
-pass ([`spec/choose-harness.md`](spec/choose-harness.md)).
+`--harness copilot` and interactive choice 3 install the standalone CLI
+and document in-container login. Automated `HARNESS=copilot` campaigns
+remain gated on the runtime spike ([`spec/choose-harness.md`](spec/choose-harness.md)).
 
 The generated directory is stand-alone. It has its own `README.md` with the
 quick start: clone the code to analyse next to the configuration, then run

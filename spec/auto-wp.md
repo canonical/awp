@@ -8,7 +8,8 @@ modelled on `../use-frama-c/config/` (C) and `../use-creusot/config/` (Rust).
 Version described: **0.8.0**. Missing language, harness and directory are
 completed interactively as specified in [`interactive-mode.md`](interactive-mode.md);
 scripts must supply all three explicitly. The `--harness` option (§1.1) selects
-`claude`, `opencode` or `none`; `copilot` remains explicitly gated.
+`claude`, `opencode`, `copilot` (manual use only) or `none`.
+Automated Copilot campaigns remain gated in the test drivers.
 Skills have strict YAML descriptions within 1,024 characters, and the
 common tools include the OpenCode watchdog. Compared with 0.5.0, the Rust layer has its
 own `/time-loop` command and `time-loop` skill (§4.3.7 step 5), so
@@ -47,7 +48,7 @@ by hand or by `frama-c-launch`) is kept as the fallback.
 | `--rust`           | Install the Rust configuration (Creusot).                                |
 | `--driver`         | Which skill drives the campaign: `rmf` (NIST RMF, the default) or `fips` (FIPS 140-3). Each driver installs its own campaign command (`/rmf` or `/fips`); both skills, both linters and the vendored PDF are installed whatever the driver (§4.1). |
 | `--level`          | The target FIPS 140-3 security level, 1–4. Required with `--driver fips` and refused otherwise — Ann. 7 says the level "must be chosen", so there is no default. |
-| `--harness`        | Which agent harness the project is generated for: `claude`, `opencode`, `copilot` (gated) or `none`. No default; asked interactively when omitted and stdin and stderr are terminals. It selects the README's harness and what Workshop installs. `none` installs no harness: the user installs one by hand (§1.1). |
+| `--harness`        | Which agent harness the project is generated for: `claude`, `opencode`, `copilot` (manual use only) or `none`. No default; asked interactively when omitted and stdin and stderr are terminals. It selects the README's harness and what Workshop installs. `none` installs no harness: the user installs one by hand (§1.1). |
 | `<directory-name>` | Path of the project directory to create, asked interactively when omitted and stdin and stderr are terminals. Relative paths resolve against the current working directory. |
 
 - `--c` and `--rust` are mutually exclusive; giving both is a usage error.
@@ -55,9 +56,8 @@ by hand or by `frama-c-launch`) is kept as the fallback.
   `--driver fips` is a usage error; `--level` outside 1–4 is a usage error
   (exit 2, nothing created).
 - `--harness` takes one of the four values above; any other is a usage
-  error. `copilot` is a usage error too until the Copilot harness is
-  implemented (`spec/choose-harness.md` §10.6), with the message
-  `--harness copilot is not implemented yet` (exit 2, nothing created).
+  error. Copilot generation does not enable automated campaigns
+  (`choose-harness.md` §1.5).
 - At most one positional argument is accepted. Missing language, harness and
   directory are asked in that order, only when both stdin and stderr are
   terminals; otherwise all missing choices are reported together as a usage
@@ -90,7 +90,7 @@ generated files say so and, where possible, install it.
 |---|---|
 | `claude` | Claude Code; selects its install, login and launch instructions. No harness is the default. |
 | `opencode` | OpenCode (`choose-harness.md` §2). |
-| `copilot` | GitHub Copilot CLI (`choose-harness.md` §5). Refused with a usage error until implemented (above). |
+| `copilot` | Install GitHub Copilot CLI and document manual login and supervised tasks. Automated campaigns remain gated (`choose-harness.md` §5). |
 | `none` | No harness. The project is the same, the README gives no harness install or start line, and the Workshop definition installs nothing: **the user installs a harness by hand inside the workshop** (`workshop shell`) and starts it in `tmux`. |
 
 **What does not change with the value.** The skills and commands, the tools,
@@ -108,19 +108,21 @@ once in `config/` whatever the harness.
    start lines, and its section "The agent harness" describes only that one
    (login, credential rules, permission flag). Under `none` the install and
    start lines are replaced by one paragraph (§1.1.1).
-3. **The Workshop definition** (§3.7). For `claude` and `opencode`
-   (and eventually `copilot`), the project-local SDK installs the harness at launch: the
+3. **The Workshop definition** (§3.7). For `claude`, `opencode` and
+   `copilot`, the project-local SDK installs the harness at launch: the
    program appends the harness's install snippet
    (`templates/common/harness/<value>.sh`, one per enabled harness) to
    `.workshop/autowp-packages/hooks/setup-base`.
    Under `none` nothing is appended. The snippet installs for every user of
    the workshop (a system-wide location such as `/usr/local/bin`), since
-   `setup-base` runs as root. The installers use `/opt/autowp/<harness>`
+   `setup-base` runs as root. The Claude and OpenCode installers use `/opt/autowp/<harness>`
    as HOME and link into `/usr/local/bin`, avoiding inaccessible `/root`
    paths. Both were executed successfully as root and then as the non-root
    `ubuntu` user in a throwaway Ubuntu 24.04 container (2026-11-09); an
    actual generated Workshop launch remains **unverified**. The README's
-   conditional install step remains the fallback.
+   conditional install step remains the fallback. Copilot uses its standalone
+   installer with `PREFIX=/usr/local`, without Node or login; it skips an
+   existing binary and checks `copilot --version`.
 4. **The output** (§3.6) gains the line `  harness:  <value>`.
 
 The harness is not asked to authenticate at generation time: no credential is
@@ -149,11 +151,14 @@ harness this repository does not know.
 `tests/test_auto_wp.py` gains, for both languages: each accepted value
 generates and records `harness` in the manifest; missing choices on non-terminal
 input exit 2 naming every missing choice (`interactive-mode.md` T1), while
-interactive selections match explicit generation (T2); `--harness copilot` exits 2 with nothing created
-(until implemented); an unknown value exits 2; `--harness none` generates a
+interactive selections match explicit generation (T2), including Copilot;
+an unknown value exits 2; `--harness none` generates a
 README without the install and start lines of any harness and a `setup-base`
 without a harness snippet; each of the other values produces a `setup-base`
-with its snippet and a README that names only that harness. A level 3
+with its snippet and the selected harness's instructions. Copilot's README
+explicitly marks the unattended campaign instructions as unsupported,
+keeps approval prompts enabled, and documents `copilot login --device-code`.
+`HARNESS=copilot` still fails in the test drivers. A level 3
 check launches a generated workshop for each of `claude` and `opencode` and
 confirms the harness is on the `workshop` user's `PATH` (the **unverified**
 point of item 3), and one for `none` that confirms none of them is.
@@ -305,6 +310,7 @@ placeholders in it and changes nothing else:
 | `{{HARNESS}}` (0.7.0) | Display name of the selected harness, or `a manually installed harness` |
 | `{{HARNESS_INSTALL}}`, `{{HARNESS_START}}` | Selected install fallback and start commands; empty under `none` |
 | `{{HARNESS_LOGIN}}`, `{{HARNESS_HOST}}` | Selected authentication/manual-install guidance and host permission warning (§1.1) |
+| `{{HARNESS_CAMPAIGN_NOTE}}` | Copilot-only warning that the remaining automated campaign instructions do not apply; directs the user to supervised language-skill tasks. Empty for other choices. |
 | `{{DRIVER_NOTE}}` | empty under `rmf`; under `fips`, the sentence pointing at `/time-loop grub 72 --dir=grub-core/lib/libgcrypt` (GRUB as a whole is not a module; its crypto library is) |
 
 **Content of the C README** (`--c`, or no flag). In this order:

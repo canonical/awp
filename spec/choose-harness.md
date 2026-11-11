@@ -26,10 +26,14 @@ selection, the template limits, the Rust `/time-loop` entry point, and the
 OpenCode fixes of §3.2 are implemented. The OpenCode verifier is explicitly
 inline until delegation is verified. Host regression checks and C/Rust
 level-2 install checks pass; no live OpenCode campaign was run for this change.
-**GitHub Copilot: specified, not yet implemented.** P0 passes, including
-unauthenticated skill discovery. The user chose to keep Copilot gated rather
-than run paid sessions; P1's authenticated cells, the P2 route decision and
-P3–P5 remain pending. `HARNESS_CREDENTIAL=persisted` also fails closed until
+**GitHub Copilot: project generation and manual use enabled.**
+`--harness copilot` and interactive choice 3 install the standalone CLI and
+document in-container device-code login, normal approval prompts, and
+supervised skill use. They do not enable unattended campaigns or a Copilot
+watchdog. P0 passes, including unauthenticated skill discovery. The user chose
+to keep automated `HARNESS=copilot` campaigns gated rather than run paid
+sessions; P1's authenticated cells, the P2 route decision and the remaining
+P3–P5 campaign work are pending. `HARNESS_CREDENTIAL=persisted` also fails closed until
 Route A is selected and verified. See the partial evidence record in
 [`choose-harness-copilot-spike.md`](choose-harness-copilot-spike.md).
 
@@ -184,7 +188,7 @@ for the first):
 
 | | Where | Values | Role |
 |---|---|---|---|
-| `auto-wp.py --harness <v>` | project generation (`auto-wp.md` §1.1, implemented in 0.7.0) | `claude`, `opencode`, `copilot` (gated), `none`; no default, asked interactively when omitted and stdin and stderr are terminals (`interactive-mode.md`, 0.8.0) | which harness the README documents and the Workshop definition installs; recorded as `harness` in `config/auto-wp.json` |
+| `auto-wp.py --harness <v>` | project generation (`auto-wp.md` §1.1, introduced in 0.7.0) | `claude`, `opencode`, `copilot` (manual use only), `none`; no default, asked interactively when omitted and stdin and stderr are terminals (`interactive-mode.md`, 0.8.0) | which harness the README documents and the Workshop definition installs; recorded as `harness` in `config/auto-wp.json` |
 | `HARNESS=<v>` | the test scripts (`tests/lib/*.sh`) | `claude` (default), `opencode`, `copilot` | which harness the test drives |
 
 Rules:
@@ -202,9 +206,16 @@ Rules:
 - **A mismatch is an error.** A test that finds `harness` in the manifest
   different from `$HARNESS` fails with a message naming both, instead of
   driving the wrong harness.
-- **`copilot` is refused by both selectors** until implemented (§1.2,
-  `auto-wp.md` §1): a usage error (exit 2) for the flag, `die` for the
-  variable. §10.4 lists the step that lifts it.
+- **`--harness copilot` is accepted for generation and manual use.**
+  The root Workshop hook uses the official standalone installer with
+  `PREFIX=/usr/local`, skips an existing binary and checks its version.
+  No credentials are read during generation or installed by the hook.
+  The README starts `copilot --disable-builtin-mcps --sync-session=off`,
+  retains tool approvals, documents `copilot login --device-code` inside
+  the container, and warns against unattended `/time-loop` use.
+  **`HARNESS=copilot` is still refused by the test drivers** (§1.2).
+  Lifting that campaign gate requires the remaining work of §10, not just
+  a working installer.
 - **Wiring is independent of the choice** (the five links of `auto-wp.md`
   §3.3 are always written), so switching harness later, or running two, needs
   no regeneration; §7 still forbids switching a *running* campaign.
@@ -613,7 +624,7 @@ needed whichever Copilot route follows.
 | `templates/*/skills/*/SKILL.md` | descriptions ≤ 1,024 characters, strict YAML (§1.4) | — | — |
 | `templates/c/skills/time-loop/SKILL.md` | "Primitives on each harness", the inline-verifier mode (§1); watchdog name and pidfile (§3.2) | — | a Copilot bullet |
 | `templates/{c,rust}/tools/.gitignore` | `.time-loop-watchdog.stop`, `.time-loop-watchdog.pid` | — | — |
-| `auto-wp.py`, `templates/common/harness/{claude,opencode,copilot}.sh`, `templates/{c,rust}/README.md` (harness blocks), `tests/test_auto_wp.py` | `--harness` for `claude`, `opencode`, `none` (§1.5, `auto-wp.md` §1.1) | — | `copilot` accepted (lifting the refusal) |
+| `auto-wp.py`, `templates/common/harness/{claude,opencode,copilot}.sh`, `templates/{c,rust}/README.md` (harness blocks), `tests/test_auto_wp.py` | All four generation choices, including manual-only `copilot` (§1.5, `auto-wp.md` §1.1), are implemented | — | Lift only the campaign gate after §10 |
 | `templates/{c,rust}/README.md` | §2 steps 3, 4, 6 (API key; credential in the container) | — | the third choice in "The agent harness" |
 | `tests/*/*.sh` (every script that generates a project) | `auto-wp.py --harness "$HARNESS"`; the manifest-mismatch check (§1.5) | — | — |
 | `tests/lib/harness.sh` | unknown values (§1.2); `harness_stop`, `wait_loop_stopped`, DB path and glob, timeout message (§3.2) | credential mode; connect pre-step (§4.2) | the `copilot` case: launcher with `-i` and §5.2 flags, trust, prompt regex, transcript, K3 entries |
@@ -758,10 +769,10 @@ In this order; each step is a commit with its tests.
    harness" paragraph, as a Copilot bullet (one `copilot -p` per wake, the
    flags of §5.2, the credit sum, the stop causes found in (c)), and its
    barrier mode from (b). The paragraph's other bullets are not changed.
-6. **Templates**: the third choice in "The agent harness" of the C and Rust
-   READMEs (install line, PAT, `COPILOT_ALLOW_ALL`, the `copilot` start
-   command), and nothing else: no `.github/` layer unless §10.3 chose the
-   agent-file fallback.
+6. **Templates**: extend the existing manual Copilot instructions in the C
+   and Rust READMEs with the verified campaign entry point, credentials and
+   flags; remove the manual-only warning only after the campaign gate passes.
+   No `.github/` layer unless §10.3 chose the agent-file fallback.
 7. **Tests**: `test_harness.py` (tests 6, 9), the Copilot cases of tests 10
    and 11 as level-1 checks against the launcher text and the watchdog
    script; `tests/README.md` lists `HARNESS=copilot`.
@@ -788,8 +799,9 @@ Cheapest first; a failure stops the ladder and is fixed at its level.
 
 ### 10.6 Definition of "implemented"
 
-GitHub Copilot is implemented when all of the following hold, and each is
-observable:
+Automated GitHub Copilot campaign support is implemented when all of the
+following hold, and each is observable. Generator installation and supervised
+manual use (§1.5) are available separately and do not satisfy this gate:
 
 1. `HARNESS=copilot` is accepted by the scripts, and any other unknown value
    is rejected (tests 4 and 9).

@@ -64,7 +64,7 @@ Type 1 or 2:
 Choose the agent harness:
 1. Claude Code (claude)
 2. OpenCode (opencode)
-3. GitHub Copilot (copilot; not implemented yet)
+3. GitHub Copilot (copilot)
 4. None (install a harness manually inside Workshop)
 Type 1, 2, 3 or 4:
 ```
@@ -74,19 +74,12 @@ The four answers map to `--harness claude`, `--harness opencode`,
 choice, not a missing value: it generates the project without installing a
 harness and keeps the manual-install instructions.
 
-**Copilot remains gated.** While the gate of `choose-harness.md` §10.6 is
-closed (all conditions of §10.6 must hold, not just the implementation
-steps of §10.4), selecting `3` prints on stderr:
-
-```text
-auto-wp.py: error: --harness copilot is not implemented yet
-```
-
-and exits 2, without asking for the directory or creating anything. It must
-not select another harness. This is the same line the explicit flag prints,
-minus argparse's `usage:` block, which is not printed for an interactive
-answer. Once Copilot is enabled, remove the unavailable annotation and accept
-`3` through the same validation path as the explicit flag.
+**Copilot generation is enabled for manual use.** Selecting `3` has the same
+effect as `--harness copilot`: continue to the directory question if needed,
+install the standalone CLI through the generated Workshop hook, and document
+manual login and supervised tasks. Automated `HARNESS=copilot` campaigns
+remain gated by `choose-harness.md` §10.6. Generation must not silently
+substitute another harness or claim unattended campaign support.
 
 ### 2.3 Directory
 
@@ -129,8 +122,7 @@ the questionnaire.
   flags, conflicting language flags, invalid harness names, excess
   positional arguments, and invalid `--driver`/`--level` combinations
   remain usage errors (exit 2, argparse format: `usage:` block, then
-  `auto-wp.py: error: …`). Explicit `--harness copilot` retains its
-  existing gate.
+  `auto-wp.py: error: …`). Explicit `--harness copilot` is valid.
 - `--help` prints help and exits 0 without prompting or creating files.
   The help strings no longer claim defaults: `--c` and `--harness` say
   "asked interactively when omitted and stdin is a terminal", and the
@@ -231,8 +223,9 @@ files or enable Copilot.
 4. Invalid, blank and non-UTF-8 menu answers repeat only that menu. Blank
    or non-UTF-8 directory input repeats only the directory prompt. A
    directory with internal spaces is treated as one path.
-5. Choosing Copilot while gated exits 2 with the line of §2.2 and no
-   artifacts. Explicit Copilot selection prints the same error line.
+5. Choosing Copilot continues to any remaining question and generates the
+   same Copilot configuration as the explicit flag. No artifacts are
+   created until the directory has been provided.
 6. When stdin or stderr is not a terminal, missing arguments fail
    immediately with exit 2 and the line of §4; fully explicit invocations
    succeed without consuming stdin.
@@ -255,7 +248,8 @@ files or enable Copilot.
   naming `<directory-name>`.
 - **T2** (criteria 1–3): on a pty, answers `2\n4\nfoo\n` give a tree
   identical (except `created` and the directory name) to
-  `--rust --harness none foo`; likewise `1` with `claude` and `opencode`;
+  `--rust --harness none foo`; likewise both languages with `claude`,
+  `opencode` and `copilot`;
   `--rust foo` on a pty asks only the harness question (stderr contains
   `Choose the agent harness` and neither `Choose the language` nor
   `Project directory`); all eight combinations of criterion 2.
@@ -268,8 +262,9 @@ files or enable Copilot.
   then `my dir\n` gives one `Enter a project directory.` and a project at
   `my dir`. Invalid UTF-8 at the directory prompt repeats that prompt
   without losing a subsequent valid line.
-- **T5** (criterion 5): on a pty, `1\n3\n` exits 2 with the §2.2 line, no
-  directory prompt, and an empty working directory.
+- **T5** (criterion 5): on a pty, `1\n3\n` asks for the directory, with an
+  empty working directory until the answer is supplied. Generation then
+  succeeds, and the manifest records `"harness": "copilot"`.
 - **T6** (criterion 7): on a pty in canonical mode, answer `1\n`, wait for
   the harness prompt, then send the configured VEOF character (normally
   Ctrl-D) on an empty input line. The process exits 1 with the EOF message.

@@ -242,7 +242,7 @@ tmux new -s wp
 
 ### The agent harness: {{HARNESS}}
 
-The skills are wired for both harnesses: `config/skills/` holds them once,
+The skills are shared across harness layouts: `config/skills/` holds them once,
 and `.claude/skills`, `.opencode/skills` and `.agents` link to it. The
 requests of this README use the same skills, including when a harness is
 installed manually later.
@@ -254,6 +254,8 @@ for LXD or an older workshop; it skips a harness already on `PATH`.
 {{HARNESS_LOGIN}}
 
 ### 3. In the harness
+
+{{HARNESS_CAMPAIGN_NOTE}}
 
 Whichever way you took, type:
 

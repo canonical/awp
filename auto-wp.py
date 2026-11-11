@@ -74,11 +74,6 @@ def prompt_choice(prompt, choices=None, error="Enter a project directory."):
         print(error, file=sys.stderr)
 
 
-def validate_harness(harness, error):
-    if harness == "copilot":
-        error("--harness copilot is not implemented yet")
-
-
 def parse_args(argv):
     parser = argparse.ArgumentParser(
         prog="auto-wp.py",
@@ -101,11 +96,10 @@ def parse_args(argv):
     parser.add_argument("--harness", choices=HARNESSES,
                         help="agent harness; asked interactively when omitted "
                         "and stdin is a terminal; none leaves "
-                        "installation to you; copilot is not implemented yet")
+                        "installation to you")
     parser.add_argument("directory", metavar="<directory-name>", nargs="?",
                         help="project directory to create (or to fill, if it exists)")
     args = parser.parse_args(argv)
-    validate_harness(args.harness, parser.error)
     if args.driver == "fips" and args.level is None:
         parser.error("--driver fips needs --level 1, 2, 3 or 4")
     if args.driver != "fips" and args.level is not None:
@@ -128,14 +122,11 @@ def parse_args(argv):
             "Choose the agent harness:\n"
             "1. Claude Code (claude)\n"
             "2. OpenCode (opencode)\n"
-            "3. GitHub Copilot (copilot; not implemented yet)\n"
+            "3. GitHub Copilot (copilot)\n"
             "4. None (install a harness manually inside Workshop)\n"
             "Type 1, 2, 3 or 4:",
             {"1": "claude", "2": "opencode", "3": "copilot", "4": "none"},
             "Type 1, 2, 3 or 4.")
-        validate_harness(
-            args.harness,
-            lambda message: parser.exit(2, f"{parser.prog}: error: {message}\n"))
     if args.directory is None:
         args.directory = prompt_choice("Project directory:")
     return args
@@ -366,6 +357,25 @@ class Run:
                 "Outside a container, add `permissions` rules to `opencode.json` "
                 "to require approval; the default policy allows actions.",
             ),
+            "copilot": (
+                "GitHub Copilot CLI",
+                'export PATH="$HOME/.local/bin:$PATH"\n'
+                "command -v copilot >/dev/null || "
+                "curl -fsSL https://gh.io/copilot-install | bash",
+                "copilot --disable-builtin-mcps --sync-session=off",
+                "Inside the container, run `copilot login --device-code` and "
+                "complete the displayed authorization in your host browser. "
+                "Login is stored in the container's credential store, or in "
+                "plaintext under `~/.copilot/` if no credential store is available. "
+                "Never copy the host's `~/.copilot/` or credentials into it. "
+                "Your account and organization policy must allow Copilot CLI; "
+                "model requests consume your account's allowance. The start "
+                "command disables built-in MCP servers and account session sync, "
+                "and keeps trust and tool-approval prompts enabled. Do not use "
+                "`/delegate`, `/share` or `/remote` for campaign source code.",
+                "Outside a container, keep trust and tool-approval prompts enabled; "
+                "do not use `--allow-all` or `--allow-all-tools`.",
+            ),
             "none": (
                 "a manually installed harness", "", "",
                 "No agent harness is installed. Inside `workshop shell` (or the "
@@ -382,6 +392,19 @@ class Run:
                 ("HARNESS", "HARNESS_INSTALL", "HARNESS_START", "HARNESS_LOGIN",
                  "HARNESS_HOST"), harness_text):
             text = text.replace("{{" + key + "}}", value)
+        manual_note = ""
+        if self.harness == "copilot":
+            skill = "frama-c" if self.language == "c" else "creusot"
+            manual_note = (
+                "**Copilot: manual use only.** Installation and skill discovery "
+                "are supported, but automated Copilot campaigns are not yet "
+                "enabled. In the CLI, ask it to "
+                f"`Load the {skill} skill` and give it a task you supervise. "
+                "The campaign instructions in the rest of this README are for "
+                "Claude Code and OpenCode, not Copilot: skip their `/time-loop` "
+                "quick start. No Copilot watchdog is installed, so do not rely on "
+                "the session to continue unattended or enforce a campaign deadline.")
+        text = text.replace("{{HARNESS_CAMPAIGN_NOTE}}", manual_note)
         text = text.replace("{{DIR}}", self.target.resolve().name)
         text = text.replace("{{LANGUAGE}}", LANGUAGES[self.language])
         if self.driver == "fips":

@@ -50,9 +50,10 @@ by day 3 — background the check-only run instead of bounding it.
 ## Harness selection and watchdog ownership
 
 The test drivers pass `HARNESS` through to `auto-wp.py --harness`; launch
-checks the generated manifest before consuming a credential. Copilot and
-persisted credentials are deliberately gated on the live spike, not
-aliases for Claude. `none` is generation-only.
+checks the generated manifest before consuming a credential. The generator
+accepts `--harness copilot` for installation and supervised manual use,
+but `HARNESS=copilot` in the test drivers and persisted credentials remain
+gated on the live spike, not aliases for Claude. `none` is generation-only.
 
 Since 0.8.0, every automated generator call must supply `--c` or `--rust`,
 `--harness` and the target directory. There is no implicit C or Claude.
@@ -70,6 +71,8 @@ Use `https://opencode.ai/v2/install` for the specified V2 harness.
 The legacy `/install` endpoint installs V1, which cannot run the
 `service set disabled true` pre-step. Root installers use an accessible
 HOME under `/opt/autowp/` and link to `/usr/local/bin`, not into `/root`.
+Copilot's standalone installer instead supports `PREFIX=/usr/local`
+directly; it requires neither Node nor authentication during installation.
 
 ## Harness prompt regex (Claude Code)
 

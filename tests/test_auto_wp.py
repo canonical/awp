@@ -926,7 +926,8 @@ class TestInteractiveCompletion(AutoWpTestCase):
 
     def test_t2_interactive_matches_explicit_tree(self):
         for language, number in (("c", "1"), ("rust", "2")):
-            for harness, selection in (("claude", "1"), ("opencode", "2"), ("none", "4")):
+            for harness, selection in (("claude", "1"), ("opencode", "2"),
+                                       ("copilot", "3"), ("none", "4")):
                 with self.subTest(language=language, harness=harness):
                     name = f"prompted-{language}-{harness}"
                     other = f"explicit-{language}-{harness}"
@@ -1033,22 +1034,19 @@ class TestInteractiveCompletion(AutoWpTestCase):
         self.assertPrompts(r, [self.PROMPTS[2]])
         self.assertEqual(snapshot(self.tmp), before)
 
-    def test_t5_copilot_gate(self):
+    def test_t5_copilot_selection_asks_for_directory(self):
         p = TerminalProcess(self)
         p.wait_for(self.QUESTIONS[0])
         p.send(b"1\n3\n")
-        r = p.finish()
-        error = "auto-wp.py: error: --harness copilot is not implemented yet\n"
-        self.assertEqual(r.returncode, 2)
-        self.assertTrue(r.stderr.endswith(error), r.stderr)
-        self.assertNotIn("usage:", r.stderr)
-        self.assertPrompts(r, list(self.PROMPTS[:2]))
-        explicit = self.run_auto_wp("--harness", "copilot")
-        self.assertEqual(explicit.returncode, 2)
-        self.assertTrue(explicit.stderr.endswith(error), explicit.stderr)
-        self.assertIn("usage:", explicit.stderr)
-        self.assertEqual(r.stdout, "")
+        p.wait_for(self.QUESTIONS[2])
         self.assertEqual(os.listdir(self.tmp), [])
+        p.send(b"copilot-project\n")
+        r = p.finish()
+        self.assertOk(r)
+        self.assertPrompts(r, list(self.PROMPTS))
+        self.assertNotIn("not implemented yet", r.stderr)
+        manifest = json.loads((self.tmp / "copilot-project/config/auto-wp.json").read_text())
+        self.assertEqual(manifest["harness"], "copilot")
 
     def test_t6_prompt_eof_and_sigint(self):
         for cancel in ("eof", "sigint"):
@@ -1129,7 +1127,6 @@ with patch.object(owner, method, interrupt):
             (("--c", "--rust"), "not allowed with argument"),
             (("a", "b"), "unrecognized arguments"),
             (("--harness", "typo"), "invalid choice"),
-            (("--harness", "copilot"), "--harness copilot is not implemented yet"),
             (("--driver", "fips"), "--driver fips needs --level"),
             (("--level", "3"), "--level is only valid with --driver fips"),
             (("--driver", "typo"), "invalid choice"),
@@ -1176,7 +1173,7 @@ with patch.object(owner, method, interrupt):
 class TestHarnessSelection(AutoWpTestCase):
     def test_selected_harness_in_both_languages(self):
         for language in ("c", "rust"):
-            for harness in ("claude", "opencode", "none"):
+            for harness in ("claude", "opencode", "copilot", "none"):
                 with self.subTest(language=language, harness=harness):
                     target = f"{language}-{harness}"
                     result = self.run_auto_wp("--" + language, "--harness", harness, target)
@@ -1197,26 +1194,39 @@ class TestHarnessSelection(AutoWpTestCase):
                         self.assertIn("workshop shell", readme)
                         self.assertNotIn("https://claude.ai", readme)
                         self.assertNotIn("https://opencode.ai", readme)
+                        self.assertNotIn("https://gh.io/copilot-install", readme)
                         self.assertNotIn("--dangerously-skip-permissions", readme)
                     else:
                         snippet = (TEMPLATES / "common/harness" / f"{harness}.sh").read_text()
                         self.assertEqual(hook, base + "\n" + snippet)
-                        self.assertIn(f"/usr/local/bin/{harness}", hook)
+                        if harness == "copilot":
+                            self.assertIn("PREFIX=/usr/local", hook)
+                            self.assertIn("https://gh.io/copilot-install", readme)
+                            self.assertIn("copilot login --device-code", readme)
+                            self.assertIn("copilot --disable-builtin-mcps --sync-session=off", readme)
+                            self.assertIn("**Copilot: manual use only.**", readme)
+                            self.assertIn("No Copilot watchdog is installed", readme)
+                            skill = "frama-c" if language == "c" else "creusot"
+                            self.assertIn(f"Load the {skill} skill", readme)
+                            self.assertNotIn("COPILOT_ALLOW_ALL", readme)
+                        else:
+                            self.assertIn(f"/usr/local/bin/{harness}", hook)
                         subprocess.run(["bash", "-n"], input=hook, text=True,
                                        check=True, timeout=15)
-                        other = "opencode.ai" if harness == "claude" else "claude.ai"
-                        self.assertNotIn(other, readme)
+                        for other, url in (("claude", "claude.ai"),
+                                           ("opencode", "opencode.ai"),
+                                           ("copilot", "gh.io/copilot-install")):
+                            if other != harness:
+                                self.assertNotIn(url, readme)
                         self.assertIn(f"  harness:  {harness}", result.stdout)
                     self.assertFalse((project / ".github/hooks").exists())
 
     def test_rejected_harness_creates_nothing(self):
-        for harness in ("copilot", "openrouter", "typo"):
+        for harness in ("openrouter", "typo"):
             with self.subTest(harness=harness):
                 result = self.run_auto_wp("--harness", harness, "project")
                 self.assertEqual(result.returncode, 2)
                 self.assertFalse((self.tmp / "project").exists())
-                if harness == "copilot":
-                    self.assertIn("--harness copilot is not implemented yet", result.stderr)
 
     def test_missing_installer_rolls_back(self):
         prog = self._copy_program()

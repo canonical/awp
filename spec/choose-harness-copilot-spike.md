@@ -4,6 +4,26 @@ Date: 2026-11-09. **This is not a completed P1 spike or a P2 route decision.**
 The user chose "Keep Copilot gated; finish the local implementation".
 No authenticated model session, paid wake loop or campaign was started.
 
+**Manual-generation update (2026-11-11):** `--harness copilot` is now accepted for
+generated C and Rust projects, including interactive choice 3. The generated
+Workshop hook installs the standalone CLI and the README documents
+in-container login and supervised skill use. Automated `HARNESS=copilot`
+campaigns and persisted credentials remain gated; this does not answer the
+pending P1 cells or constitute a P2 route decision.
+
+The new `templates/common/harness/copilot.sh` was executed as root in a
+fresh Ubuntu 24.04 amd64 LXD container. The official installer downloaded
+Copilot CLI 1.0.109 to `/usr/local/bin/copilot`, verified its checksum, and
+`copilot --version` succeeded as the non-root `ubuntu` user. Running the
+snippet again skipped the download and succeeded.
+
+In that container, projects generated with `--c --harness copilot` and
+`--rust --harness copilot` passed `copilot skill list --json`: all 23 C and
+18 installed Rust manifest skills were enabled project entries. No login
+or model request was made, and the container was deleted afterwards.
+This verifies the installer and discovery, not an actual Workshop launch
+or authenticated skill execution.
+
 ## P0: observed
 
 On the host, with GitHub Copilot CLI 1.0.107:

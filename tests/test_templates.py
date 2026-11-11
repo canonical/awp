@@ -200,7 +200,7 @@ class TestTemplates(unittest.TestCase):
                     "rust": {"DIR", "LANGUAGE", "DRIVER_LINE"}}
         for placeholders in expected.values():
             placeholders.update({"HARNESS", "HARNESS_INSTALL", "HARNESS_START",
-                                 "HARNESS_LOGIN", "HARNESS_HOST"})
+                                 "HARNESS_LOGIN", "HARNESS_HOST", "HARNESS_CAMPAIGN_NOTE"})
         for lang in ("c", "rust"):
             with self.subTest(lang=lang):
                 text = (TEMPLATES / lang / "README.md").read_text()
