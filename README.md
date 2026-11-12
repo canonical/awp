@@ -4,7 +4,7 @@
 slash commands for a long-running formal-verification campaign:
 C with [Frama-C/WP](https://frama-c.com), or Rust with
 [Creusot](https://github.com/creusot-rs/creusot). The generated project works
-with Claude Code and with OpenCode.
+with Claude Code, GitHUb Copilot or with OpenCode.
 
 ```
 ./auto-wp.py [-h] [--c|--rust] [--driver rmf|fips] [--level 1|2|3|4]
