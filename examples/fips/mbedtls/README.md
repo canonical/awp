@@ -1,7 +1,7 @@
 Here is how to launch a [FIPS](https://en.wikipedia.org/wiki/Federal_Information_Processing_Standards) analysis on [Mbed-TLS](https://github.com/Mbed-TLS/mbedtls):
 
 
-```
+```bash
 # get the awp repo
 git clone git@github.com:canonical/awp.git
 cd awp/
@@ -18,7 +18,7 @@ workshop shell
 ```
 
 Now in the workshop type: (the shell opens in /project)
-```
+```bash
 git clone https://github.com/Mbed-TLS/mbedtls.git
 opencode --dangerously-skip-permissions   # log in with /connection and choose model
 ```
