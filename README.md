@@ -1,8 +1,9 @@
 # auto-wp
 
 `auto-wp.py` creates a project directory pre-loaded with the agent skills and
-slash commands for a long-running formal-verification campaign:
-C with [Frama-C/WP](https://frama-c.com), or Rust with
+slash commands for a long-running formal-verification campaign thanks to 
+[Squeeze Loopps](https://github.com/canonical/squeeze-loop). Supported languages
+are C with [Frama-C/WP](https://frama-c.com), and Rust with
 [Creusot](https://github.com/creusot-rs/creusot). The generated project works
 with Claude Code, GitHUb Copilot or with OpenCode.
 
