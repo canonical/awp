@@ -28,5 +28,5 @@ Now in Claude type
 ```
 /time-loop sudo-rs 96
 ```
-Using that I found [this issue](f20-report.md) actually reported 1 hours earlier than me by [Squell](https://github.com/trifectatechfoundation/sudo-rs/issues/1728).
+Using that I found [this issue](f20-report.md) actually reported 1 hour earlier than me by [Squell](https://github.com/trifectatechfoundation/sudo-rs/issues/1728).
 
