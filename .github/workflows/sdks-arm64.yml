@@ -21,7 +21,7 @@ permissions:
 
 jobs:
   pack:
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-26.04-arm
     # The first Frama-C and Creusot builds take hours (opam, Z3, Coq, rustc).
     timeout-minutes: 360
     strategy:
