@@ -36,7 +36,7 @@ jobs:
           want="${{ github.event.inputs.sdks || 'lean rocq frama-c-sdk creusot' }}"
           case " $want " in *" ${{ matrix.sdk }} "*) echo "run=true" >> "$GITHUB_OUTPUT" ;; *) echo "run=false" >> "$GITHUB_OUTPUT" ;; esac
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         if: steps.sel.outputs.run == 'true'
 
       - name: Free disk space
