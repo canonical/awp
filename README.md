@@ -8,6 +8,46 @@ are C with [Frama-C/WP](https://frama-c.com) +
 [Creusot](https://github.com/creusot-rs/creusot). The generated project works
 with Claude Code, GitHUb Copilot or with OpenCode.
 
+## Example with gzip
+
+Things to install
+```bash
+# install lxd if not installed
+sudo snap install --channel=6/stable lxd
+# install workshop if not installed
+sudo snap install --classic workshop
+```
+
+Clone the awp repo:
+```bash
+git clone git@github.com:canonical/awp.git
+cd awp/
+# create a directory named `sudo-rs-analyze` (or any other name) to analyze a rust program
+./auto-wp.py --c --driver rmf --harness opencode gzip-1.15-analyze
+cd gzip-1.15-analyze
+# now launch  the Workshop:
+workshop launch
+workshop shell
+```
+That opens a shell in `/project` in the container pointing to `awp/` on the host. Now in the
+Workshop container type:
+```bash
+# get the source code we want to analyse, gzip in this example
+wget https://ftp.gnu.org/gnu/gzip/gzip-1.15.zip
+sudo apt install unzip
+unzip gzip-1.15.zip
+# launch the harness that was installed previously by `auto-wp.py`
+opencode --dangerously-skip-permissions   # log in with /login the first time
+```
+
+Now in Opencode, to run a loop for 96 hours on the repo `gzip-1.15/` type:
+```
+/time-loop gzip-1.15 96
+```
+
+## Command line option
+
+
 ```
 ./auto-wp.py [-h] [--c|--rust] [--driver rmf|fips] [--level 1|2|3|4]
              [--harness claude|opencode|copilot|none] [<directory-name>]
