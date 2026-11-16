@@ -1,0 +1,67 @@
+#!/bin/bash
+# mem-watchdog — last line of defence against a machine-wide OOM or fork bomb (campaign rule R6).
+#
+#   mem-watchdog start <log-file>     # start in the background (idempotent; one instance)
+#   mem-watchdog status | stop
+#   mem-watchdog run <log-file>       # foreground loop (what `start` launches)
+#
+# Every INTERVAL seconds it reads MemAvailable and the system task count. When available memory
+# drops below MIN_AVAIL_KB, or the task count exceeds MAX_TASKS, it kills ONE heavy job — the
+# process group (started by bin/heavy, oom_score_adj=1000) with the largest total RSS, or with the
+# most processes in the fork-bomb case — and logs what it killed. It never touches processes that
+# bin/heavy did not start, so the Claude session and coordinator are never its targets.
+#
+# This is the MEMORY/OOM watchdog; it is separate from and complementary to the session heartbeat
+# (time-loop-watchdog.py). Run both.
+set -u
+INTERVAL=${WATCHDOG_INTERVAL:-10}
+MIN_AVAIL_KB=${WATCHDOG_MIN_AVAIL_KB:-1048576}   # 1 GiB
+MAX_TASKS=${WATCHDOG_MAX_TASKS:-1500}            # normal campaign load is ~50-300 tasks
+PIDFILE=${WATCHDOG_PIDFILE:-/tmp/mem-watchdog.pid}
+
+avail_kb() { awk '/^MemAvailable:/{print $2}' /proc/meminfo; }
+task_count() { ls /proc | grep -c '^[0-9]'; }
+
+# Process groups of heavy jobs: "pgid total_rss_kb nproc", one per line.
+heavy_groups() {
+  for d in /proc/[0-9]*; do
+    [ "$(cat "$d/oom_score_adj" 2>/dev/null)" = "1000" ] || continue
+    pgid=$(awk '{print $5}' "$d/stat" 2>/dev/null); rss=$(awk '/^VmRSS:/{print $2}' "$d/status" 2>/dev/null)
+    [ -n "$pgid" ] && echo "$pgid ${rss:-0}"
+  done | awk '{r[$1]+=$2; n[$1]++} END{for(g in r) print g, r[g], n[g]}'
+}
+
+kill_group() { # $1 = sort column (2 = rss, 3 = process count), $2 = reason
+  local victim; victim=$(heavy_groups | sort -k"$1","$1"nr | head -1)
+  [ -n "$victim" ] || { log "TRIGGER ($2) but no heavy job to kill"; return; }
+  set -- $victim "$2"
+  local cmd; cmd=$(ps -o args= -p "$1" 2>/dev/null | cut -c1-160)
+  kill -TERM -- "-$1" 2>/dev/null; sleep 2; kill -KILL -- "-$1" 2>/dev/null
+  log "KILLED heavy group pgid=$1 rss=${2}kB procs=$3 reason=$4 leader='$cmd'"
+}
+
+log() { echo "$(date -u +%FT%TZ) mem-watchdog: $*" >> "$LOG"; }
+
+run() {
+  LOG=$1; echo $$ > "$PIDFILE"; log "started (min_avail=${MIN_AVAIL_KB}kB max_tasks=$MAX_TASKS interval=${INTERVAL}s)"
+  while :; do
+    a=$(avail_kb); t=$(task_count)
+    if [ "$t" -gt "$MAX_TASKS" ]; then kill_group 3 "tasks=$t>$MAX_TASKS (fork bomb?)"
+    elif [ "$a" -lt "$MIN_AVAIL_KB" ]; then kill_group 2 "MemAvailable=${a}kB<${MIN_AVAIL_KB}kB"
+    fi
+    sleep "$INTERVAL"
+  done
+}
+
+alive() { [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; }
+
+case "${1:-}" in
+  run)    run "${2:?log file}";;
+  start)  if alive; then echo "mem-watchdog already running (pid $(cat "$PIDFILE"))"; exit 0; fi
+          LOGF=$(readlink -f "${2:?log file}")
+          setsid nohup "$0" run "$LOGF" >/dev/null 2>&1 < /dev/null &
+          sleep 1; alive && echo "mem-watchdog started (pid $(cat "$PIDFILE"), log $LOGF)" || { echo "mem-watchdog failed to start" >&2; exit 1; };;
+  status) if alive; then echo "running (pid $(cat "$PIDFILE"))"; else echo "not running"; exit 1; fi;;
+  stop)   alive && kill "$(cat "$PIDFILE")" && rm -f "$PIDFILE" && echo stopped || echo "not running";;
+  *)      sed -n '2,16p' "$0"; exit 64;;
+esac

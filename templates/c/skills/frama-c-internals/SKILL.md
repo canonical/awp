@@ -125,6 +125,16 @@ dune exec --root . -- frama-c -wp -wp-rte -wp-prover alt-ergo,z3 <file.c>
   `dune exec` (sets `FRAMAC_SHARE`/plugin paths) — bare it gives `Failure("hd")`. To drive an overlay's
   `verify.sh` (calls bare `frama-c`) with the dev build, PATH-shim a `frama-c` that execs
   `dune exec --root <framac-src> -- frama-c "$@"`.
+- **Shared wrappers are shared state — never overwrite, never self-reference (2026-11-15 OOM crash).**
+  A frontend agent replaced the shared `frama-c-patched` wrapper with a sweep "shim" whose body called
+  `frama-c-patched` again: every invocation forked itself, tasks went 860 → 11 746 and the OOM killer
+  took the whole campaign down. Rules: (1) a wrapper execs the built binary by ABSOLUTE path, never its
+  own name or anything PATH can resolve back to it; (2) an experiment-specific shim (extra options, extra
+  logging) gets its OWN name in your own directory and calls the shared wrapper, never replaces it;
+  (3) every wrapper execs through `bin/heavy` (its nesting-depth guard turns a recursion into an error
+  instead of a fork bomb); (4) rebuild out of place and switch the shared wrapper atomically (write a
+  temp file, check `<wrapper> -wp-h` loads and all regression suites pass, then `mv`) — an in-place
+  rebuild leaves other agents with a broken WP plugin while it runs.
 - **Persist source patches in `frama-c-patches/` (repo root).** `framac-src` is vendored + untracked,
   so its edits can't live in this repo's git — `frama-c-patches/` is how they survive a fresh checkout
   and **re-base as Frama-C evolves**: a README (pinned version, per-patch table + upstream status, the

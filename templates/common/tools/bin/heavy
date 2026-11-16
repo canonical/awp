@@ -1,0 +1,69 @@
+#!/bin/bash
+# heavy — run ONE heavy verification job under the machine-wide resource guard (campaign rule R6).
+# A "heavy job" is anything that forks provers or eats memory: frama-c, WP provers (alt-ergo, z3),
+# clang preprocessing and coqc on the C side; cargo, creusot and why3 on the Rust side. Every heavy
+# call site goes through this: the overlay's verify.sh, the patched-frama-c wrapper, the parse-sweep
+# tool (C); the creusot/cargo driver (Rust).
+#
+#   heavy <command> [args...]
+#
+# What it enforces, whatever the calling agent does:
+#   1. SLOT POOL   — at most HEAVY_SLOTS jobs run at once across ALL agents (flock on lock files);
+#                    a caller blocks until a slot frees. Nested calls (a heavy job that itself calls
+#                    a heavy-guarded tool) reuse the parent's slot instead of taking a second one.
+#   2. MEMORY CAP  — RLIMIT_AS (ulimit -v) of HEAVY_MEM_KB per process; provers inherit it (and Why3
+#                    already caps each prover via memlimit in ~/.why3.conf). Over the cap the job
+#                    fails with an allocation error instead of exhausting the machine.
+#   3. OOM TARGET  — oom_score_adj=1000 on the job and its children, so if memory still runs out the
+#                    kernel kills a prover, never the Claude session or the coordinator.
+#   4. CLEANUP     — the job runs in its own process group; on exit or on SIGINT/SIGTERM the whole
+#                    group (frama-c + why3server + alt-ergo/z3 children) is killed, so no orphan
+#                    solvers keep memory.
+#   5. RECURSION   — refuses to run beyond HEAVY_MAX_DEPTH nested levels (a wrapper that calls
+#                    itself was the fork bomb behind the 2026-11-15 OOM crash).
+set -u
+SLOTS=${HEAVY_SLOTS:-4}
+MEM_KB=${HEAVY_MEM_KB:-1572864}          # 1.5 GiB per process
+LOCKDIR=${HEAVY_LOCKDIR:-/tmp/heavy-slots}
+MAX_DEPTH=${HEAVY_MAX_DEPTH:-4}
+WAIT_LOG_EVERY=${HEAVY_WAIT_LOG_EVERY:-60}
+
+[ $# -ge 1 ] || { echo "usage: heavy <command> [args...]" >&2; exit 64; }
+
+depth=$(( ${HEAVY_DEPTH:-0} + 1 ))
+if [ "$depth" -gt "$MAX_DEPTH" ]; then
+  echo "heavy: refusing to run '$1': nesting depth $depth > $MAX_DEPTH (wrapper recursion?)" >&2
+  exit 70
+fi
+export HEAVY_DEPTH=$depth
+
+# Nested call: the slot, limits and OOM score are inherited from the outer heavy job.
+if [ -n "${HEAVY_SLOT:-}" ]; then exec "$@"; fi
+
+mkdir -p "$LOCKDIR"
+slot=""; waited=0
+while [ -z "$slot" ]; do
+  for i in $(seq 0 $((SLOTS - 1))); do
+    exec {fd}>"$LOCKDIR/slot.$i"
+    if flock -n "$fd"; then slot=$i; break; fi
+    exec {fd}>&-
+  done
+  if [ -z "$slot" ]; then
+    sleep 2; waited=$((waited + 2))
+    [ $((waited % WAIT_LOG_EVERY)) -eq 0 ] && echo "heavy: waiting for a slot (${waited}s, $SLOTS busy)" >&2
+  fi
+done
+export HEAVY_SLOT=$slot
+
+ulimit -v "$MEM_KB" 2>/dev/null || echo "heavy: warning: could not set ulimit -v $MEM_KB" >&2
+echo 1000 > /proc/self/oom_score_adj 2>/dev/null || true
+
+# Own process group so the whole job tree can be killed at once. The lock fd is held by this shell
+# only (closed in the child), so the slot frees as soon as this shell exits.
+setsid "$@" {fd}>&- &
+child=$!
+cleanup() { kill -TERM -- "-$child" 2>/dev/null; sleep 1; kill -KILL -- "-$child" 2>/dev/null; }
+trap 'cleanup; exit 143' INT TERM HUP
+wait "$child"; rc=$?
+kill -KILL -- "-$child" 2>/dev/null   # reap any orphaned prover left in the group
+exit $rc

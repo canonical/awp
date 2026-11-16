@@ -247,6 +247,11 @@ class TestTemplates(unittest.TestCase):
         # "The rest of the sentence ... is kept" (auto-wp.md 4.2.2).
         self.assertIn("never terminate early", desc)
         self.assertNotIn("budget per invocation", norm(text))
+        # R6 resource guard (added after the 2026-11-15 OOM crash) must ship by default.
+        n = norm(text)
+        for guard in ("RESOURCE GUARD (R6", "bin/heavy", "bin/mem-watchdog",
+                      "min(nproc / 2, floor(RAM_GiB / 3))"):
+            self.assertIn(norm(guard), n, f"c time-loop missing {guard}")
         self._report_and_deadline(text, "skills/time-loop/SKILL.md")
 
     def test_T6_rust_time_loop(self):
@@ -274,9 +279,12 @@ class TestTemplates(unittest.TestCase):
         for pinned in ("`start=<epoch>`", "`deadline=<epoch>`", "`wake=<epoch>`", "`cycle <n>: `"):
             self.assertIn(pinned, skill, pinned)
         self.assertIn("`unit\tSA#\tfunction\tverdict\tgoals\tnotes`", skill)
-        for rule in ("TIME BOX — 45 minutes", "at most `nproc / 2`", "No no-op cycle",
+        for rule in ("TIME BOX — 45 minutes", "min(nproc / 2, floor(RAM_GiB / 3))", "No no-op cycle",
                      "never verifies inline", "commit and push"):
             self.assertIn(norm(rule), n, rule)
+        # R6 resource guard (added after the 2026-11-15 OOM crash) must ship in both time-loop skills.
+        for guard in ("RESOURCE GUARD (R6", "bin/heavy", "bin/mem-watchdog"):
+            self.assertIn(norm(guard), n, f"rust time-loop missing {guard}")
         self.assertIn("/time-loop sudo-rs 96", cmd)
 
     def _report_and_deadline(self, text, name):
@@ -317,6 +325,22 @@ class TestTemplates(unittest.TestCase):
             for m in pat.finditer(text):
                 bad.append(f"{p.relative_to(TEMPLATES)}: {m.group(0)}")
         self.assertEqual(bad, [], "script referenced without its bin/ prefix")
+
+    def test_resource_guard_scripts(self):
+        """R6 guard (2026-11-15 OOM crash): heavy + mem-watchdog ship executable in the common layer."""
+        bindir = TEMPLATES / "common/tools/bin"
+        for name in ("heavy", "mem-watchdog"):
+            script = bindir / name
+            self.assertTrue(script.is_file(), f"{name} missing from common/tools/bin")
+            self.assertTrue(os.access(script, os.X_OK), f"{name} not executable")
+            r = subprocess.run(["bash", "-n", str(script)], capture_output=True, text=True)
+            self.assertEqual(r.returncode, 0, f"{name} bash syntax: {r.stderr}")
+        heavy = (bindir / "heavy").read_text()
+        for token in ("oom_score_adj", "ulimit -v", "HEAVY_MAX_DEPTH", "flock"):
+            self.assertIn(token, heavy, f"heavy missing {token}")
+        watch = (bindir / "mem-watchdog").read_text()
+        for token in ("MemAvailable", "MAX_TASKS", "oom_score_adj"):
+            self.assertIn(token, watch, f"mem-watchdog missing {token}")
 
     # T8 (auto-wp.md 3.7, 4.5): the workshop/ layer files.
     WORKSHOP_SDKS = {

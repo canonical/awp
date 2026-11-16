@@ -146,8 +146,29 @@ Each wake, in this order:
      with its last `valid/total` goal count, the obstacle and the next lever. Re-queue the open
      part as a narrower thread. A verifier still running 15 minutes past its box is stopped
      (`TaskStop`) and its thread re-spawned narrower.
-   - **PARALLEL** — never wait on one verifier while a disjoint file is nameable; at most
-     `nproc / 2` verifiers at once (overloaded solvers time out: flaky verdicts, not residue).
+   - **PARALLEL** — never wait on one verifier while a disjoint file is nameable, but count
+     PROCESSES, not agents: one agent fans out to many cargo/creusot/why3/prover processes. The
+     concurrent-agent cap is `min(nproc / 2, floor(RAM_GiB / 3))` (2 on a 6-core / 8 GiB box), and
+     every agent works under the resource guard below (overloaded solvers time out: flaky verdicts,
+     not residue).
+   - **RESOURCE GUARD (R6 — mandatory; added after a 2026-11-15 OOM crash on the C side that killed
+     the coordinator and every agent — a self-referential shared wrapper fork bomb on top of uncapped
+     parallelism).** Prose limits did not prevent it, so the guard is MECHANICAL and applies here too:
+     - **`bin/heavy <cmd>`** — every heavy job (cargo build, `creusot`, `why3`, the SMT provers) runs
+       through it: a slot pool shared by ALL agents (`HEAVY_SLOTS`, default 4, flock), `ulimit -v` per
+       process (`HEAVY_MEM_KB`, default 1.5 GiB), `oom_score_adj=1000` (the kernel kills a prover,
+       never the session), its own process group killed on exit (no orphan solvers), and a
+       nesting-depth guard that refuses wrapper recursion. The creusot/cargo driver execs through it,
+       so agents inherit it without remembering it.
+     - **`bin/mem-watchdog start XXX-creusot/watchdog.log`** — the last line of defence: below 1 GiB
+       `MemAvailable` or above 1 500 tasks it kills the heaviest `bin/heavy` job group and logs it. It
+       only ever targets `bin/heavy` jobs, complementary to the session heartbeat
+       (`time-loop-watchdog.py`) — run both.
+     - **Coordinator duties:** at activation AND at the start of every cycle run `bin/mem-watchdog
+       status` (re-`start` it after a reboot), read the tail of `watchdog.log`, treat any KILLED line
+       as an incident, and never record a verdict from a killed run. Never let an agent overwrite a
+       SHARED tool (any driver script, `bin/*`); a variant gets its own name in its own directory.
+       Calling `creusot`/`why3`/a prover directly, not through `bin/heavy`, is a loop-behaviour bug.
    - **BUILD IN A COPY** (§1) is in every verifier's prompt.
    - **A finding needs two witnesses:** an expected-failing model in `XXX-creusot/failing/<name>/`
      (the faithful model has exactly the unproved goal; the minimal fix makes it prove) **and**,

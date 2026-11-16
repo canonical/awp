@@ -525,8 +525,34 @@ on other lines. Each wake:
    rather than letting the same verifier run on. A verifier still running 15 min past its box is stopped
    (`TaskStop`) and its thread re-spawned narrower.
    **PARALLEL — never wait on one verifier while a disjoint target is nameable.** Run verifiers on
-   independent units side by side, but keep the machine's load below `nproc`: at most `nproc / 2`
-   concurrent verifiers (solver timeouts under overload are flaky verdicts, not residue).
+   independent units side by side, but count PROCESSES, not agents: one agent can fan out to many
+   frama-c/clang/prover processes (a 6-way parse sweep, `-wp-par 6`, a whole-file functional run). The
+   concurrent-agent cap is `min(nproc / 2, floor(RAM_GiB / 3))` (2 on a 6-core / 8 GiB box), and every
+   agent works under the machine-wide resource guard below (solver timeouts under overload are flaky
+   verdicts, not residue).
+   **RESOURCE GUARD (R6 — mandatory; added after a 2026-11-15 OOM crash that killed the coordinator
+   and every agent).** The crash was a fork bomb: a verifier replaced the shared `frama-c-patched`
+   wrapper with a "shim" that called itself, and tasks went 860 → 11 746 in ten minutes on top of
+   uncapped parallelism. Prose limits did not prevent it, so the guard is MECHANICAL:
+   - **`bin/heavy <cmd>`** — every heavy job (frama-c, WP provers, clang preprocessing, coqc) runs under
+     it: a slot pool shared by ALL agents (`HEAVY_SLOTS`, default 4, flock), `ulimit -v` per process
+     (`HEAVY_MEM_KB`, default 1.5 GiB), `oom_score_adj=1000` (the kernel kills a prover, never the
+     session), its own process group killed on exit (no orphan solvers), and a nesting-depth guard
+     that refuses wrapper recursion. `verify.sh`, the patched-frama-c wrapper and the parse-sweep tool
+     all exec through it, so agents inherit it without remembering it. `verify.sh` also forces
+     `-wp-par 2` AFTER the caller's arguments.
+   - **`bin/mem-watchdog start XXX-analysis-acsl/watchdog.log`** — the last line of defence: below
+     1 GiB `MemAvailable` or above 1 500 tasks it kills the heaviest `bin/heavy` job group (most RSS, or
+     most processes for a fork bomb) and logs it. It only ever targets `bin/heavy` jobs, so it is
+     separate from and complementary to the session heartbeat (`time-loop-watchdog.py`) — run both.
+   - **Coordinator duties:** at activation AND at the start of every cycle run `bin/mem-watchdog status`
+     (re-`start` it if not running — a reboot kills it, exactly like the cron heartbeat), read the tail
+     of `watchdog.log`, and treat any KILLED line as an incident: find the job, fix its cause, and never
+     record a verdict from a killed run. Never let an agent overwrite a SHARED tool (wrapper, `verify.sh`,
+     `bin/*`); an agent that needs a variant writes it under its own name in its own directory.
+   - **Never bypass the guard:** calling `frama-c` or a prover directly (not via `verify.sh` /
+     `frama-c-patched` / `bin/heavy`) is a loop-behaviour bug of the same class as recording from a
+     mid-run artifact; say so in every verifier prompt.
    **BUILD IN A COPY — the code under study `XXX/` is read-only, for builds too.** Never run
    `configure`, `make`, a compiler, `cargo` or any tool that writes inside `XXX/` (object files, a
    regenerated `Cargo.lock`, `config.status`); copy it first (`cp -a XXX build_XXX-analysis/…`) and

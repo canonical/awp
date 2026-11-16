@@ -123,7 +123,18 @@ is the right call — skip the squeeze.** Reach for the full loop deliberately.
        build, or the toolchain confirmation is vacuous.** Put a PATH shim ahead of the opam binary — a
        `frama-c` wrapper that `exec dune exec --root <framac-src> -- frama-c "$@"` (or point at the
        rebuilt `$PREFIX/bin/frama-c`) — and record which binary is live in the onboarding package's
-       TOOLCHAIN provenance. On every **class-A retry** (the ceiling is soft/extensible), re-confirm the
+       TOOLCHAIN provenance.
+     - **The generated `verify.sh` MUST run under the machine-wide resource guard (time-loop R6).**
+       Its frama-c line is `exec <repo>/bin/heavy frama-c … "$@" -wp-par 2`: through `bin/heavy`
+       (slot pool shared by all agents, per-process memory cap, `oom_score_adj=1000`, process-group
+       cleanup, recursion guard), with `-wp-par 2` AFTER `"$@"` so a caller cannot raise it, and with
+       `-kernel-warn-key typing:implicit-function-declaration=error` (an undeclared builtin otherwise gets
+       an invented `int` prototype and WP proves false facts about its result). The patched-frama-c
+       wrapper ends in `exec <repo>/bin/heavy "<built binary>" "$@"` — it execs the BUILT BINARY by
+       absolute path, never its own name or a PATH lookup that can resolve back to itself; a wrapper
+       that calls itself is a fork bomb (the 2026-11-15 OOM crash). Any parse sweep uses
+       `xargs -P2` and calls frama-c through `bin/heavy`. Never default `-wp-par` to `nproc`.
+       On every **class-A retry** (the ceiling is soft/extensible), re-confirm the
        patched build is the one running — a bitwise/bytes residue re-tested on the stock binary has not
        actually been retried against the enriched toolchain.
      - **Install order is load-bearing: Coq *before* Why3** — the `why3` opam package builds its Coq realizations (the

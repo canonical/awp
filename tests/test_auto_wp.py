@@ -535,7 +535,12 @@ class TestAutoWp(AutoWpTestCase):
         self.assertOk(self.run_auto_wp("--rust", "--harness", "claude", "foobar"))
         d = self.tmp / "foobar"
         self.assertEqual(sorted(p.name for p in (d / "bin").iterdir()),
-                         ["rmf-lint.sh", "time-loop-watchdog.py"])
+                         ["heavy", "mem-watchdog", "rmf-lint.sh", "time-loop-watchdog.py"])
+        # The R6 resource guard (2026-11-15 OOM crash) ships from the common layer, executable.
+        for name in ("heavy", "mem-watchdog"):
+            g = d / "bin" / name
+            self.assertTrue(g.is_file() and not g.is_symlink(), name)
+            self.assertTrue(os.access(g, os.X_OK), f"{name} not executable")
         lint = d / "bin/rmf-lint.sh"
         self.assertTrue(lint.is_file() and not lint.is_symlink())
         self.assertTrue(os.access(lint, os.X_OK))

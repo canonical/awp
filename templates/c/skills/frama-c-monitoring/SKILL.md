@@ -367,6 +367,15 @@ per-unit Tier-3 gate therefore adds:
    `pipeline`): instantiate a **`framac-sl`** sub-loop, threading the guidance into the
    spec author/annotator and the per-unit flags into the WP invocation. Propagate each
    proven callee `ensures` as the caller's stub `requires`/`ensures` (bottom-up).
+   **MANDATORY — every WP/parse job runs under the resource guard (time-loop R6).** Launch frama-c only
+   through the overlay's `verify.sh`, the patched-frama-c wrapper, or `bin/heavy <cmd>` — never a bare
+   `frama-c`/`alt-ergo`/`z3`/`coqc` — so the job takes a slot in the machine-wide pool, runs under a
+   per-process memory cap with `oom_score_adj=1000`, and has its process group cleaned up on exit. Keep
+   `-wp-par 2` (`verify.sh` enforces it). Split long functional runs per function (`-wp-fct`) with
+   `-wp-timeout` ≤ 30 instead of one whole-file run. Never edit or replace a SHARED tool (`verify.sh`,
+   the patched-frama-c wrapper, anything in `bin/`): put a variant under your own name. Before
+   delivering, kill the process groups you started (by PID, never by name pattern — a `pkill -f` pattern
+   also matches the shell running it).
    **MANDATORY — worktree isolation for parallel units (no shared checkout).** Each unit's
    `framac-sl`/convergence sub-agent *mutates the source tree* (it applies, edits, and reverts the
    unit's reversible ACSL patch to run WP). Parallel sub-agents on **one shared checkout therefore
