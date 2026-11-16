@@ -22,7 +22,8 @@ Clone the awp repo:
 ```bash
 git clone git@github.com:canonical/awp.git
 cd awp/
-# create a directory named `sudo-rs-analyze` (or any other name) to analyze a rust program
+# create a directory named `gzip-1.15-analyze` (or any other name) to analyze a C program
+# and install harness opencode (could be also claude|copilot|none)
 ./auto-wp.py --c --driver rmf --harness opencode gzip-1.15-analyze
 cd gzip-1.15-analyze
 # now launch  the Workshop:
@@ -37,10 +38,9 @@ wget https://ftp.gnu.org/gnu/gzip/gzip-1.15.zip
 sudo apt install unzip
 unzip gzip-1.15.zip
 # launch the harness that was installed previously by `auto-wp.py`
-opencode --dangerously-skip-permissions   # log in with /login the first time
+opencode --dangerously-skip-permissions   # log in with /connect and choose model
 ```
-
-Now in Opencode, to run a loop for 96 hours on the repo `gzip-1.15/` type:
+Once logged in, to run a loop for 96 hours on the repo `gzip-1.15/` type:
 ```
 /time-loop gzip-1.15 96
 ```
