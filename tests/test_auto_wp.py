@@ -621,6 +621,10 @@ class TestAutoWp(AutoWpTestCase):
                               "--show-toplevel"], capture_output=True, text=True, timeout=15)
         self.assertEqual(out.returncode, 0)
         self.assertEqual(Path(out.stdout.strip()).resolve(), (self.tmp / "foo").resolve())
+        branch = subprocess.run(["git", "-C", str(self.tmp / "foo"), "symbolic-ref",
+                                 "--short", "HEAD"], capture_output=True, text=True, timeout=15)
+        self.assertEqual(branch.stdout.strip(), "main",
+                         "auto-wp.py must init on branch main")
         log = subprocess.run(["git", "-C", str(self.tmp / "foo"), "rev-list", "--all"],
                              capture_output=True, text=True, timeout=15)
         self.assertEqual(log.stdout.strip(), "", "auto-wp.py must not commit")
@@ -642,7 +646,7 @@ class TestAutoWp(AutoWpTestCase):
         empty_bin.mkdir()
         r = self.run_auto_wp("--c", "--harness", "claude", "foo", env={"PATH": str(empty_bin)})
         self.assertOk(r)
-        self.assertIn("warning: git not found; run 'git init' in foo before /time-loop",
+        self.assertIn("warning: git not found; run 'git init -b main' in foo before /time-loop",
                       r.stderr)
         self.assertFalse(os.path.lexists(self.tmp / "foo/.git"))
         self.assertEqual(len(skill_dirs(self.tmp / "foo")), 23)

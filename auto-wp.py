@@ -434,7 +434,7 @@ class Run:
     def init_git(self):
         if shutil.which("git") is None:
             self.warnings.append(
-                f"warning: git not found; run 'git init' in {self.arg} before /time-loop")
+                f"warning: git not found; run 'git init -b main' in {self.arg} before /time-loop")
             return
         probe = subprocess.run(
             ["git", "-C", str(self.target), "rev-parse", "--is-inside-work-tree"],
@@ -445,7 +445,7 @@ class Run:
         dot_git = self.target / ".git"
         if not os.path.lexists(dot_git):
             self.created.append(("tree", dot_git))
-        result = subprocess.run(["git", "init", "-q", str(self.target)],
+        result = subprocess.run(["git", "init", "-q", "-b", "main", str(self.target)],
                                 capture_output=True, text=True)
         if result.returncode != 0:
             raise AutoWpError(f"git init failed: {result.stderr.strip()}")
