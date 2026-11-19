@@ -5,6 +5,6 @@
 # build (as generated: GRUB), plus tmux and curl for the README's quick
 # start. Edit the list for another code base, then `workshop refresh`.
 apt-get update
-apt-get install tmux curl \
+apt-get install byobu tmux curl \
     autoconf automake autopoint gettext bison flex libtool \
     libdevmapper-dev libfreetype-dev libfuse3-dev liblzma-dev fonts-unifont
