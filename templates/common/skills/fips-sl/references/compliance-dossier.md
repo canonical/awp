@@ -38,9 +38,11 @@ reproducers. So:
    generation, even when a section is empty ("No violation found." is a
    valid `XXX-found-violations.md`). A stale file is worse than none:
    regenerate the whole directory.
-3. **Honest sources.** The study's requirements are mostly `src:UNSOURCED`
-   paraphrases (rule F3). The dossier repeats that, and marks the ISO/IEC
-   19790 clause mapping below as unchecked against the standard's text.
+3. **Honest sources.** Each requirement carries its `src:<DOC>:<LOC>`
+   citations or `src:UNSOURCED` (rule F3). The dossier repeats them, counts
+   the `UNSOURCED` ones, and marks the ISO/IEC 19790 clause mapping below as
+   unchecked against the standard's text unless `specs/text/ISO19790.txt` was
+   present when the study was linted.
 4. **No validation claim.** The README says, in its first paragraph, that
    the dossier is evidence for a laboratory, not a validation, and that the
    residual-risk sign-off is PENDING until a human signs.

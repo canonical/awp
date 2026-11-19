@@ -2,12 +2,37 @@
 
 This is the **authoritative, fixed** format an `fips-sl` report must follow. It is the contract the
 mechanical lower bound (`bin/fips-lint.sh`) parses and the study author writes to — one source of
-truth, so the linter and the report cannot drift. It layers stable tags onto the vendored standard
-(`./NIST.FIPS.140-3.pdf`, FIPS PUB 140-3, *Security Requirements for Cryptographic Modules*, March
-22, 2019). It is the faithful sibling of `rmf-sl/references/report-format.md` (RMF `R1–R5` → FIPS
+truth, so the linter and the report cannot drift. It layers stable tags onto the FIPS 140-3
+corpus in `./specs/` (`specs/MANIFEST.tsv`; FIPS PUB 140-3, *Security Requirements for
+Cryptographic Modules*, March 22, 2019, and the documents it incorporates or that interpret it). It is the faithful sibling of `rmf-sl/references/report-format.md` (RMF `R1–R5` → FIPS
 `F1–F5`) and of `ebios-sl/references/report-format.md`.
 
-## What the source document contains (read before authoring)
+## What the corpus contains (read before authoring)
+
+`specs/MANIFEST.tsv` lists every citable document by **id** — the `DOC` of a `src:DOC:LOC` token —
+with its edition (sha256), status and licence. Read `specs/text/<DOC>.txt`, one section at a time:
+the corpus is about 1.3 million tokens of public text (the IG alone about 180 000), far more than
+any context; find the section with `grep -n '^<LOC>' specs/text/<DOC>.txt` and read from there.
+
+| Role | Ids | What they give the study |
+|---|---|---|
+| The standard | `FIPS140-3` | the levels, the areas, the incorporation (below) |
+| Requirements and assertions | `ISO19790`, `ISO24759` (`restricted`, often absent) | §7.2–§7.12: one clause per area, the `shall` statements with their levels; `AS`/`[nn.nn]` assertions and their vendor/tester evidence |
+| Modifications | `SP800-140`, `SP800-140A` … `SP800-140F` | SP 800-140: the DTR, assertions modified or added; A: documentation; B: Security Policy; C/D: approved functions and SSP establishment (pointers to live CMVP lists, not the lists); E: authentication; F: non-invasive attacks |
+| Interpretation | `IG`, `SP800-140B-*` (the "Use of …" guidance), `CMVP-MM` | the CMVP's binding reading, section by section (`1.A` … `10.3.B`, `C.A` …, `D.A` …); module-submission rules |
+| Transitions | `SP800-131A` (`draft` successor rows too) | which algorithms and key lengths are acceptable, and until when |
+| Algorithms | `FIPS180-4` … `SP800-232` | what an Approved function must do; mostly the `crypto` plane, KATs and CAVP |
+
+**Precedence**, most binding first: FIPS 140-3 + ISO/IEC 19790/24759 as modified by SP 800-140
+and 140A–F → the IG → SP 800-131A → the algorithm standards → the CMVP-MM and the SP 800-140B
+"Use of" guidance. When several documents say something about the requirement, cite them in that
+order. A `draft` document is not binding (F-C13).
+
+**Not in the corpus:** the live SP 800-140C/D lists, CAVP and ESV certificates, documents the IG
+cites but the manifest does not list (SP 800-57, SP 800-52, RFCs). A requirement resting on them
+is `src:UNSOURCED` with the external reference in its text.
+
+### FIPS 140-3 itself (`FIPS140-3`, cited also as `src:PDF-…`)
 
 The PDF has two independent numberings: the *Announcement* items 1 to 14 (pages iii–vi) and the body
 sections 1 to 3 (pages 1–3). This convention writes them `Ann. n` and `Sec. n`.
@@ -26,9 +51,9 @@ sections 1 to 3 (pages 1–3). This convention writes them `Ann. n` and `Sec. n`
 **What the PDF does not contain:** the requirements themselves. Apart from the applicability rule of
 Ann. 6, the only requirement on a module is Ann. 10. Which requirement applies in which area at
 which level is in ISO/IEC 19790 and the SP 800-140 series, which the PDF names but does not
-reproduce. (That the per-level requirements are in ISO/IEC 19790's clause 7 is outside knowledge,
-not something the PDF says.) **The skill never presents a requirement as coming from the PDF when it
-does not** — rule F3 is the mechanism, and `src:UNSOURCED` is the honest state of most requirements.
+reproduce. **The skill never presents a requirement as coming from a document that does not say
+it** — rule F3 is the mechanism, and `src:UNSOURCED` is the honest state of a requirement the
+corpus does not back.
 
 ## Inherited rules (from `rmf-sl/references/report-format.md`, unchanged)
 
@@ -59,8 +84,8 @@ every downstream line carries its full upstream chain as references *and* each u
 exactly one home line, a dropped link can no longer be masked by a back-reference — the coverage
 check (F-C6) runs on home lines, where the chain must actually live.
 
-`AR1`–`AR11` are different: they are a **fixed vocabulary**, the eleven requirement areas of the
-PDF, with no home line. Rule F2 and check F-C3 cover them.
+`AR1`–`AR11` are different: they are a **fixed vocabulary**, the eleven requirement areas of
+FIPS 140-3 (ISO/IEC 19790 §7.2–§7.12), with no home line. Rule F2 and check F-C3 cover them.
 
 ## Rule F1 — the tag set
 
@@ -72,7 +97,7 @@ PDF, with no home line. Rule F2 and check F-C3 cover them.
 | Sensitive security parameter | `SSP#` | — | F1 |
 | Documented interface | `IF#` | — | F1 |
 | State | `ST#` | — | F1 |
-| Requirement item | `RQ#` | exactly one **`AR#`** + exactly one **`src:`** token (+ optional `min-level K`) | F2 |
+| Requirement item | `RQ#` | exactly one **`AR#`** + at least one **`src:`** token (+ optional `chk:` and `min-level K`) | F2 |
 | Failure mode | `FM#` | names at least one **`RQ#`** | F3 |
 | Verification obligation | `VO#` | names ≥1 **`FM#`** + **the `RQ#` of each of them** + a **property class** + a **priority `P1`–`P3`** | F4 |
 | Residual | `RR#` | a **plane** + a **treatment** + what it leaves open: ≥1 `FM#` or `RQ#`, or its **`AR#`**, or the token **`STANDING`** | F5 |
@@ -89,14 +114,15 @@ linter slices the report by these headings; F1–F4 text is what the endogeneity
 | Section | Title | Content |
 |---|---|---|
 | **F1** | Module and target level | The module (`MOD#`: its role, never a file name), its boundary, its services (`SV#`), its roles (`RL#`), its SSPs (`SSP#`), its documented interfaces (`IF#`), its states (`ST#`), and the level line of rule F6. |
-| **F2** | Requirement areas | One subsection per area, `AR1` to `AR11`, in the PDF's order (the headings are for readers; the linter uses the `AR#` tokens). Each area holds requirement items (`RQ#`) or one `N/A` line (rule F3). |
+| **F2** | Requirement areas | One subsection per area, `AR1` to `AR11`, in the standard's order (the headings are for readers; the linter uses the `AR#` tokens). Each area holds requirement items (`RQ#`) or one `N/A` line (rule F3). |
 | **F3** | Failure modes | For each `RQ#`, how the module would fail it (`FM#`): a service run before its self-test passed, an SSP left in memory after use, data output in an error state. |
 | **F4** | Verification obligations | Each `FM#` becomes a verification obligation (`VO#`) with a property class from `area-properties.md` and a priority. |
 | **F5** | Residuals and sign-off | The residual register: one `RR#` per failure mode or requirement out of reach of the formal tools, with its plane and its non-formal treatment, and the standing residuals. Sign-off `PENDING` until the terminus (the owner of the protected information, or the agency's responsible authority — Ann. 13) accepts it. |
 
 ## Rule F3 — areas and sources
 
-**Areas.** Every `RQ#` home line names **exactly one** `AR#`. The eleven areas, in the PDF's order:
+**Areas.** Every `RQ#` home line names **exactly one** `AR#`. The eleven areas, in the standard's order
+(ISO/IEC 19790 §7.2 to §7.12):
 `AR1` module specification · `AR2` interfaces · `AR3` roles, services, and authentication · `AR4`
 software/firmware security · `AR5` operating environment · `AR6` physical security · `AR7`
 non-invasive security · `AR8` sensitive security parameter (SSP) management · `AR9` self-tests ·
@@ -104,22 +130,38 @@ non-invasive security · `AR8` sensitive security parameter (SSP) management · 
 line in F2 holding its `AR#`, the token `N/A` and a **non-empty reason**:
 `- AR6 N/A — software-only module, no physical enclosure`.
 
-**Sources.** Every `RQ#` home line carries **exactly one** `src:` token, in ASCII:
+**Sources.** Every `RQ#` home line carries **one or more** `src:` tokens, in ASCII, most binding
+first (precedence above):
 
-- `src:PDF-ann6`, `src:PDF-ann7`, `src:PDF-ann10` or `src:PDF-ann13`. These are the only parts of
-  the PDF with normative or scoping text (applicability, level choice, Approved security functions,
-  conformance and residual risk). Any other section on an `RQ#` line fails the linter (F-C5);
-- `src:UNSOURCED`: the author's reading of the area at the target level, with no text in the corpus
-  behind it.
+- `src:<DOC>:<LOC>` — `DOC` an id of `specs/MANIFEST.tsv`, `LOC` the section, clause, assertion
+  or IG entry as the document numbers it, without `§`: `src:ISO19790:7.10.2.1`,
+  `src:ISO24759:AS10.17`, `src:SP800-140:6.3`, `src:IG:9.7.B`, `src:SP800-90A:10.1.2`.
+  `src:<DOC>` alone cites the whole document (rarely right on an `RQ#`). An unknown `DOC` fails
+  (F-C5); a `LOC` not found in `specs/text/<DOC>.txt` warns (F-C12: the extraction drops some
+  headings, so a warning is checked by hand, not silenced); a requirement whose only sources are
+  `draft` documents warns (F-C13).
+- `src:PDF-ann6`, `src:PDF-ann7`, `src:PDF-ann10` or `src:PDF-ann13` — FIPS 140-3 itself, the only
+  parts of it with normative or scoping text (applicability, level choice, Approved security
+  functions, conformance and residual risk). Any other part of FIPS 140-3 on an `RQ#` line fails
+  (F-C5); so does `src:FIPS140-3:<LOC>` with any other `LOC`.
+- `src:UNSOURCED` — the author's reading of the area at the target level, with no text in the
+  corpus behind it. It stands alone on its line (F-C5).
 
-`UNSOURCED` is allowed: given §0, it is the honest state of most requirements. It is **never
-hidden**: every `UNSOURCED` requirement appears in the reviewer's critique and in the F5 sign-off.
-Whether a `src:PDF-…` requirement really says what the cited section says is a **content check**; it
-stays with the reviewer, not the linter.
+`UNSOURCED` is allowed and **never hidden**: every `UNSOURCED` requirement appears in the
+reviewer's critique and in the F5 sign-off; with the corpus present, more than half of the
+requirements `UNSOURCED` warns (F-C11). Whether a cited section really says what the requirement
+says is a **content check**; it stays with the reviewer, not the linter.
 
-Other text may cite the PDF with the **full token set** (`src:PDF-abs`, `src:PDF-ann1` to
+**Checklist references.** `chk:<ID>` (e.g. `chk:ISO-043`, `chk:ST-012`) names an item of
+`specs/checklist/` the requirement covers; an unknown id fails (F-C14). It is a cross-reference for
+the reviewer's completeness check, **never a source**: the checklist is machine-extracted and some
+of its citations are wrong, so the author reads the section the item cites and writes that as the
+`src:`.
+
+Other text may cite FIPS 140-3 with the **full token set** (`src:PDF-abs`, `src:PDF-ann1` to
 `src:PDF-ann14`, `src:PDF-sec1`, `src:PDF-sec2`, `src:PDF-sec3`, `src:PDF-sec3.1` to
-`src:PDF-sec3.4`, `src:PDF-tab1`) — for example an F1 line on the level choice.
+`src:PDF-sec3.4`, `src:PDF-tab1`) — for example an F1 line on the level choice — and any document
+of the manifest.
 
 ## Rule F4 — chaining
 
@@ -143,8 +185,10 @@ Write the references inline, e.g.:
 ## Rule F5 — level applicability
 
 An `RQ#` may carry **`min-level K`** (K in 1..4). `K` must not exceed the target level, or the item
-does not belong in the report (F-C7). Since §0: every `min-level` choice is `UNSOURCED` unless the
-corpus grows; the reviewer checks **monotonicity only** — a requirement marked `min-level 3` must
+does not belong in the report (F-C7). `K` is the lowest level at which the cited ISO/IEC 19790
+clause (or the `chk:` item's level column) requires it; without ISO/IEC 19790 in `specs/text/` it is
+the author's reading. The reviewer checks it against the clause when it can, and **monotonicity**
+otherwise — a requirement marked `min-level 3` must
 not be weaker than one marked `min-level 2` in the same area.
 
 ## Rule F6 — the level line
@@ -209,13 +253,13 @@ level: 3
 
 ## F2 — Requirement areas
 
-- RQ1 — AR1 — src:PDF-ann10 — in the approved mode, every service of MOD1 employs only Approved security functions.
-- RQ2 — AR2 — src:UNSOURCED — no data output while MOD1 is in an error or self-test state.
-- RQ3 — AR3 — src:UNSOURCED — min-level 2 — SV1 runs only for an authenticated, authorized RL1.
-- RQ4 — AR4 — src:UNSOURCED — the integrity test of MOD1 runs, and passes, before any service.
-- RQ5 — AR8 — src:UNSOURCED — SSP1 is zeroized after use by SV1 and on every error path.
-- RQ6 — AR8 — src:UNSOURCED — no plaintext SSP leaves MOD1 through IF1.
-- RQ7 — AR9 — src:UNSOURCED — the pre-operational self-tests of MOD1 run before first use of SV1.
+- RQ1 — AR1 — src:PDF-ann10 — src:IG:2.4.C — in the approved mode, every service of MOD1 employs only Approved security functions, and MOD1 indicates when an approved service runs.
+- RQ2 — AR2 — src:ISO19790:7.3.3 — src:SP800-140:6.3 — chk:ISO-043 — no data output while MOD1 is in an error or self-test state.
+- RQ3 — AR3 — src:ISO19790:7.4.4 — chk:ISO-111 — min-level 2 — SV1 runs only for an authenticated, authorized RL1.
+- RQ4 — AR4 — src:ISO19790:7.5 — src:IG:10.2.A — the integrity test of MOD1 runs, and passes, before any service.
+- RQ5 — AR8 — src:ISO19790:7.9.7 — src:IG:9.7.B — SSP1 is zeroized after use by SV1 and on every error path.
+- RQ6 — AR8 — src:ISO19790:7.9.5 — src:IG:9.5.A — no plaintext SSP leaves MOD1 through IF1.
+- RQ7 — AR9 — src:ISO19790:7.10.2.1 — src:IG:10.3.A — the pre-operational self-tests of MOD1 run before first use of SV1.
 - RQ8 — AR10 — src:UNSOURCED — the transitions MOD1 allows are those of its documented finite state model.
 - AR5 N/A — operating environment out of the module boundary.
 - AR6 N/A — software-only module, no physical enclosure.
@@ -255,11 +299,16 @@ Sign-off: ☐ PENDING — the owner of the protected information, or the agency'
 
 `bin/fips-lint.sh` mechanically enforces **F-C1** (F1–F5 sections, a precondition), **F-C0** (one
 home line per defined id), **F-C2** (the level line, equal to the manifest's `fips_level`),
-**F-C3** (every area covered), **F-C4** (one `AR#` + one `src:` per `RQ#`), **F-C5** (the allowed
-source-token set), **F-C6** (chaining + the `VO#`↔`FM#` set equality + `RQ#` coverage),
-**F-C7** (`min-level` applicability), **F-C8** (the six standing planes), **F-C9** (endogeneity),
-plus **F-C10** (volume, WARN) and **F-C11** (the `src:UNSOURCED` count, INFO). The rest of the
-contract — whether a `src:PDF-…` requirement really says what the cited section says, and the
-`min-level` monotonicity within an area — is part of the **format** but is a **content check**; it
-stays with the human reviewer. The convention is fixed regardless: author to the full contract so
-later checks land without a reformat.
+**F-C3** (every area covered), **F-C4** (one `AR#` + at least one `src:` per `RQ#`), **F-C5**
+(sources: manifest documents only, FIPS 140-3 only Ann. 6/7/10/13 on an `RQ#`, `UNSOURCED`
+alone), **F-C6** (chaining + the `VO#`↔`FM#` set equality + `RQ#` coverage), **F-C7**
+(`min-level` applicability), **F-C8** (the six standing planes), **F-C9** (endogeneity),
+**F-C14** (`chk:` ids exist in the checklist; SKIP without one), plus **F-C10** (volume, WARN),
+**F-C11** (the `src:UNSOURCED` count; INFO, WARN above half with the corpus), **F-C12** (each
+locator found in `specs/text/<DOC>.txt`, WARN; INFO for documents without text) and **F-C13**
+(draft-only sources, WARN). The corpus is read from `specs/` (`FIPS_SPECS=DIR` overrides it);
+without `specs/MANIFEST.tsv` only `src:PDF-…` and `src:UNSOURCED` are accepted, as before. The
+rest of the contract — whether a cited section really says what the requirement says, and the
+`min-level` against the clause or its monotonicity within an area — is part of the **format** but
+is a **content check**; it stays with the human reviewer. The convention is fixed regardless:
+author to the full contract so later checks land without a reformat.

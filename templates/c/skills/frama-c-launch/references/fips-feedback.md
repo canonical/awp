@@ -80,7 +80,7 @@ The **return** half is what lets the next `fips-sl` study consume this feedback 
 turning endogenous. The rule is the one `rmf-feedback.md` states for the RMF twin, with the FIPS
 vocabulary:
 
-- The feedback re-enters **code-blind**. The next `fips-sl` study re-authors F1–F5 from the PDF, the
+- The feedback re-enters **code-blind**. The next `fips-sl` study re-authors F1–F5 from the corpus, the
   module's public description and the target level — the verification packet enters as a **typed,
   requirement-keyed evidence signal** (`VO#`/`RQ#` + verdict class + the property retired), the same
   shape as a laboratory report. **No TU names, no function names, no ACSL, no goal counts, no proof

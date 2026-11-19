@@ -2,8 +2,9 @@
 
 This table maps each of the eleven requirement areas of FIPS 140-3 to the property classes the
 verification loop can discharge (`frama-c-monitoring`: WP, macsl; Creusot for Rust), and to the
-planes that stay residual. **This table is the skill's design choice, not text from the PDF** —
-the PDF names the areas (Abstract, Ann. 3) but says nothing about how to verify them; the mapping
+planes that stay residual. **This table is the skill's design choice, not corpus text** —
+the corpus names the areas (FIPS 140-3 Abstract, Ann. 3; ISO/IEC 19790 §7.2–§7.12) and says what
+each requires, but not how to verify it in code; the mapping
 below is `fips-sl`'s authored authority (terrain B), the counterpart of `rmf-sl`'s
 STRIDE → 800-53 → property table. It is the engine that makes a code-blind requirement study rank
 and aim a code-aware verification campaign.

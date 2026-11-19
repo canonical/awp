@@ -1,12 +1,12 @@
 ---
 name: fips-sl
 description: >-
-  Author a code-blind FIPS 140-3 requirement study for a cryptographic module. Use the vendored standard and selected security level as authority, validate with fips-lint, and produce the upstream requirements consumed by verification launch and monitoring. Also defines the compliance dossier XXX-fips-compliance/ that every fips-driver report regenerates.
+  Author a code-blind FIPS 140-3 requirement study for a cryptographic module. Use the FIPS 140-3 corpus in specs/ (standard, ISO/IEC 19790/24759, SP 800-140A-F, IG, algorithm standards) and the selected security level as authority, validate with fips-lint, and produce the upstream requirements consumed by verification launch and monitoring. Also defines the compliance dossier XXX-fips-compliance/ that every fips-driver report regenerates.
 ---
 
 # fips-sl — author a FIPS 140-3 requirement study as a code-disjoint squeeze loop
 
-A squeeze loop that AUTHORS a FIPS 140-3 requirement study of a cryptographic module as a trustworthy, code-disjoint deliverable — the upstream requirement study that the verification launch loop (frama-c-launch, then frama-c-monitoring) consumes as its exogenous upper bound, the faithful sibling of rmf-sl. Its upper bound U is the vendored standard itself (./NIST.FIPS.140-3.pdf — the only document the skill cites) plus the module's public description (purpose, services, documented interfaces, Security Policy if one exists) plus the target security level from the manifest; its lower bound L is a mechanical structure+coverage+source-honesty+endogeneity linter (bin/fips-lint.sh) over the report PLUS a human terminus (a disjoint completeness/realism reviewer and the owner of the protected information, or the agency's responsible authority, who accepts the residual risk — Ann. 13). It is a soft-side, human-terminus SL: the dominant coherent-and-wrong it guards is a fluent, well-chained report in which the requirements are INVENTED while stated as if sourced from the PDF (the PDF names the four levels and the eleven requirement areas but holds almost none of the requirements — rule F3 makes every requirement's source explicit, and src:UNSOURCED is the honest state of most of them). The single load-bearing invariant is that the study author is physically BARRIERED FROM THE CODE (F1-F4 code-blind), which makes the output a valid exogenous U for the launch and monitoring loops. Use to produce a FIPS 140-3 requirement study for a cryptographic module at a chosen target level (1-4, from config/auto-wp.json), to run a study whose ranking will drive the launch loop, or to author/audit FIPS sections F1-F4 independently of the implementation. Built with sl-builder, monitored with sl-monitoring-sl, grounded in sl-internal, audited with sl-auditor; the method content is the vendored NIST.FIPS.140-3.pdf.
+A squeeze loop that AUTHORS a FIPS 140-3 requirement study of a cryptographic module as a trustworthy, code-disjoint deliverable — the upstream requirement study that the verification launch loop (frama-c-launch, then frama-c-monitoring) consumes as its exogenous upper bound, the faithful sibling of rmf-sl. Its upper bound U is the FIPS 140-3 corpus in ./specs/ (FIPS 140-3, ISO/IEC 19790 and 24759 when licensed, SP 800-140 and 140A-F, the Implementation Guidance, the CMVP Management Manual, SP 800-131A and the algorithm standards; specs/MANIFEST.tsv lists them) plus the module's public description (purpose, services, documented interfaces, Security Policy if one exists) plus the target security level from the manifest; its lower bound L is a mechanical structure+coverage+source-honesty+endogeneity linter (bin/fips-lint.sh) over the report PLUS a human terminus (a disjoint completeness/realism reviewer and the owner of the protected information, or the agency's responsible authority, who accepts the residual risk — Ann. 13). It is a soft-side, human-terminus SL: the dominant coherent-and-wrong it guards is a fluent, well-chained report in which the requirements are INVENTED while stated as if sourced from the corpus (a cited section that does not say it, or a locator that does not exist — rule F3 makes every requirement's sources explicit as src:<DOC>:<LOC>, the linter checks the document and the locator, and src:UNSOURCED stays the honest state of what the corpus does not cover). The single load-bearing invariant is that the study author is physically BARRIERED FROM THE CODE (F1-F4 code-blind), which makes the output a valid exogenous U for the launch and monitoring loops. Use to produce a FIPS 140-3 requirement study for a cryptographic module at a chosen target level (1-4, from config/auto-wp.json), to run a study whose ranking will drive the launch loop, or to author/audit FIPS sections F1-F4 independently of the implementation. Built with sl-builder, monitored with sl-monitoring-sl, grounded in sl-internal, audited with sl-auditor; the method content is the corpus in ./specs/.
 
 `fips-sl` produces the **FIPS 140-3 requirement study** that the **launch loop** consumes as its
 **exogenous upper bound** (the priority ranking). The launch loop is the language's
@@ -18,14 +18,18 @@ runs first and code-disjoint** — *not* a child of the launch loop. Authoring t
 and consuming it must live in **different, barriered** loops, or the bound collapses back to
 endogenous (self-certifying).
 
-The method content is the **vendored standard**: `./NIST.FIPS.140-3.pdf` (FIPS PUB 140-3, *Security
-Requirements for Cryptographic Modules*, March 22, 2019 — US government work, shipped at the project
-root). Read **"What the source document contains"** in
-`references/report-format.md` **before authoring**: the PDF names the four security
-levels and the eleven requirement areas, and holds almost none of the requirements themselves — what
-each level requires in each area lives in ISO/IEC 19790 and the SP 800-140 series, which the PDF
-names but does not reproduce. Honesty about that boundary is rule F3 (`src:` tokens; `src:UNSOURCED`
-is allowed and expected) and is this loop's answer to its dominant coherent-and-wrong. It is the
+The method content is the **FIPS 140-3 corpus** in `./specs/` (installed by `auto-wp.py --driver
+fips`; `specs/MANIFEST.tsv` lists every citable document, `specs/text/<DOC>.txt` is its text,
+`specs/checklist/` an optional machine-extracted checklist of atomic requirements). Read **"What the
+corpus contains"** in `references/report-format.md` **before authoring**: FIPS 140-3 itself
+(`./specs/pdf/FIPS140-3.pdf`) names the four levels and the eleven areas and holds almost none of the
+requirements; what each level requires in each area is in ISO/IEC 19790 (§7.2–§7.12) and its test
+assertions in ISO/IEC 24759, as modified by SP 800-140 and SP 800-140A–F and interpreted by the
+Implementation Guidance (IG); what an Approved function must do is in the algorithm standards. Read
+the **text** files, never the whole corpus at once: locate the section (`grep -n` in
+`specs/text/<DOC>.txt`), then read that section. Honesty about sources is rule F3 (`src:<DOC>:<LOC>`
+tokens, checked against the manifest and the text; `src:UNSOURCED` when nothing in the corpus backs
+the item) and is this loop's answer to its dominant coherent-and-wrong. It is the
 faithful sibling of `rmf-sl` (NIST RMF → FIPS 140-3). **Built with `sl-builder`, monitored with
 `sl-monitoring-sl`, grounded in the (U,L) theory of `sl-internal`, audited with `sl-auditor`.**
 
@@ -34,7 +38,7 @@ The squeeze is assurance machinery for the *requirement study*, not a substitute
 Its cost (author ⊥ reviewer ⊥ terminus + the linter) is justified when a **plausible-but-wrong study
 is expensive** — and it is when the study **drives formal verification across many codebases**: an
 invented requirement or a coverage gap silently mis-aims the whole downstream campaign. For a
-one-off, low-stakes reading of the standard, work from the PDF directly. Reach for `fips-sl`
+one-off, low-stakes reading of the standard, work from the corpus directly. Reach for `fips-sl`
 deliberately.
 
 ## 0. Deliverable & correctness
@@ -54,40 +58,44 @@ deliberately.
   verification coordinator writes it (it is code-aware); this loop's author and reviewer never read
   it.
 - **"Correct" means (checkable):** (a) **structurally** conformant to the pinned format — F1–F5
-  present, every tag with exactly one home line, every `RQ#` carrying exactly one source token,
+  present, every tag with exactly one home line, every `RQ#` carrying at least one source token,
   chaining well-formed, every area covered (requirement or `N/A` with a reason), the standing
   residuals present, no code artifacts in F1–F4 (mechanical, `bin/fips-lint.sh`); **and** (b) the
-  requirements and failure modes are a faithful reading of the **PDF + the module's public
+  requirements and failure modes are a faithful reading of the **corpus + the module's public
   description + the target level** that a *disjoint reviewer* does not refute and the *terminus*
   signs (soft, human terminus).
-- **Terrain archetype: A + B.** **A** (transcription of an external standard) for what the PDF
-  actually says — four levels, eleven areas, Approved security functions, conformance and residual
-  risk. **B** (authored authority) for everything else — and **author independence *from the code***
+- **Terrain archetype: A + B.** **A** (transcription of external standards) for what the corpus
+  actually says — the per-area, per-level requirements, their test assertions, the IG's
+  interpretations, the Approved functions and their algorithm rules. **B** (authored authority) for everything else — and **author independence *from the code***
   is the soundness argument, exactly as in `rmf-sl`.
 - **Dominant coherent-and-wrong:** a **fluent, well-chained, all-eleven-areas-present** report in
-  which **the requirements are invented while stated as if sourced from the PDF** — the linter's
-  F-C5 bounds which PDF sections may back a requirement (Ann. 6, 7, 10, 13 only), and rule F3 makes
-  the honest state (`src:UNSOURCED`) explicit, never hidden. Its sibling failure: a **coverage gap
+  which **the requirements are invented while stated as if sourced from the corpus** — the linter's
+  F-C5 admits only documents of `specs/MANIFEST.tsv` (and of FIPS 140-3 itself only Ann. 6, 7, 10,
+  13), F-C12 checks every locator exists in the document's text, and rule F3 makes the honest state
+  (`src:UNSOURCED`) explicit, never hidden. A locator that exists but does not say what the item
+  says is caught only by the reviewer's honesty audit. Its sibling failure: a **coverage gap
   masked by fluency** (an area silently dropped, or an `N/A` without a real reason).
 
 ## 1. Bounds
-- **Upper bound `U`:** `./NIST.FIPS.140-3.pdf` — the only standard the skill cites — **plus** the
-  **module's public description** (purpose, services, documented interfaces, Security Policy if one
-  exists) **plus** the **target level** from the manifest, **plus** the area→property mapping of
-  `references/area-properties.md` (a declared design choice, not PDF text). What the PDF contains:
-  the four levels (Ann. 3), the eleven requirement areas (Abstract, Ann. 3), the level-choice rule
-  (Ann. 7), the Approved-security-functions requirement (Ann. 10), conformance and residual risk
-  (Ann. 13), applicability (Ann. 6), and the ISO/IEC 19790 / 24759 + SP 800-140 incorporation
-  (Sec. 2–3, Table 1). What it does **not** contain: the per-area, per-level requirements. Strongest
-  claim a deliverable may make: *"a reading of the PDF + the public description do not refute."*
+- **Upper bound `U`:** the **corpus** in `./specs/` (`MANIFEST.tsv`; precedence in
+  `references/report-format.md` "What the corpus contains") **plus** the **module's public
+  description** (purpose, services, documented interfaces, Security Policy if one exists) **plus**
+  the **target level** from the manifest, **plus** the area→property mapping of
+  `references/area-properties.md` (a declared design choice, not corpus text). Documents absent from
+  `specs/pdf/` (ISO/IEC 19790 and 24759 are licensed per licensee and often absent) are still
+  citable by id but uncheckable; say so in F5. The live SP 800-140C/D lists and the CAVP/ESV
+  certificates are **not** in the corpus. Strongest claim a deliverable may make: *"a reading of
+  the corpus + the public description do not refute."*
 - **Lower bound `L`:** two layers, honestly partial.
-  - *Mechanical:* **`bin/fips-lint.sh`** — the F-C0..F-C9 gates of the pinned format (home lines,
-    sections, the level line against the manifest, area coverage, one `AR#` + one `src:` per
-    requirement, the allowed source-token set, chaining with the `VO#`↔`FM#` set equality,
-    min-level applicability, the six standing residuals, the endogeneity tripwire), plus F-C10
-    (volume, WARN) and F-C11 (`src:UNSOURCED` count, INFO).
-  - *Human terminus:* content realism/completeness — including whether a `src:PDF-…` requirement
-    really says what the cited section says — has **no machine oracle**; it terminates in the
+  - *Mechanical:* **`bin/fips-lint.sh`** — the F-C0..F-C9 and F-C14 gates of the pinned format
+    (home lines, sections, the level line against the manifest, area coverage, one `AR#` + ≥1
+    `src:` per requirement, sources restricted to the manifest's documents, chaining with the
+    `VO#`↔`FM#` set equality, min-level applicability, the six standing residuals, the endogeneity
+    tripwire, `chk:` references that exist), plus F-C10 (volume, WARN), F-C11 (`src:UNSOURCED`
+    count; WARN above half when the corpus is present), F-C12 (every locator found in its
+    document's text, WARN) and F-C13 (draft-only sources, WARN).
+  - *Human terminus:* content realism/completeness — including whether a `src:<DOC>:<LOC>`
+    requirement really says what the cited section says — has **no machine oracle**; it terminates in the
     **disjoint reviewer** + the **residual-risk owner** (Ann. 13). Declared `DEPENDENCY: human
     reviewer`; never faked (the `sl-monitoring-sl` honesty rule).
 
@@ -95,33 +103,34 @@ deliberately.
 
 | Actor | Builds | U (above) | L (below) | Forbidden move | Must NOT see |
 |---|---|---|---|---|---|
-| **FIPS coordinator** | framing (module, goal → F1–F5 subset), sequencing, Gate-A, gap adjudication, the handoff to `frama-c-launch` | the PDF + the module description + the target level | the linter output + reviewer/terminus verdicts | read the code; author what it grades; rubber-stamp; declare done on an author's say-so | the implementation source |
-| **Study author** (requirement analyst) | F1–F5 from the PDF + the public description + the target level + `area-properties.md` | the PDF + the module description + the target level | format conformance (each tag has a home line, each requirement a source) | **read the implementation source** (the load-bearing exogeneity barrier); state an invented requirement as PDF-sourced; inflate past the level's volume budget | the **codebase**; the verification scope map; the reviewer's critique |
-| **Completeness/realism reviewer** (disjoint catcher) | an independent completeness+realism critique, and the honesty audit of every `src:` token | the PDF + the module description + the eleven areas + (gold) ISO/IEC 19790 / SP 800-140 if supplied | the coverage linter + its **own** independent per-area enumeration | read the author's rationale; read the code; rewrite the report (verdicts/carve-outs only) | the author's notes; the implementation |
+| **FIPS coordinator** | framing (module, goal → F1–F5 subset), sequencing, Gate-A, gap adjudication, the handoff to `frama-c-launch` | the corpus + the module description + the target level | the linter output + reviewer/terminus verdicts | read the code; author what it grades; rubber-stamp; declare done on an author's say-so | the implementation source |
+| **Study author** (requirement analyst) | F1–F5 from the corpus + the public description + the target level + `area-properties.md` | the corpus + the module description + the target level | format conformance (each tag has a home line, each requirement a source) | **read the implementation source** (the load-bearing exogeneity barrier); state an invented requirement as corpus-sourced; copy `chk:` items as sources without reading the cited section; inflate past the level's volume budget | the **codebase**; the verification scope map; the reviewer's critique |
+| **Completeness/realism reviewer** (disjoint catcher) | an independent completeness+realism critique, and the honesty audit of every `src:` token | the corpus + the module description + the eleven areas + its own reading of ISO/IEC 24759's assertions (or SP 800-140's, when ISO is absent) | the coverage linter + its **own** independent per-area enumeration | read the author's rationale; read the code; rewrite the report (verdicts/carve-outs only) | the author's notes; the implementation |
 | **Residual-risk owner** (human terminus, Ann. 13) | acceptance of the residual risk; the F5 sign-off | the owner's acceptance duty + the mission (the protected information) | the report + the reviewer's verdicts | author the requirements it accepts | — |
 | **Probe** (opt.) | minimal method/tooling experiments | one design claim per probe | the linter's actual behaviour | implement a fix | — |
 
-**Disjointness (C1):** author holds the PDF + public description + level (never the code, never the
-reviewer's critique); reviewer holds the PDF + public description + the area vocabulary + its own
+**Disjointness (C1):** author holds the corpus + public description + level (never the code, never the
+reviewer's critique); reviewer holds the corpus + public description + the area vocabulary + its own
 enumeration (never the author's rationale, never the code); coordinator holds the same U + gate
 output (never authoring what it grades); the terminus holds the acceptance duty (never authoring).
 **All content actors are barriered from the code — that shared barrier *is* the exogeneity
 invariant.** Intersection = a report format-conformant **and** complete/realistic per an independent
 reviewer **and** signed by the terminus.
 
-**Catchability (C2):** an invented requirement stated as PDF-sourced → the reviewer's `src:` audit +
-F-C5 (the four allowed sections); missed area / vacuous `N/A` → reviewer (independent enumeration +
+**Catchability (C2):** an invented requirement stated as corpus-sourced → the reviewer's `src:` audit +
+F-C5 (manifest documents only) + F-C12 (the locator exists); missed area / vacuous `N/A` → reviewer (independent enumeration +
 F-C3); content shaped by code knowledge (endogeneity) → the physical **code barrier** + the F-C9
 tripwire + the reviewer's **anchoring tell**; reviewer rubber-stamps → coordinator Gate A + the
 terminus; mis-framed scope or level → Gate A; malformed chain / missing source / level-line drift →
 the linter.
 
 ## 3. Gates
-- **Gate A — editorial.** Coordinator judges framing + report against the PDF + public description
+- **Gate A — editorial.** Coordinator judges framing + report against the corpus + public description
   + level: right sections for the goal; the module boundary correct (a module, not a whole system);
   the level line matches the manifest; **every area covered** (requirement items or `N/A` with a
-  real reason — never a silent drop); **the level's volume budget** (level 1 ≈ 1–3 `RQ#` per
-  applicable area, rising to 3–6 at level 4 — placeholders, see ASSUMPTIONS); `min-level K`
+  real reason — never a silent drop); **the level's volume budget** (with the corpus, level 1 ≈
+  3–40 `RQ#` per applicable area, rising to 6–70 at level 4: the ISO/IEC 24759 assertion counts per
+  area; placeholders, see ASSUMPTIONS); `min-level K`
   monotone within an area (a `min-level 3` item is not weaker than a `min-level 2` one). Amend/
   cut/sharpen, never rubber-stamp.
 - **Gate B — machine.** `bin/fips-lint.sh` passes (F-C0..F-C9), **including the endogeneity
@@ -131,7 +140,8 @@ the linter.
   covers every area and every plausible service/interface across the module's public description
   (the completeness critic); the report is the **intended study, not a vacuous one** (a
   single-trivial-requirement report passes B but fails C realism); the **honesty audit** — every
-  `src:PDF-…` requirement is checked against the section it cites, and every `src:UNSOURCED`
+  `src:` citation is checked against the text of the section it cites (`specs/text/<DOC>.txt`;
+  every F-C12 WARN by hand), every `chk:` item against its own sources, and every `src:UNSOURCED`
   requirement is *surfaced* in the critique and in F5, never disguised; **no-blend** — the linter
   (form) never substitutes for the reviewer (realism), and neither substitutes for the terminus
   (acceptance); **endogeneity flag** — content traceable to code-reading ⇒ discount and re-author
@@ -141,10 +151,11 @@ the linter.
 1. **Coordinator** frames: module + goal → F1–F5 subset + barriers (author ⊥ code) + the level's
    volume budget + the requirement that F2 cover `AR1`–`AR11` (item or `N/A`+reason each).
 2. **Study author** drafts F1 `@ DRAFT` from the public description + the manifest level → **Gate
-   A**; then F2 (`AR1`–`AR11`, each `RQ#` with exactly one `src:` token) → F3 (failure modes per
+   A**; then F2 (`AR1`–`AR11`, each `RQ#` with its `src:<DOC>:<LOC>` tokens, most binding
+   first — rule F3) → F3 (failure modes per
    requirement) → F4 (obligations with property class + priority, `RQ#` set equal to its `FM#`s')
    → F5 (residuals incl. the six standing planes, sign-off PENDING); iterate F3/F4 **≤ 2x**.
-3. **Reviewer** independently authors the completeness/realism critique from the PDF + public
+3. **Reviewer** independently authors the completeness/realism critique from the corpus + public
    description + its own per-area enumeration (not the author's notes, not the code) — and audits
    every `src:` token for honesty.
 4. **Gate B** (`bin/fips-lint.sh`) → **Gate C** (reviewer coverage/realism + honesty audit +
@@ -163,6 +174,9 @@ the linter.
 ## 4b. Re-authoring an existing study (event-driven; the contaminated-context rule)
 A re-author is worthwhile **only on a real trigger** — otherwise it reproduces the report (a flat
 no-delta cycle; don't). The triggers:
+- **Corpus change** — a new IG edition, an SP 800-131A transition date passed, a document added
+  to `specs/MANIFEST.tsv`: re-check every `src:` of the affected documents (their locators may have
+  moved) and the requirements they back.
 - **Target-level change** — the module is re-targeted (e.g. level 2 → level 3): rule F5 pulls
   previously out-of-scope requirements in (everything with `min-level` ≤ the new level) and the
   volume budget rises. This is the cleanest, most self-contained trigger.
@@ -178,9 +192,10 @@ implementation *or any verification artifact* (found-issues, the overlay, goal d
 **contaminated** — it can no longer author code-blind, because it now knows implementation quirks the
 requirements would anchor to (endogeneity). So the orchestrator (whose context is usually contaminated
 by Phase-2 work) **MUST delegate the re-author to a FRESH agent** whose context never saw the code,
-and **MUST NOT leak implementation detail into that agent's prompt** — give it only: the PDF, the
+and **MUST NOT leak implementation detail into that agent's prompt** — give it only: the corpus (`specs/`), the
 module's public description, the target level, the existing (code-blind) report to extend, and the
-method/format/linter. **The delegation boundary IS the physical barrier** (the same principle
+method/format/linter. "The corpus" is `specs/`, never the compliance dossier or a feedback
+packet with code in it. **The delegation boundary IS the physical barrier** (the same principle
 `frama-c-launch` uses for its provers; the same `sl-monitoring-sl` rule that the observed loop runs
 one delegation level deeper).
 
@@ -196,7 +211,8 @@ Pearlite, goal counts. In F1–F4 prose use the unicode arrow `→` or "then", n
 - **`bin/fips-lint.sh REPORT.md`** (project root) — the mechanical `L`. Reads the target level from
   `config/auto-wp.json` (`fips_level`; `FIPS_LEVEL=N` overrides it, a test hook only), parses a
   report written to the **pinned format contract** (`references/report-format.md`) and checks the
-  F-C0..F-C9 gates; exit 0 = pass, 1 = violations, 2 = usage/format. **Content realism and source
+  F-C0..F-C9 and F-C14 gates against the corpus in `specs/` (`FIPS_SPECS=DIR` overrides it, a
+  test hook); exit 0 = pass, 1 = violations, 2 = usage/format. **Content realism and source
   honesty are *not* in scope — that is the human terminus.** The author writes to the same pinned
   contract, so the report and the linter cannot drift.
 - **Pilot + canary:** run it on the **known-good** fixture (`references/skeleton.md` → must pass)
@@ -217,8 +233,11 @@ PENDING until then). No self-report ends the study — and no proof inside it re
 - **Endogenous `U` / unpinned reality** → *the* one: author physically barriered from the code;
   F-C9 endogeneity tripwire; the reviewer's anchoring tell.
 - **Invented-but-attributed requirements (the FIPS coherent-and-wrong)** → rule F3's `src:` tokens +
-  F-C5's four-section allowlist + the reviewer's honesty audit + F-C11's `UNSOURCED` count surfaced;
-  strictness has a safe direction (more `UNSOURCED` is honest, a fake `src:PDF-…` is the bug).
+  F-C5's manifest allowlist + F-C12's locator check + the reviewer's honesty audit + F-C11's
+  `UNSOURCED` count surfaced; strictness has a safe direction (more `UNSOURCED` is honest, a fake
+  `src:` is the bug).
+- **Version drift** → one edition per document, pinned by sha256 in `specs/MANIFEST.tsv`; the
+  IG is cited at the edition the manifest names, and a new edition is a re-author trigger (§4b).
 - **Self-judging** → author ⊥ reviewer ⊥ owner, physical barriers.
 - **Coherent-and-wrong (fluent-but-thin)** → reviewer realism + completeness critic + F-C3's
   area-coverage check; over-covering is safe, dropping an area is the bug.
@@ -260,7 +279,7 @@ PENDING until then). No self-report ends the study — and no proof inside it re
   ```
 
 - **Return half (re-running this loop after a verification cycle):** the feedback re-enters **code-
-  blind** — re-author F1–F5 from the PDF + public description + level only; the verification packet
+  blind** — re-author F1–F5 from the corpus + public description + level only; the verification packet
   enters as a typed, requirement-keyed **evidence signal** (no TU names / ACSL / proof internals —
   the same shape as a laboratory report), never as code-derived requirements. A confirmed bug
   re-enters via **F3 failure modes** from its *finding statement*, not its reproducer. A `PROVED`
@@ -275,11 +294,11 @@ PENDING until then). No self-report ends the study — and no proof inside it re
 ## 9. Compliance check
 - **C1 Disjointness:** ✓ four `(U,L)` pairs; no actor relieves its own bound; **all content actors
   share the code barrier** (the exogeneity invariant). Sound only if the barriers are physical
-  (author/reviewer contexts hold PDF+public description+level, never the source).
+  (author/reviewer contexts hold corpus+public description+level, never the source).
 - **C2 Catchability:** ✓ invented/mis-sourced requirement → reviewer+F-C5; coverage gap / vacuous
   N/A → reviewer+linter (F-C3); endogeneity → barrier+F-C9+anchoring tell; rubber-stamp → Gate A +
   owner; malformed → linter.
-- **C3 Physical barriers:** ✓ author/reviewer built from PDF+public description, never the code —
+- **C3 Physical barriers:** ✓ author/reviewer built from corpus+public description, never the code —
   **including on feedback re-runs**: the verification packet enters as a code-free, requirement-keyed
   evidence signal, so the code barrier holds across cycles (return half, §8 / `fips-feedback.md`).
 - **C4 Gate-defined done:** ✓ linter + reviewer + area-coverage + honesty + endogeneity-clear +
@@ -307,14 +326,16 @@ root with nine files — `README.md`, `module-definition.md`, `requirements-matr
   says so in its first paragraph.
 
 ## Reference files
-- **The standard** — the only source document: `./NIST.FIPS.140-3.pdf`, vendored at the project root
-  (US government work). Its §1 table in `references/report-format.md` says exactly what it does and
-  does not contain; the skill never presents a requirement as coming from the PDF when it does not.
+- **The corpus** — `./specs/` at the project root: `MANIFEST.tsv` (document ids, editions,
+  licences), `pdf/`, `text/` (read these), `checklist/` (optional; `chk:` cross-references, never a
+  source), `README.md`. "What the corpus contains" in `references/report-format.md` gives the
+  precedence and what is missing; the skill never presents a requirement as coming from a document
+  that does not say it.
 - `references/report-format.md` — the **pinned** report-format convention (the tag set + home-line /
   source / chaining rules + scales — the linter's contract + the author's spec; one source of truth).
 - `references/skeleton.md` — the minimal conformant report; the linter's known-good fixture.
 - `references/area-properties.md` — the eleven areas → verification properties (the engine that
-  makes the report drive `frama-c-monitoring`; a declared design choice, not PDF text).
+  makes the report drive `frama-c-monitoring`; a declared design choice, not corpus text).
 - `references/compliance-dossier.md` — the always-generated compliance dossier
   `XXX-fips-compliance/` (§10): its nine files, sources, rules, status vocabulary and the ISO/IEC
   19790 clause of each area.
@@ -338,7 +359,7 @@ root with nine files — `README.md`, `module-definition.md`, `requirements-matr
 Each requirement maps to a verification property the monitoring loop can discharge, or to a plane
 that stays residual (the engine that makes the report drive `frama-c-monitoring`; the full table
 with its rationale is `references/area-properties.md` — **a design choice of this skill, not text
-from the PDF**):
+from the corpus**):
 
 | Area | Property class (token) | What is checked, and how | Residual (plane) |
 |---|---|---|---|
@@ -374,16 +395,19 @@ per plane, even if no requirement surfaced them — each naming its area or `STA
 ## ASSUMPTIONS & open questions
 - **Report format: PINNED** in `references/report-format.md` (the tag set + home-line/source/
   chaining rules + scales — the linter's contract and the author's spec).
-- **OPEN — the corpus is thin:** the PDF names the areas and the levels but holds almost none of the
-  requirements; most `RQ#` will be `src:UNSOURCED`, which is honest but weak. Adding SP 800-140A–F
-  (free, public) or accepting a user-supplied ISO/IEC 19790 (paid, cited `src:19790-…`) would
-  strengthen it — decided per project, not in this skill.
-- **OPEN — per-level requirements:** every `min-level` choice is `UNSOURCED` unless the corpus
-  grows; the reviewer checks only monotonicity within an area.
+- **RESOLVED — the corpus:** `specs/` holds FIPS 140-3, SP 800-140 and 140A–F, the IG, the CMVP
+  Management Manual, SP 800-131A and the algorithm standards (public), and ISO/IEC 19790/24759 when
+  the user's licence allows importing them. **OPEN** within it: without ISO/IEC 19790 the per-level
+  requirement text is only indirectly citable (SP 800-140 lists modified assertions only; the
+  checklist paraphrases); the SP 800-140C/D lists and CAVP/ESV certificates are live web data,
+  outside the corpus; the IG changes several times a year.
+- **OPEN — per-level requirements:** `min-level K` is sourceable from ISO/IEC 19790 §7 (its level
+  columns) or a `chk:` item's levels; without ISO it stays the author's reading, and the reviewer
+  checks monotonicity within an area.
 - **OPEN — the module boundary:** a whole system (GRUB) is not a module; the study names the module
   (`MOD#` by role) and its boundary in F1. A library target (e.g. a crypto library) is the cleaner
   default; the `/time-loop --dir=<subdir>` filter scopes the verification to it.
-- **OPEN — volume per level:** the Gate-A budgets (1–3 `RQ#`/area at level 1 to 3–6 at level 4) are
-  placeholders until a first campaign calibrates them.
+- **OPEN — volume per level:** the Gate-A budgets (with the corpus 3–40 `RQ#`/area at level 1 to
+  6–70 at level 4; without it 1–3 to 3–6) are placeholders until a first campaign calibrates them.
 - **OPEN — reviewer is agent or human:** the terminus is human (Ann. 13); the reviewer may be a
   disjoint agent (ideally a different provider family).

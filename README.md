@@ -80,12 +80,22 @@ quick start: clone the code to analyse next to the configuration, then run
 your agent harness in a container (for example `/time-loop grub 72` for a
 72-hour campaign on GRUB). Python 3.10 or later, standard library only.
 
+`--driver fips` also copies the FIPS 140-3 corpus, `specs/`, into the
+project. Only its index is in git; import the documents once before
+generating ([`specs/README.md`](specs/README.md)):
+
+```sh
+specs/import-specs.py --checklist ../NIST-Specs/FIPS-Checklist ../NIST-Specs
+./auto-wp.py --c --harness claude --driver fips --level 1 gnutls-fips
+```
+
 ## Repository layout
 
 | Path | Contents |
 |---|---|
 | `auto-wp.py` | The generator |
 | `templates/` | What it copies: `common/` (all projects), `c/`, `rust/` |
+| `specs/` | The FIPS 140-3 corpus for `--driver fips`: `MANIFEST.tsv` and the import script in git, the PDFs and their text local ([`specs/README.md`](specs/README.md)) |
 | `sdks/` | [Workshop](https://ubuntu.com/workshop/docs/) SDKs with the toolchains: `frama-c-sdk`, `creusot`, `rocq`, `lean` ([`sdks/README.md`](sdks/README.md)) |
 | `tests/` | Program, template, container and SDK tests ([`tests/README.md`](tests/README.md)) |
 | `spec/` | The specifications |
@@ -100,6 +110,8 @@ your agent harness in a container (for example `/time-loop grub 72` for a
   [`spec/workshop-autowp-rust-base-spec.md`](spec/workshop-autowp-rust-base-spec.md): the Workshop SDKs
 - [`spec/gzip-test.md`](spec/gzip-test.md), [`spec/sudo-rs-test.md`](spec/sudo-rs-test.md): the GNU gzip 1.9 (C) and sudo-rs (Rust) campaign tests
 - [`spec/fips-skill-spec.md`](spec/fips-skill-spec.md): the `fips-sl` skill (FIPS 140-3), draft
+- [`spec/fips-corpus-spec.md`](spec/fips-corpus-spec.md): the FIPS 140-3 corpus `specs/` and the `src:<DOC>:<LOC>` citations;
+  [`spec/fips-corpus-evaluation.md`](spec/fips-corpus-evaluation.md): how well the framework digests it
 - [`spec/`](spec/): all of them, with review reports
 
 ## Tests
@@ -221,4 +233,6 @@ host, which the workshop sees as `/project`.
 
 GPL-3.0 ([`LICENSE`](LICENSE)). The SDKs bundle third-party tools under
 their own licences; Alt-Ergo, in `frama-c-sdk` and `creusot`, is for
-non-commercial use only ([`sdks/README.md`](sdks/README.md)).
+non-commercial use only ([`sdks/README.md`](sdks/README.md)). The documents
+of `specs/` are not in git: NIST publications are US Government works;
+ISO/IEC 19790 and 24759 are licensed per licensee ([`specs/README.md`](specs/README.md)).

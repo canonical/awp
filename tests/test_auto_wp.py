@@ -179,6 +179,9 @@ class AutoWpTestCase(unittest.TestCase):
         prog.mkdir()
         shutil.copy2(SCRIPT, prog / "auto-wp.py")
         shutil.copytree(TEMPLATES, prog / "templates", symlinks=True)
+        # The corpus index only: the local PDFs/text are not in git (specs/README.md).
+        (prog / "specs").mkdir()
+        shutil.copy2(SCRIPT.parent / "specs/MANIFEST.tsv", prog / "specs/MANIFEST.tsv")
         return prog
 
 
@@ -461,7 +464,7 @@ class TestAutoWp(AutoWpTestCase):
                 self.assertOk(self.run_auto_wp("--" + lang, "--harness", "claude", foo.name))
                 m = json.loads((foo / "config/auto-wp.json").read_text())
                 self.assertEqual(m["language"], lang)
-                self.assertEqual(m["auto_wp_version"], "0.8.0")
+                self.assertEqual(m["auto_wp_version"], "0.9.0")
                 self.assertEqual(m["driver"], "rmf")
                 self.assertNotIn("fips_level", m)
                 self.assertRegex(m["created"], r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$")
@@ -513,7 +516,7 @@ class TestAutoWp(AutoWpTestCase):
         for rel in ("bin/rmf-lint.sh", "bin/fips-lint.sh", "bin/ebios-lint.sh",
                     "bin/ledger-ratchet.sh",
                     "bin/crosswalk-gen.sh", "bin/fetch-sources.sh", "no-ceiling.md", ".gitignore",
-                    "frama-c-patches/apply.sh", "framac-gold", "NIST.FIPS.140-3.pdf"):
+                    "frama-c-patches/apply.sh", "framac-gold"):
             self.assertTrue(os.path.lexists(d / rel), rel)
             self.assertFalse((d / rel).is_symlink(), rel)
         # bin/ merges the common layer (rmf-lint.sh) and the C layer (22): 4.1, 4.2.1.
@@ -522,8 +525,9 @@ class TestAutoWp(AutoWpTestCase):
                          (TEMPLATES / "common/tools/bin/rmf-lint.sh").read_bytes())
         self.assertEqual((d / "bin/fips-lint.sh").read_bytes(),
                          (TEMPLATES / "c/tools/bin/fips-lint.sh").read_bytes())
-        self.assertEqual((d / "NIST.FIPS.140-3.pdf").read_bytes(),
-                         (TEMPLATES / "common/tools/NIST.FIPS.140-3.pdf").read_bytes())
+        # The FIPS corpus is a fips-driver install (test_21_fips_specs); no PDF at the root.
+        self.assertFalse(os.path.lexists(d / "specs"))
+        self.assertEqual(list(d.glob("*.pdf")), [])
         self.assertEqual(list(d.glob("*.sh")), [], "scripts belong in bin/, not the root")
         for s in d.glob("bin/*.sh"):
             self.assertTrue(os.access(s, os.X_OK), s.name)
@@ -546,9 +550,7 @@ class TestAutoWp(AutoWpTestCase):
         self.assertTrue(os.access(lint, os.X_OK))
         self.assertEqual(lint.read_bytes(),
                          (TEMPLATES / "common/tools/bin/rmf-lint.sh").read_bytes())
-        self.assertEqual((d / "NIST.FIPS.140-3.pdf").read_bytes(),
-                         (TEMPLATES / "common/tools/NIST.FIPS.140-3.pdf").read_bytes())
-        for rel in ("frama-c-patches", "framac-gold", "no-ceiling.md"):
+        for rel in ("frama-c-patches", "framac-gold", "no-ceiling.md", "specs"):
             self.assertFalse(os.path.lexists(d / rel), rel)
         gi = self.tmp / "foobar/.gitignore"
         self.assertTrue(gi.is_file() and not gi.is_symlink())
@@ -1263,7 +1265,6 @@ class TestOutputAndConstraints(AutoWpTestCase):
             "  skills:   23\n"
             "  commands: 3\n"
             "copied  foobar/.gitignore\n"
-            "copied  foobar/NIST.FIPS.140-3.pdf\n"
             "copied  foobar/bin\n"
             "copied  foobar/frama-c-patches\n"
             "copied  foobar/framac-gold\n"
@@ -1286,8 +1287,7 @@ class TestOutputAndConstraints(AutoWpTestCase):
         self.assertEqual(lines[2], "  harness:  claude")
         self.assertEqual(lines[3], f"  skills:   {len(RUST_SKILLS)}")
         self.assertEqual(lines[4], f"  commands: {len(RUST_COMMANDS)}")
-        self.assertEqual(lines[5:9], ["copied  foobar/.gitignore",
-                                      "copied  foobar/NIST.FIPS.140-3.pdf",
+        self.assertEqual(lines[5:8], ["copied  foobar/.gitignore",
                                       "copied  foobar/bin",
                                       "copied  foobar/.workshop (workshop: autowp)"])
 
@@ -1346,12 +1346,13 @@ class TestFipsDriver(AutoWpTestCase):
         self.assertTrue((d / "config/commands/fips.md").is_file())
         self.assertFalse(os.path.lexists(d / "config/commands/rmf.md"))
         # Everything else is installed whatever the driver: both skills, both
-        # linters, the vendored PDF, the same links and the workshop definition.
+        # linters, the same links and the workshop definition; the fips driver
+        # adds the corpus, specs/.
         self.assertIn("fips-sl", m["skills"])
         self.assertIn("rmf-sl", m["skills"])
         self.assertTrue((d / "bin/fips-lint.sh").is_file())
         self.assertTrue((d / "bin/rmf-lint.sh").is_file())
-        self.assertTrue((d / "NIST.FIPS.140-3.pdf").is_file())
+        self.assertTrue((d / "specs/MANIFEST.tsv").is_file())
         self.assertTrue((d / ".workshop/autowp.yaml").is_file())
         self.assertTrue((d / ".opencode/skills").is_symlink())
 
@@ -1386,10 +1387,39 @@ class TestFipsDriver(AutoWpTestCase):
         self.assertEqual(m["driver"], "fips")
         self.assertEqual(m["fips_level"], 4)
         self.assertEqual(m["commands"], RUST_COMMANDS)  # time-loop only: no /rmf or /fips for Rust yet
-        self.assertTrue((d / "NIST.FIPS.140-3.pdf").is_file())
+        self.assertTrue((d / "specs/MANIFEST.tsv").is_file())
         text = (d / "README.md").read_text()
         self.assertIn("Requirement study: FIPS 140-3, security level 4 (fips-sl).", text)
         self.assertNotIn("{{", text)
+
+    def test_fips_specs(self):
+        """--driver fips copies specs/ and warns about documents not imported."""
+        prog = self._copy_program()
+        manifest = (prog / "specs/MANIFEST.tsv").read_text()
+        ids = [l.split("\t", 1)[0] for l in manifest.splitlines() if l and not l.startswith("#")][1:]
+        (prog / "specs/pdf").mkdir()
+        (prog / "specs/pdf/FIPS140-3.pdf").write_bytes(b"%PDF stub")
+        (prog / "specs/notes~").write_text("editor backup")
+        r = self.run_auto_wp("--c", "--harness", "claude", "--driver", "fips", "--level", "1",
+                             "foobar", script=prog / "auto-wp.py")
+        self.assertOk(r)
+        self.assertIn(f"copied  foobar/specs (corpus: 1 of {len(ids)} documents)", r.stdout.splitlines())
+        self.assertIn(f"{len(ids) - 1} of {len(ids)} FIPS corpus documents", r.stderr)
+        d = self.tmp / "foobar/specs"
+        self.assertEqual((d / "MANIFEST.tsv").read_text(), manifest)
+        self.assertTrue((d / "pdf/FIPS140-3.pdf").is_file())
+        self.assertFalse(os.path.lexists(d / "notes~"))
+        self.assertIn("FIPS140-3", ids)
+        self.assertIn("IG", ids)
+
+    def test_fips_specs_missing_manifest(self):
+        prog = self._copy_program()
+        (prog / "specs/MANIFEST.tsv").unlink()
+        r = self.run_auto_wp("--c", "--harness", "claude", "--driver", "fips", "--level", "1",
+                             "foobar", script=prog / "auto-wp.py")
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("MANIFEST.tsv", r.stderr)
+        self.assertFalse(os.path.lexists(self.tmp / "foobar"))
 
     def test_fips_rollback(self):
         if os.geteuid() == 0:

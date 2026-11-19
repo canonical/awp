@@ -1,0 +1,56 @@
+# awp FIPS 140-3 corpus manifest. One row per citable document; the id is the src: token's DOC part.
+# kind: core | guidance | transition | algorithm. status: final | draft. license: public | restricted.
+id	kind	status	license	pages	sha256	source_name	title
+FIPS140-3	core	final	public	11	942a4f929dfbd2b4af2e4e03df7f6e6377054346afd9bee346ed0ebac5db384b	NIST.FIPS.140-3.pdf	FIPS PUB 140-3, Security Requirements for Cryptographic Modules (2019)
+ISO19790	core	final	restricted	86	d5fa99728b693ee38036de142910b6188517185eaf19c21412dc364987e3d1de	ISO_IEC_19790_2012_addn_2017(en).pdf	ISO/IEC 19790:2012 (corr. 2015), Security requirements for cryptographic modules
+ISO24759	core	final	restricted	142	80cddd933009ab1d3ab3a71c618590582facdb55baac45205e623be02ac34e76	ISO_IEC_24759_2017(en).pdf	ISO/IEC 24759:2017, Test requirements for cryptographic modules
+SP800-140	core	final	public	23	dfb6d1b9c829c3d8caad960a4d0e3bcc076852604061dd755718c259d79fc3f7	NIST.SP.800-140.pdf	SP 800-140, FIPS 140-3 Derived Test Requirements (DTR)
+SP800-140A	core	final	public	8	0fc31c5fdb7bd4a33a2490897d509da1fdedba59e10c46729ce11831fb611fd1	NIST.SP.800-140A.pdf	SP 800-140A, CMVP Documentation Requirements
+SP800-140B	core	final	public	31	dd68511f9160bf53dfabe9617d4a3528f578836b5b7b50dff002a7ab57275fef	NIST.SP.800-140Br1.pdf	SP 800-140B Rev. 1, CMVP Security Policy Requirements
+SP800-140C	core	final	public	9	76e32694d67dfb7e8199365f120e78563d659d0ca8df17d85c6116b0ab70465d	NIST.SP.800-140Cr2.pdf	SP 800-140C Rev. 2, CMVP Approved Security Functions
+SP800-140D	core	final	public	9	df039c5d1c2aed36a7e54912ecc8e864e57f71d456247986547283313635c56a	NIST.SP.800-140Dr2.pdf	SP 800-140D Rev. 2, CMVP Approved SSP Generation and Establishment Methods
+SP800-140E	core	final	public	9	26616caa396fc292dd1d726309e34287683c8089ea401f3dc7f55ccb671aa28e	NIST.SP.800-140E.pdf	SP 800-140E, CMVP Approved Authentication Mechanisms
+SP800-140F	core	final	public	8	7772ec5af1909a87b7e724afeef77bb3206174c321aa59f80e32500df7fc48ed	NIST.SP.800-140F.pdf	SP 800-140F, CMVP Approved Non-Invasive Attack Mitigation Test Metrics
+IG	guidance	final	public	249	15ebdd396a31129f9d75137ace99be56b1085feb25a95c990f8b6558440aeb02	FIPS 140-3 IG [08-19-2026].pdf	Implementation Guidance for FIPS 140-3 and the CMVP (08-19-2026)
+CMVP-MM	guidance	final	public	94	e2efe42a638efd3b96446aa502079925ef875d4794ae530aa4f8b74983dc4584	FIPS-140-3-CMVP Management Manual (04-09-2026).pdf	FIPS 140-3 CMVP Management Manual (04-09-2026)
+SP800-140B-CKG	guidance	final	public	2	b3518a645a7be1f7477c3f031fcd2ab2eea572c9d77c646d0571673053dd256a	Use of CKG with SP800-140Br1.pdf	Use of CKG with SP 800-140B Rev. 1 (CMVP guidance)
+SP800-140B-KAS	guidance	final	public	5	5e647aa922cf176eb1708749623586ab4bb3f5c49e378577d9b3bfd3456d9e2e	Use of KAS with SP800-140Br1.pdf	Use of KAS with SP 800-140B Rev. 1 (CMVP guidance)
+SP800-140B-KEM	guidance	final	public	2	4359a2fb26b4c9380c7b74186893d07adf0409138196eef40f8aff2d7392e187	Use of KEM with SP800-140Br1.pdf	Use of KEM with SP 800-140B Rev. 1 (CMVP guidance)
+SP800-140B-KEMH	guidance	final	public	4	7b1c75d9e4461fe892f74b84277812db77f9647f2d6afbef6f8ae61040861937	Use of KEM Hybrid with SP800-140Br1.pdf	Use of KEM Hybrid with SP 800-140B Rev. 1 (CMVP guidance)
+SP800-140B-KTS	guidance	final	public	3	92b8697d28834f5c3df7566f8ff5a66f7cca55ad1918d7f973364d1cf432ef84	Use of KTS with SP800-140Br1.pdf	Use of KTS with SP 800-140B Rev. 1 (CMVP guidance)
+SP800-131A	transition	final	public	33	5c81a1095e0eee35ce0e627b8cc672c1c2239367b0de9bb53d7271c9ab9d7d27	NIST.SP.800-131Ar2.pdf	SP 800-131A Rev. 2, Transitioning the Use of Cryptographic Algorithms and Key Lengths
+SP800-131A-R3IPD	transition	draft	public	54	5ffdb907e0e2375901151579422a370b655e131223a2588ea418c5df1dea6e7f	NIST.SP.800-131Ar3.ipd.pdf	SP 800-131A Rev. 3 initial public draft
+IR8547	transition	draft	public	29	6b551b4ff9858a19c1ab48d7deef2ee52d615066b7d187aaf992cb50c5ca0ed6	NIST.IR.8547.ipd.pdf	NIST IR 8547 initial public draft, Transition to Post-Quantum Cryptography Standards
+FIPS180-4	algorithm	final	public	36	0455b406d89648d20cbde375561e19c245b9815e894164c2670772e3d54deb82	NIST.FIPS.180-4.pdf	FIPS 180-4, Secure Hash Standard
+FIPS186-5	algorithm	final	public	86	fbb9c7c2ba442f03c57b63b43c888311903c9d0f29f89b06efdebd9b619140c5	NIST.FIPS.186-5.pdf	FIPS 186-5, Digital Signature Standard
+FIPS197	algorithm	final	public	46	62c86eb567f13edb8f71826e985da870b04ef6381634f303cdb16e84d47becd1	NIST.FIPS.197-upd1.pdf	FIPS 197 (upd1), Advanced Encryption Standard
+FIPS198-1	algorithm	final	public	13	67661ba1407b391c799ff407471de18f36697af51d78a777e817c067ac30da23	NIST.FIPS.198-1.pdf	FIPS 198-1, The Keyed-Hash Message Authentication Code (HMAC)
+FIPS202	algorithm	final	public	37	1592607831ff0908cc590632ce371c6c95e94025bb1a0c8ae90a4d0ec1ed025e	NIST.FIPS.202.pdf	FIPS 202, SHA-3 Standard
+FIPS203	algorithm	final	public	56	fe1f12f32a7e44ec9fdebbf400cda843a40b506dee676725234dc6f7923b6cac	NIST.FIPS.203.pdf	FIPS 203, ML-KEM
+FIPS204	algorithm	final	public	65	57239b9f84c03227eda3ca0991204dc7764c79af9ce2e6824eda774918d46b6b	NIST.FIPS.204.pdf	FIPS 204, ML-DSA
+FIPS205	algorithm	final	public	61	8ef34228276f3386d23cb0da8c14592b8cfb0db3358016bba64df7a004f8d13d	NIST.FIPS.205.pdf	FIPS 205, SLH-DSA
+SP800-38A	algorithm	final	public	66	66821162de1e7130c5fb5eedb22140d8d6d013ec51af4550bb095c2a9481a00e	nistspecialpublication800-38a.pdf	SP 800-38A, Block Cipher Modes of Operation
+SP800-38A-ADD	algorithm	final	public	13	ebd15c9eaa5570d548f540488b9a67da52156eb3d904a4fe885184086aeafa50	nistspecialpublication800-38a-add.pdf	SP 800-38A Addendum, Three Variants of Ciphertext Stealing for CBC Mode
+SP800-38B	algorithm	final	public	21	da9dc0f1e1f08af917caf4a831a7497cf18997b8046353af89570a812f1ec5a2	NIST.SP.800-38b.pdf	SP 800-38B, CMAC
+SP800-38C	algorithm	final	public	27	16ec6f99424192757b5b9928a7dcf41817be3aaf85d48366740dfdf7c16db250	nistspecialpublication800-38c.pdf	SP 800-38C, CCM
+SP800-38D	algorithm	final	public	39	d99f3921ccebca049e7522426553aba071dae14ec3d5b6041e8c111a6cb57bba	nistspecialpublication800-38d.pdf	SP 800-38D, GCM and GMAC
+SP800-38E	algorithm	final	public	12	b43ed11fd9f85bf06aa3a6e54206da361a3d02eb09da6974b80eb1b3e1803342	nistspecialpublication800-38e.pdf	SP 800-38E, XTS-AES
+SP800-38F	algorithm	final	public	32	b8b1052755448e5ff3913ea09dc9b5ae47a97886752525a0cccfa024fb072fa8	NIST.SP.800-38F.pdf	SP 800-38F, Key Wrapping
+SP800-38G	algorithm	final	public	28	27b192209e600e1b43d24f3aff6b23f0b118faeb0fe9fb2b18179b9b58669bda	NIST.SP.800-38G.pdf	SP 800-38G, Format-Preserving Encryption
+SP800-56A	algorithm	final	public	152	6b315e3a91012981f9a88ad62c97ea7d4b170a7746e713f34dd29538ee46f403	NIST.SP.800-56Ar3.pdf	SP 800-56A Rev. 3, Pair-Wise Key Establishment (Discrete Logarithm)
+SP800-56B	algorithm	final	public	131	a36bf40bdd778928a9a8b778596d609ac461c9d3a37fdfb74e969616c170fe9b	NIST.SP.800-56Br2.pdf	SP 800-56B Rev. 2, Pair-Wise Key Establishment (Integer Factorization)
+SP800-56C	algorithm	final	public	41	668a8ad181a299afe1d8becc0062b1e00e8f9db402ecb291456f6fa3aa4cf85e	NIST.SP.800-56Cr2.pdf	SP 800-56C Rev. 2, Key-Derivation Methods in Key-Establishment Schemes
+SP800-67	algorithm	final	public	33	4d7b18d03c76044bbbc811c3433b1a27e12a549d6248889104f2d7eb137d1c92	NIST.SP.800-67r2.pdf	SP 800-67 Rev. 2, Triple Data Encryption Algorithm
+SP800-90A	algorithm	final	public	110	d58e3dac4aaa5971c9a6a20a9bd5c13e2f1930cd1a199c0c00f768e7327355e2	NIST.SP.800-90Ar1.pdf	SP 800-90A Rev. 1, Random Number Generation Using Deterministic RBGs
+SP800-90B	algorithm	final	public	84	9b0dd77131ade3617a91cd8457fa09e0dc354c273bb2220a6afeaca16e5defe7	NIST.SP.800-90B.pdf	SP 800-90B, Entropy Sources Used for Random Bit Generation
+SP800-90C	algorithm	final	public	160	22dc2de903b2fe602fa0729c38b9512927ad96ef5669a3da8a0ffb4d22c8e6d8	NIST.SP.800-90C.pdf	SP 800-90C, Random Bit Generator Constructions
+SP800-107	algorithm	final	public	25	2b691bd8895cbc6793e442b1e5a45398f5ca777edc2a79072469ad05405b093b	nistspecialpublication800-107r1.pdf	SP 800-107 Rev. 1, Applications Using Approved Hash Algorithms
+SP800-108	algorithm	final	public	34	7f7603e92a69590acd4330a5c6193b6b3093b87a5387b124a1050f4d25a10e07	NIST.SP.800-108r1-upd1.pdf	SP 800-108 Rev. 1 (upd1), Key Derivation Using Pseudorandom Functions
+SP800-132	algorithm	final	public	18	ddeb9007f37f952744f3ce177f1c8cd09f6ad7600786c1713d2bbfc0f2ed6a89	nistspecialpublication800-132.pdf	SP 800-132, Password-Based Key Derivation
+SP800-133	algorithm	final	public	36	11384a58e3036382b7d7bd45d6e9e8dec5c8c3de43c73ed18edcb59cea3f8bbb	NIST.SP.800-133r2.pdf	SP 800-133 Rev. 2, Cryptographic Key Generation
+SP800-135	algorithm	final	public	23	97c9094086ac0602e50ccc03087b50fb6f497ac65ab7e17708011c12593ed5ed	nistspecialpublication800-135r1.pdf	SP 800-135 Rev. 1, Existing Application-Specific KDFs
+SP800-185	algorithm	final	public	32	0ebcdfb5b145bcb6a8a0f49737a201e8fb30dce06951595a07010774d402d7c5	NIST.SP.800-185.pdf	SP 800-185, SHA-3 Derived Functions
+SP800-186	algorithm	final	public	75	53c7cf3340528aaa0a7bbeaef947f2099568192367d4341a7d4abceb55f78432	NIST.SP.800-186.pdf	SP 800-186, Elliptic Curve Domain Parameters
+SP800-208	algorithm	final	public	59	9ac6bee3da878e883874847b40f80d2265d6268385d8201f866581437533465f	NIST.SP.800-208.pdf	SP 800-208, Stateful Hash-Based Signature Schemes
+SP800-227	algorithm	final	public	64	41e427a461c1ae0ceed2a68dc29507400983d1d495c35631306d0f4803ca4614	NIST.SP.800-227.pdf	SP 800-227, Recommendations for Key-Encapsulation Mechanisms
+SP800-232	algorithm	final	public	52	1be9bb9a5fef3665ee8b258babe54b8e500d667fcfbbcc99710fe6077c6bad27	NIST.SP.800-232.pdf	SP 800-232, Ascon-Based Lightweight Cryptography

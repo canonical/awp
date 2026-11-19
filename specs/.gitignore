@@ -1,0 +1,5 @@
+# The corpus itself is never committed: local copies only (see README.md).
+*.pdf
+/pdf/
+/text/
+/checklist/

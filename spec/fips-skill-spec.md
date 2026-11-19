@@ -17,6 +17,12 @@ revision 6 `fips-skill-spec-report-4.md`, revision 7
 `fips-skill-spec-report-5.md`, and revision 8 `fips-skill-spec-report-6.md`,
 which found it ready to implement. The open points are in §9.
 
+**Superseded in part (0.9.0).** The single-PDF corpus of §1, the
+`src:PDF-…`-only source rule of §4.4 (F3), the one-source-per-`RQ#` rule and
+the installation of `NIST.FIPS.140-3.pdf` by `install_tools` (§3, §6, §8) are
+replaced by the `specs/` corpus of [`fips-corpus-spec.md`](fips-corpus-spec.md);
+open point §9.1 is resolved there. The rest of this document stands.
+
 ## 1. The source document
 
 The only standard the skill cites is `./NIST.FIPS.140-3.pdf`: FIPS PUB 140-3,
@@ -810,6 +816,10 @@ not specified until the target is chosen.
      vendored, as an optional file cited as `src:19790-…`.
 
    You asked for the PDF instead of SP 800-*, so neither is in this draft.
+
+   **Resolved in 0.9.0** by [`fips-corpus-spec.md`](fips-corpus-spec.md): both,
+   with ISO/IEC 19790 cited as `src:ISO19790:<clause>` and imported only on
+   explicit opt-in (`--with-restricted`).
 2. **Target.** GRUB as a whole is a system, not a module. §7.3 proposes
    `--dir=grub-core/lib/libgcrypt` as the module boundary; a separate target
    such as a small crypto library is the alternative. Chosen (2026-11-06,

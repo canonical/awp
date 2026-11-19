@@ -1,7 +1,7 @@
 # FIPS 140-3 ↔ frama-c-launch crosswalk
 
-The join table between a **FIPS 140-3 requirement study** (the `fips-sl` skill — the vendored
-`NIST.FIPS.140-3.pdf`, the module's public description, the manifest's target level) and the
+The join table between a **FIPS 140-3 requirement study** (the `fips-sl` skill — the FIPS 140-3
+corpus in `specs/`, the module's public description, the manifest's target level) and the
 `frama-c-launch` onboarding. It is the faithful sibling of `rmf-crosswalk.md` (and of
 `ebios-crosswalk.md`). It supplies the architect's **exogenous upper bound**: the ranking stops being
 "input-exposure read off the code" (endogenous, a self-consistency signal) and becomes the study's
@@ -14,7 +14,7 @@ acknowledgment** (the Ann. 13 terminus).
 ## Two contracts (read before filling — this is where it goes coherent-and-wrong)
 - **Disjointness — keep the study exogenous.** The bound is only independent if the study's
   requirements and failure modes (F1–F4) were authored **without reading the implementation** — from
-  the PDF, the module's public description and the target level only; otherwise the ranking is
+  the corpus, the module's public description and the target level only; otherwise the ranking is
   endogenous again (a fake fix). If the same actor read the code to build both, **say so** and
   discount the bound. Module vocabulary (`MOD#`, `SSP`, `crypto officer`, `Ann. 10`) is legitimate
   scope/standard language, not a loophole.
