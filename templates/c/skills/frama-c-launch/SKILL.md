@@ -191,7 +191,7 @@ is the right call — skip the squeeze.** Reach for the full loop deliberately.
       interchangeable peer sources of the exogenous ranking — use whichever the engagement mandates.
     - **Or a FIPS 140-3 requirement study (the third exogenous bound).** The ranking may come from a
       FIPS 140-3 requirement study produced by the **`fips-sl`** loop (`../fips-sl/SKILL.md`, the
-      FIPS-instantiated sibling, grounded in the vendored `NIST.FIPS.140-3.pdf` + the module's public
+      FIPS-instantiated sibling, grounded in the FIPS 140-3 corpus in `specs/` + the module's public
       description + the manifest's target level), joined through `templates/fips-crosswalk.md`; the
       verdict→requirement return half is `references/fips-feedback.md` (landing on the Ann. 13
       residual-risk acknowledgment). Same exogeneity rule: sound only if F1–F4 were authored

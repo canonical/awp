@@ -26,7 +26,7 @@ The crosswalk references the report's pinned tags (see
 | §1 module / services / roles / SSPs / interfaces / states | **`MOD#` `SV#` `RL#` `SSP#` `IF#` `ST#`** — the F1 vocabulary (module boundary, by role, never a file name) |
 | §2 requirement area | **`AR#`** — one of the eleven fixed areas (`AR1`–`AR11`) |
 | §2 obligation row (ranking key) | **`VO#`** — ranked by its **priority `P1`/`P2`/`P3`** (in place of `rmf-sl`'s likelihood × impact risk level), **never re-derived from code** |
-| §2 failure mode | **`FM#`** ← its **`RQ#`** with its **`src:`** token (`src:PDF-ann6|7|10|13` or `src:UNSOURCED`) |
+| §2 failure mode | **`FM#`** ← its **`RQ#`** with its **`src:`** token (`src:<DOC>:<LOC>`, `src:PDF-ann6|7|10|13` or `src:UNSOURCED`) |
 | §3 ledger row | **`VO#`** — one row per obligation; the header row is exactly `\| VO# \| AR# \| Class \| Coverage \|` and the first cell of each row is the bare `VO#` (the ratchet keys the row on that id) |
 | §3 ledger columns | **`AR#`**, the **property class** (`approved-only`, `output-inhibit`, `role-gate`, `integrity-first`, `zeroize`, `no-plain-ssp-out`, `selftest-order`, `error-state`, `fsm` — from [`area-properties.md`](./area-properties.md)), and one **Coverage** cell with the shared lifecycle tokens `UNMODELED\|PROVED\|TRUSTED-PENDING\|TRUSTED\|N/A[(RR#)]` |
 | §4 verdict join | overlay `verdicts.tsv` ↔ **`VO#`** — under `fips` the column the RMF/EBIOS kinds head `SA#` is headed `VO#` (read by header name, not position); `VO\d+` placeholder units are skipped |

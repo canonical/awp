@@ -101,10 +101,10 @@ PHASE 1 — FIPS 140-3 REQUIREMENT STUDY, CODE-BLIND (separate agent; this barri
 Spawn an agent to run the `fips-sl` loop on `DIR/` and generate `PREFIX-fips-report.md`
 (F1-F5; the F5 sign-off left PENDING — the owner of the protected information, or the agency's
 responsible authority, signs per Ann. 13). It MUST NOT read any implementation source
-under `DIR/` (the vendored `NIST.FIPS.140-3.pdf`, the module's public description and the manifest's
+under `DIR/` (the FIPS 140-3 corpus in `specs/`, the module's public description and the manifest's
 target level only) — that exogeneity is what makes the study a valid bound. F2 MUST cover all eleven
 requirement areas (`AR1`-`AR11`, each with requirement items or an `N/A` line with a reason), every
-`RQ#` carrying exactly one honest `src:` token. It must pass `bin/fips-lint.sh` (exit 0, endogeneity
+`RQ#` carrying at least one honest `src:<DOC>:<LOC>` token (or `src:UNSOURCED` alone). It must pass `bin/fips-lint.sh` (exit 0, endogeneity
 tripwire clear, all-area coverage satisfied).
 
 PHASE 2 — VERIFICATION, CODE-AWARE (a SEPARATE agent consuming PREFIX-fips-report.md).

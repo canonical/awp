@@ -6,8 +6,9 @@ session will look for it. What **is** done: `auto-wp.py` 0.5.0 with
 `--driver rmf|fips` and `--level`, the `fips-sl` skill
 (`templates/common/skills/fips-sl/`), `/fips`
 (`templates/c/commands/fips.md`), `bin/fips-lint.sh`
-(`templates/c/tools/bin/`, per the spec's §6 table), the vendored
-`NIST.FIPS.140-3.pdf` (`templates/common/tools/`), the `time-loop` driver
+(`templates/c/tools/bin/`, per the spec's §6 table), the corpus `specs/`
+(0.9.0, replacing the vendored `NIST.FIPS.140-3.pdf`;
+[`spec/fips-corpus-spec.md`](spec/fips-corpus-spec.md)), the `time-loop` driver
 table, `bin/crosswalk-gen.sh --kind fips`, the `bin/ledger-ratchet.sh` FIPS
 row form, the launch-side `fips-crosswalk.md` + `fips-feedback.md`, the
 monitoring/crosswalk doc updates, the README placeholders, and the tests
@@ -16,19 +17,25 @@ C2.6). This file records the rest.
 
 ## Not implemented — the spec's open points, still open
 
-1. **Corpus (spec §9.1).** The PDF names the levels and the areas but holds
-   almost none of the requirements, so most `RQ#` will be `src:UNSOURCED` —
-   honest but weak. SP 800-140 / SP 800-140A–F are not vendored; there is no
-   support for a user-supplied ISO/IEC 19790 cited as `src:19790-…`.
+1. **Corpus (spec §9.1) — mostly closed in 0.9.0.** `specs/` indexes 53
+   documents (FIPS 140-3, ISO/IEC 19790/24759, SP 800-140 and 140A–F, the
+   IG, the CMVP-MM, the SP 800-140B "Use of" guidance, SP 800-131A, the
+   algorithm standards), cited `src:<DOC>:<LOC>` and checked by F-C5/F-C12.
+   Still open, see [`spec/fips-corpus-evaluation.md`](spec/fips-corpus-evaluation.md):
+   ISO/IEC 19790/24759 are licence-restricted and not imported by default, so
+   their locators are unchecked; the SP 800-140C/D lists and CAVP/ESV
+   certificates are live web data; a locator that exists but does not say
+   what the requirement says is still only the reviewer's catch.
 2. **Volume per level (spec §9.3).** The Gate-A budgets in `fips-lint.sh`
-   F-C10 are placeholders (`level 1: 1–3` … `level 4: 3–6` requirements per
-   applicable area). Calibrate them after the first real campaign.
+   F-C10 are placeholders: with the corpus `level 1: 3–40` … `level 4: 6–70`
+   requirements per applicable area (ISO/IEC 24759 assertion counts), without
+   it `1–3` … `3–6`. Calibrate them after the first real campaign.
 3. **More drivers (spec §9.6).** `--driver ebios` is not implemented; the
    `choices` are `rmf|fips`. The pattern (a per-driver command file plus the
    driver tables) would carry it.
 4. **Per-area levels (spec §9.7).** One target level for the whole module is
-   the only design the PDF supports; a per-area level would need ISO/IEC
-   19790 (see item 1).
+   still the design. ISO/IEC 19790 §7 (now citable, item 1) allows per-area
+   levels; implementing them needs a manifest and F-C2/F-C7 change.
 5. **Rust-side linting of a fips study (spec §9.5).** `fips-lint.sh` is in the
    C layer, so a Rust project has `bin/rmf-lint.sh` (common since 0.3.0) but
    no `bin/fips-lint.sh`: a `fips-sl` study authored in a Rust project cannot

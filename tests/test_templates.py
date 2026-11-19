@@ -11,6 +11,7 @@ import hashlib
 import json
 import os
 import re
+import shutil
 import subprocess
 import tempfile
 import unittest
@@ -20,6 +21,14 @@ import yaml
 
 REPO = Path(__file__).resolve().parent.parent
 TEMPLATES = REPO / "templates"
+
+
+def manifest_rows():
+    """specs/MANIFEST.tsv as {id: row}."""
+    lines = [l for l in (REPO / "specs/MANIFEST.tsv").read_text().splitlines()
+             if l and not l.startswith("#")]
+    header = lines[0].split("\t")
+    return {r["id"]: r for r in (dict(zip(header, l.split("\t"))) for l in lines[1:])}
 USE_CREUSOT = Path(os.environ.get("USE_CREUSOT", REPO.parent / "use-creusot"))
 
 COMMON_SKILLS = [
@@ -306,9 +315,8 @@ class TestTemplates(unittest.TestCase):
         names = sorted(common + c_only)
         self.assertEqual(len(names), 23)
         self.assertEqual(len(set(names)), 23, "a script in both layers")
-        # The vendored PDF ships in the common layer's tools/ (fips-skill-spec.md 6).
-        self.assertEqual(sorted(p.name for p in tools[0].iterdir() if p.is_file()),
-                         ["NIST.FIPS.140-3.pdf"])
+        # No PDF in the templates: the FIPS corpus is specs/ (fips-corpus-spec.md).
+        self.assertEqual(sorted(p.name for p in tools[0].iterdir() if p.is_file()), [])
         for t in tools:
             self.assertEqual(sorted(p.name for p in t.glob("*.sh")), [])
         self.assertEqual(sorted(p.name for p in (TEMPLATES / "rust/tools").iterdir()),
@@ -430,10 +438,14 @@ class TestFipsSkill(unittest.TestCase):
         r = subprocess.run(["python3", str(checker), str(self.FIPS_SL / "fips-sl.sl.json")],
                            capture_output=True, text=True)
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
-        # The vendored PDF is the spec's document, byte for byte.
-        digest = hashlib.sha256(
-            (TEMPLATES / "common/tools/NIST.FIPS.140-3.pdf").read_bytes()).hexdigest()
-        self.assertEqual(digest, self.PDF_SHA256)
+        # The corpus manifest pins the spec's FIPS 140-3 document, and every
+        # document the skeleton cites is in it.
+        rows = manifest_rows()
+        self.assertEqual(rows["FIPS140-3"]["sha256"], self.PDF_SHA256)
+        cited = set(re.findall(r"src:([A-Za-z0-9.\-]+):",
+                               (self.FIPS_SL / "references/skeleton.md").read_text()))
+        self.assertTrue(cited)
+        self.assertLessEqual(cited, set(rows))
         # The skeleton fixture shown in report-format.md is the fixture file.
         rf = (self.FIPS_SL / "references/report-format.md").read_text()
         block = re.search(r"~~~markdown\n(.*?)~~~", rf, re.S).group(1)
@@ -442,15 +454,17 @@ class TestFipsSkill(unittest.TestCase):
     # T10
     BROKEN = [
         ("dup-rq", "F-C0",
-         ["employs only Approved security functions.==>employs only Approved security functions.\n"
+         ["when an approved service runs.==>when an approved service runs.\n"
           "- RQ1 — AR1 — src:PDF-ann10 — duplicate home line"]),
         ("no-f4", "F-C1", ["## F4 — Verification obligations==>## F4removed — Verification obligations"]),
         ("level2", "F-C2", ["level: 3==>level: 2"]),
         ("no-ar6", "F-C3", ["- AR6 N/A — software-only module, no physical enclosure.==>"]),
-        ("no-src", "F-C4",
-         ["- RQ2 — AR2 — src:UNSOURCED — no data output while MOD1 is in an error or self-test state.==>"
-          "- RQ2 — AR2 — no data output while MOD1 is in an error or self-test state."]),
-        ("bad-src", "F-C5", ["RQ2 — AR2 — src:UNSOURCED==>RQ2 — AR2 — src:PDF-ann1"]),
+        ("no-src", "F-C4", ["RQ8 — AR10 — src:UNSOURCED — ==>RQ8 — AR10 — "]),
+        ("bad-src", "F-C5", ["RQ8 — AR10 — src:UNSOURCED==>RQ8 — AR10 — src:PDF-ann1"]),
+        ("bad-doc", "F-C5", ["RQ8 — AR10 — src:UNSOURCED==>RQ8 — AR10 — src:SP800-999:4.1"]),
+        ("mixed-unsourced", "F-C5", ["RQ3 — AR3 — src:ISO19790:7.4.4==>RQ3 — AR3 — src:ISO19790:7.4.4 — src:UNSOURCED"]),
+        ("pdf-as-doc", "F-C5", ["RQ8 — AR10 — src:UNSOURCED==>RQ8 — AR10 — src:FIPS140-3:sec2"]),
+        ("bad-chk", "F-C14", ["chk:ISO-043==>chk:ISO-999"]),
         ("vo-no-rq", "F-C6", ["- VO1 — FM1 — RQ5 — zeroize==>- VO1 — FM1 — zeroize"]),
         ("minmax", "F-C7", ["min-level 2==>min-level 4"]),
         ("no-sc", "F-C8",
@@ -465,6 +479,12 @@ class TestFipsSkill(unittest.TestCase):
         skeleton = self.FIPS_SL / "references/skeleton.md"
         with tempfile.TemporaryDirectory() as tmp:
             tmp = Path(tmp)
+            # A self-contained corpus: the real manifest, a stub checklist holding the
+            # skeleton's chk: ids, no text (F-C12 INFO) — independent of local imports.
+            (tmp / "specs/checklist/data").mkdir(parents=True)
+            shutil.copy2(REPO / "specs/MANIFEST.tsv", tmp / "specs/MANIFEST.tsv")
+            (tmp / "specs/checklist/data/iso.jsonl").write_text(
+                '{"id": "ISO-043"}\n{"id": "ISO-111"}\n')
             (tmp / "config").mkdir()
             (tmp / "config/auto-wp.json").write_text(
                 json.dumps({"driver": "fips", "fips_level": 3}))
@@ -492,6 +512,28 @@ class TestFipsSkill(unittest.TestCase):
             self.assertIn("fips_level", r.stderr)
             r = self.run_script(self.FIPS_LINT, skeleton, cwd=tmp, env={"FIPS_LEVEL": "3"})
             self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+            # F-C12 / F-C13 warn, never fail: a locator absent from the text, a draft-only source.
+            (tmp / "specs/text").mkdir()
+            (tmp / "specs/text/IG.txt").write_text("2.4.C\nApproved Security Service Indicator\n"
+                                                   "9.7.B\n10.2.A\n10.3.A\n9.5.A\n")
+            env = {"FIPS_LEVEL": "3"}
+            r = self.run_script(self.FIPS_LINT, skeleton, cwd=tmp, env=env)
+            self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+            self.assertIn("PASS F-C12", r.stdout)
+            br = tmp / "warn.md"
+            br.write_text(skeleton.read_text()
+                          .replace("src:IG:9.7.B", "src:IG:9.7.Z", 1)
+                          .replace("RQ8 — AR10 — src:UNSOURCED", "RQ8 — AR10 — src:IR8547:4", 1))
+            r = self.run_script(self.FIPS_LINT, br, cwd=tmp, env=env)
+            self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+            self.assertRegex(r.stdout, r"WARN F-C12 .*IG:9\.7\.Z")
+            self.assertRegex(r.stdout, r"WARN F-C13 .*RQ8")
+            # Without a corpus only src:PDF-… and src:UNSOURCED exist: the skeleton's
+            # corpus citations fail F-C5 and nothing else.
+            r = self.run_script(self.FIPS_LINT, skeleton, cwd=tmp,
+                                env={"FIPS_LEVEL": "3", "FIPS_SPECS": str(tmp / "none")})
+            self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+            self.assertEqual(sorted(set(re.findall(r"FAIL (F-C\d+)", r.stdout))), ["F-C5"])
 
     # T11
     FIPS_XWALK = """# FIPS 140-3 crosswalk — test
@@ -623,14 +665,17 @@ class TestFipsSkill(unittest.TestCase):
 
     # T10 of fips-skill-spec.md 8 (here T13): the F-C5 section list matches the PDF.
     def test_T13_pdf_sections(self):
-        import shutil
         if not shutil.which("pdftotext"):
             self.skipTest("pdftotext not installed")
-        pdf = TEMPLATES / "common/tools/NIST.FIPS.140-3.pdf"
+        pdf = REPO / "specs/pdf/FIPS140-3.pdf"
+        if not pdf.is_file():
+            self.skipTest("specs/pdf/FIPS140-3.pdf not imported (specs/README.md)")
         with tempfile.TemporaryDirectory() as tmp:
             out = Path(tmp) / "fips.txt"
-            subprocess.run(["pdftotext", "-layout", str(pdf), str(out)], check=True)
-            text = out.read_text()
+            # Without -layout, as specs/import-specs.py extracts: -layout breaks phrases
+            # across column-wrapped lines.
+            subprocess.run(["pdftotext", "-enc", "UTF-8", str(pdf), str(out)], check=True)
+            text = " ".join(out.read_text().split())
         # The four sections a requirement may cite hold their normative text
         # (fips-skill-spec.md 1, verbatim quotes verified by the reviews).
         for needle in ("This standard shall be used in designing and implementing cryptographic modules",

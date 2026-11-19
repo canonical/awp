@@ -20,12 +20,16 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-VERSION = "0.8.0"
+VERSION = "0.9.0"
 TEMPLATES = Path(__file__).resolve().parent / "templates"
+# The FIPS 140-3 corpus (spec/fips-corpus-spec.md): MANIFEST.tsv is committed;
+# the PDFs, their text and the checklist are local copies (specs/README.md).
+SPECS = Path(__file__).resolve().parent / "specs"
 LANGUAGES = {"c": "C (Frama-C/WP)", "rust": "Rust (Creusot)"}
 # The campaign driver (§2 of spec/fips-skill-spec.md): each driver installs its
 # own campaign command and the other's is left out; everything else (both
-# skills, both linters, the PDF) is installed whatever the driver.
+# skills, both linters) is installed whatever the driver. The fips driver also
+# installs the corpus, specs/ (spec/fips-corpus-spec.md).
 DRIVERS = ["rmf", "fips"]
 HARNESSES = ["claude", "opencode", "copilot", "none"]
 DRIVER_COMMANDS = {"rmf": "rmf.md", "fips": "fips.md"}
@@ -280,6 +284,35 @@ class Run:
                 shutil.copy2(entries[-1], dest, follow_symlinks=False)
             self.out.append(f"copied  {self.show(name)}")
 
+    def install_specs(self):
+        """Copy specs/ (the FIPS 140-3 corpus) to the project under --driver fips.
+
+        Whatever has been imported is copied: the manifest always, the PDFs,
+        their text and the checklist when present. Missing documents are a
+        warning, not an error: fips-sl cites what is there and the linter
+        reports what it could not check (fips-corpus-spec.md 3).
+        """
+        if self.driver != "fips":
+            return
+        manifest = SPECS / "MANIFEST.tsv"
+        if not manifest.is_file():
+            raise AutoWpError(f"missing {manifest}")
+        dest = self.target / "specs"
+        if os.path.lexists(dest):
+            self.out.append(f"kept    {self.show('specs')} (already exists)")
+            return
+        self.created.append(("tree", dest))
+        shutil.copytree(SPECS, dest, symlinks=False,
+                        ignore=shutil.ignore_patterns("*~", "__pycache__"))
+        ids = [line.split("\t", 1)[0] for line in manifest.read_text().splitlines()
+               if line and not line.startswith("#")][1:]
+        present = sum((dest / "pdf" / f"{i}.pdf").is_file() for i in ids)
+        self.out.append(f"copied  {self.show('specs')} (corpus: {present} of {len(ids)} documents)")
+        if present < len(ids):
+            self.warnings.append(
+                f"warning: {len(ids) - present} of {len(ids)} FIPS corpus documents are not in "
+                f"{SPECS}; run specs/import-specs.py (see specs/README.md)")
+
     def install_workshop(self):
         """Copy the language layer's workshop/ into .workshop/ (§3.7).
 
@@ -459,6 +492,7 @@ class Run:
         self.make_target()
         self.install_config()
         self.install_tools()
+        self.install_specs()
         self.install_workshop()
         self.link()
         self.write_readme()

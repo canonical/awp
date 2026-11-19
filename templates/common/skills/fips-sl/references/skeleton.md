@@ -13,13 +13,13 @@ level: 3
 
 ## F2 — Requirement areas
 
-- RQ1 — AR1 — src:PDF-ann10 — in the approved mode, every service of MOD1 employs only Approved security functions.
-- RQ2 — AR2 — src:UNSOURCED — no data output while MOD1 is in an error or self-test state.
-- RQ3 — AR3 — src:UNSOURCED — min-level 2 — SV1 runs only for an authenticated, authorized RL1.
-- RQ4 — AR4 — src:UNSOURCED — the integrity test of MOD1 runs, and passes, before any service.
-- RQ5 — AR8 — src:UNSOURCED — SSP1 is zeroized after use by SV1 and on every error path.
-- RQ6 — AR8 — src:UNSOURCED — no plaintext SSP leaves MOD1 through IF1.
-- RQ7 — AR9 — src:UNSOURCED — the pre-operational self-tests of MOD1 run before first use of SV1.
+- RQ1 — AR1 — src:PDF-ann10 — src:IG:2.4.C — in the approved mode, every service of MOD1 employs only Approved security functions, and MOD1 indicates when an approved service runs.
+- RQ2 — AR2 — src:ISO19790:7.3.3 — src:SP800-140:6.3 — chk:ISO-043 — no data output while MOD1 is in an error or self-test state.
+- RQ3 — AR3 — src:ISO19790:7.4.4 — chk:ISO-111 — min-level 2 — SV1 runs only for an authenticated, authorized RL1.
+- RQ4 — AR4 — src:ISO19790:7.5 — src:IG:10.2.A — the integrity test of MOD1 runs, and passes, before any service.
+- RQ5 — AR8 — src:ISO19790:7.9.7 — src:IG:9.7.B — SSP1 is zeroized after use by SV1 and on every error path.
+- RQ6 — AR8 — src:ISO19790:7.9.5 — src:IG:9.5.A — no plaintext SSP leaves MOD1 through IF1.
+- RQ7 — AR9 — src:ISO19790:7.10.2.1 — src:IG:10.3.A — the pre-operational self-tests of MOD1 run before first use of SV1.
 - RQ8 — AR10 — src:UNSOURCED — the transitions MOD1 allows are those of its documented finite state model.
 - AR5 N/A — operating environment out of the module boundary.
 - AR6 N/A — software-only module, no physical enclosure.

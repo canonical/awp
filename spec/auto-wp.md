@@ -5,7 +5,9 @@ pre-loaded with the agent configuration (skills and slash commands) needed to
 drive a formal-verification campaign on C or Rust code. The configuration is
 modelled on `../use-frama-c/config/` (C) and `../use-creusot/config/` (Rust).
 
-Version described: **0.8.0**. Missing language, harness and directory are
+Version described: **0.9.0** (0.9.0: `--driver fips` installs the FIPS 140-3
+corpus `specs/`, [`fips-corpus-spec.md`](fips-corpus-spec.md); no PDF ships in
+`templates/` any more). Missing language, harness and directory are
 completed interactively as specified in [`interactive-mode.md`](interactive-mode.md);
 scripts must supply all three explicitly. The `--harness` option (§1.1) selects
 `claude`, `opencode`, `copilot` (manual use only) or `none`.
@@ -18,8 +20,9 @@ own `/time-loop` command and `time-loop` skill (§4.3.7 step 5), so
 `fips-skill-spec.md` is implemented: `--driver rmf|fips` and `--level` choose
 which skill drives the campaign (`/rmf` or `/fips`), the manifest records
 `driver` and `fips_level`, `templates/common/tools/` gains
-`bin/fips-lint.sh` and the vendored `NIST.FIPS.140-3.pdf` (installed in every
-project), the `time-loop` skill and command read the driver through their
+`bin/fips-lint.sh` (the vendored `NIST.FIPS.140-3.pdf` of 0.4.0 to 0.8.0 is
+replaced in 0.9.0 by the `specs/` corpus, installed under `--driver fips`
+only, [`fips-corpus-spec.md`](fips-corpus-spec.md)), the `time-loop` skill and command read the driver through their
 table, and `bin/crosswalk-gen.sh` and `bin/ledger-ratchet.sh` learn the FIPS
 kind. Compared with 0.3.0, the harness wiring of
 §3.3 also covers OpenCode (`.opencode/{skills,commands}`), so a generated
@@ -724,8 +727,8 @@ differences:
   `~/.local-llm-machine-ip.txt` line is the same as for C.
 - *What is in this directory.* `bin/` holds `bin/rmf-lint.sh` and
   `bin/time-loop-watchdog.py` (§4.1),
-  run from the project root, and the project root holds the vendored
-  `NIST.FIPS.140-3.pdf` (§3.6); `.workshop/` as for C, with
+  run from the project root, and, under `--driver fips`, the project root
+  holds `specs/` (§3.6); `.workshop/` as for C, with
   `autowp-packages/hooks/setup-base` holding only `tmux` and `curl` and a
   comment where to add the crate's own apt packages (§3.7.2).
 - One extra line says that the generated directory should not be inside a
@@ -764,7 +767,6 @@ project must be a git repository.
     skills:   23
     commands: 3
   copied  foobar/.gitignore
-  copied  foobar/NIST.FIPS.140-3.pdf
   copied  foobar/bin
   copied  foobar/frama-c-patches
   copied  foobar/framac-gold
@@ -780,13 +782,14 @@ project must be a git repository.
   ```
 
   and exit 0. The `driver:` line reads `driver:   fips (FIPS 140-3 level N)`
-  under `--driver fips --level N`, right after `created config`; the `copied`
-  `NIST.FIPS.140-3.pdf` line (the vendored standard, `templates/common/tools/`)
-  comes between `.gitignore` and `bin`, in sorted name order, under both
-  languages. With `--rust` the counts are `skills: 17` and `commands: 0`
+  under `--driver fips --level N`, right after `created config`; under
+  `--driver fips` a line `copied  foobar/specs (corpus: N of M documents)`
+  follows the tool lines and precedes `.workshop` (M the rows of
+  `specs/MANIFEST.tsv`, N those whose `specs/pdf/<id>.pdf` exists), and a
+  `warning:` on stderr names the missing count when N < M; it reads `kept`
+  when `specs` already exists. With `--rust` the counts are `skills: 17` and `commands: 0`
   (§4.3.2), and the `copied` lines are `foobar/.gitignore` (the Rust
-  layer's `tools/` holds nothing else, §4.3.2), `foobar/NIST.FIPS.140-3.pdf`,
-  `foobar/bin` (the common
+  layer's `tools/` holds nothing else, §4.3.2), `foobar/bin` (the common
   layer's `bin/rmf-lint.sh`, §4.1) and `foobar/.workshop`. An entry of
   `tools/` present in both layers is merged when it is a directory (`bin/`:
   the C project's `bin/` holds the common scripts and the 21 C ones; the
@@ -1043,6 +1046,8 @@ auto-wp/
 ├── spec/                 this file, tests.md, the Workshop SDK specs
 ├── tests/
 ├── sdks/                 the Workshop SDKs (§4.5); not read by auto-wp.py
+├── specs/                the FIPS 140-3 corpus (MANIFEST.tsv; PDFs and text local),
+│                         copied under --driver fips (fips-corpus-spec.md)
 └── templates/
     ├── common/{skills,commands}/
     ├── c/{skills,commands,tools,workshop}/ + README.md
@@ -1074,9 +1079,11 @@ C8 endogeneity tripwire fails on C source artifacts (`.c`/`.h`, `#include`,
 `impl X`, `unsafe {`, `#[attr]`, `&mut`, `Vec<`/`Option<`/`Result<`/`Box<`,
 `macro!(`, `.unwrap()`) in R1–R4, whatever the language of the project; the
 pinned format (`rmf-sl/references/report-format.md`, Rule 5) says so.
-Also `tools/NIST.FIPS.140-3.pdf`, the vendored standard `fips-sl` cites — the
-one driver whose source document ships in the project (US government work;
-`test_templates.py` T9 checks its sha256).
+The documents `fips-sl` cites are not in `templates/`: they are the corpus
+`specs/` at the repository root (`MANIFEST.tsv` committed, the PDFs and their
+text local, [`fips-corpus-spec.md`](fips-corpus-spec.md)), copied to the
+project by `install_specs` under `--driver fips`; `test_templates.py` T9
+checks the manifest pins FIPS 140-3's sha256.
 
 `workshop` is written for auto-wp, not seeded from a source repository: it
 documents Workshop itself (definitions, the `workshop` commands, interfaces,
@@ -1297,8 +1304,7 @@ templates/rust/
 ├── tools/
 │   └── .gitignore             /.workshop.lock (§3.7.4); bin/rmf-lint.sh and
 │                              bin/fips-lint.sh come from
-│                              templates/common/tools/ (§4.1), which also
-│                              holds NIST.FIPS.140-3.pdf
+│                              templates/common/tools/ (§4.1)
 └── workshop/                  .workshop/ of a Rust project (§3.7.1)
     ├── autowp.yaml
     └── autowp-packages/{sdk.yaml,hooks/setup-base}
@@ -1771,15 +1777,14 @@ subprocess.
     clone of it, never by a host path).
 13b. `--c foobar` copies the tools of §4.2.1 to `foobar/` as regular files
     (23 `bin/*.sh` and no `*.sh` at the root, `frama-c-patches/apply.sh`,
-    `framac-gold/`, `no-ceiling.md`, `NIST.FIPS.140-3.pdf`, `.gitignore`
-    listing `/framac-src/`
-    and `/.workshop.lock`),
+    `framac-gold/`, `no-ceiling.md`, `.gitignore` listing `/framac-src/`
+    and `/.workshop.lock`; no `specs/` and no `*.pdf` under the default driver),
     with the executable bit on every script, `bin/rmf-lint.sh` identical to
     `templates/common/tools/bin/rmf-lint.sh` and `bin/fips-lint.sh` to its
     template (§4.1); `--rust` creates a
     `bin/` holding those same two linters (regular, executable
-    files), the PDF, none of the C data (`frama-c-patches/`, `framac-gold/`,
-    `no-ceiling.md`), and a `.gitignore` listing `/.workshop.lock`; an
+    files), none of the C data (`frama-c-patches/`, `framac-gold/`,
+    `no-ceiling.md`) and no `specs/`, and a `.gitignore` listing `/.workshop.lock`; an
     existing `foo/.gitignore` is kept and reported with `kept`.
 14. `--rust foobar` writes a README that contains `creusot-launch`,
     `workshop launch`, `multipass launch` and `cargo creusot`, no
@@ -1826,10 +1831,14 @@ subprocess.
 23. The fips driver (fips-skill-spec.md §2, §3, §6): `--driver fips --level 3
     foobar` writes the manifest keys, prints `driver:   fips (FIPS 140-3
     level 3)`, installs `config/commands/fips.md` and not `rmf.md`, and
-    otherwise the same files as the default (both skills, both linters, the
-    PDF); the default run keeps `rmf.md` and has no `fips.md`; the README
-    placeholders of §3.4 for both drivers; and test 19 re-run with `--driver
-    fips --level 2` rolls back the same way.
+    otherwise the same files as the default (both skills, both linters) plus
+    `specs/` (`MANIFEST.tsv` at least); the default run keeps `rmf.md` and has
+    no `fips.md` and no `specs/`; the README placeholders of §3.4 for both
+    drivers; test 19 re-run with `--driver fips --level 2` rolls back the
+    same way; with a program copy whose `specs/` holds the manifest and one
+    PDF, the output reads `copied  foobar/specs (corpus: 1 of M documents)`,
+    stderr warns about the M-1 others and `*~` files are not copied; without
+    `specs/MANIFEST.tsv` the run exits 1 and leaves nothing.
 
 The template checks of `tests.md` (§3.2 there) gain: the `workshop/` files
 of each language layer are the three of §3.7.1, with the exact `sdks` list
