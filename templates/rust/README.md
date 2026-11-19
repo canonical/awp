@@ -274,6 +274,16 @@ after `multipass shell autowp`); with C:
 lxc exec wp-{{DIR}} -- sudo -iu ubuntu tmux attach -t wp
 ```
 
+#### Get back to it
+
+1. Detach — F6 (or Ctrl-b d, since the backend is tmux). The campaign keeps
+   running. Then `exit` leaves the container.
+2. Reconnect — from the host, in `{{DIR}}`:
+
+```
+workshop shell
+```
+
 - The crate `mycrate/` is kept untouched; the loop never builds inside it
   (it builds a copy). The Creusot models live in an overlay next to it,
   `mycrate-creusot/`, with the verdict ledger `verdicts.tsv` and the state

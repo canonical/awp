@@ -5,4 +5,4 @@
 # packages the crate under study needs to build (for example libssl-dev for
 # a crate with OpenSSL bindings) to the line below, then `workshop refresh`.
 apt-get update
-apt-get install tmux curl
+apt-get install byobu tmux curl

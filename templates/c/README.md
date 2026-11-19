@@ -264,6 +264,16 @@ on. To come back to it: with A, `workshop shell` then `tmux attach -t wp`
 lxc exec wp-{{DIR}} -- sudo -iu ubuntu tmux attach -t wp
 ```
 
+#### Get back to it
+
+1. Detach — F6 (or Ctrl-b d, since the backend is tmux). The campaign keeps
+   running. Then `exit` leaves the container.
+2. Reconnect — from the host, in `{{DIR}}`:
+
+```
+workshop shell
+```
+
 - The source directory `grub/` is kept untouched. Every result is written next
   to it, in `{{DIR}}`, under the prefix `grub-analysis`:
   `grub-analysis-{{DRIVER}}-report.md`, `grub-analysis-found-issues.md`,

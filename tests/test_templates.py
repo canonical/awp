@@ -363,7 +363,10 @@ class TestTemplates(unittest.TestCase):
             with self.subTest(lang=lang):
                 ws = TEMPLATES / lang / "workshop"
                 files = sorted(str(p.relative_to(ws)) for p in all_files(ws) if p.is_file())
+                # setup-project is the byobu auto-attach hook (--no-byobu strips
+                # it), shipped for both languages and run as the project user.
                 self.assertEqual(files, ["autowp-packages/hooks/setup-base",
+                                         "autowp-packages/hooks/setup-project",
                                          "autowp-packages/sdk.yaml", "autowp.yaml"])
                 hook = ws / "autowp-packages/hooks/setup-base"
                 self.assertTrue(os.access(hook, os.X_OK), "setup-base not executable")

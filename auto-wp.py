@@ -2,7 +2,8 @@
 """auto-wp: bootstrap a formal-verification project for C (Frama-C/WP) or Rust (Creusot).
 
 Usage: ./auto-wp.py [-h] [--c|--rust] [--driver rmf|fips] [--level 1|2|3|4]
-                   [--harness claude|opencode|copilot|none] [<directory-name>]
+                   [--harness claude|opencode|copilot|none] [--no-byobu]
+                   [<directory-name>]
 
 Missing language, harness and directory are asked interactively when both
 stdin and stderr are terminals. Scripts must supply all three explicitly.
@@ -101,6 +102,9 @@ def parse_args(argv):
                         help="agent harness; asked interactively when omitted "
                         "and stdin is a terminal; none leaves "
                         "installation to you")
+    parser.add_argument("--no-byobu", dest="byobu", action="store_false",
+                        help="do not configure the byobu auto-attach session in "
+                        "the workshop; `workshop shell` then opens a plain shell")
     parser.add_argument("directory", metavar="<directory-name>", nargs="?",
                         help="project directory to create (or to fill, if it exists)")
     args = parser.parse_args(argv)
@@ -139,13 +143,15 @@ def parse_args(argv):
 class Run:
     """One invocation. Records what it creates so it can be rolled back."""
 
-    def __init__(self, directory, language, harness, driver="rmf", level=None):
+    def __init__(self, directory, language, harness, driver="rmf", level=None,
+                 byobu=True):
         self.arg = directory
         self.target = Path(directory)
         self.language = language
         self.driver = driver
         self.level = level
         self.harness = harness
+        self.byobu = byobu
         self.layers = [TEMPLATES / "common", TEMPLATES / language]
         self.created = []  # (kind, path) in creation order
         self.out = []      # stdout lines, printed only on success
@@ -337,11 +343,31 @@ class Run:
             else:
                 self.created.append(("file", dest))
                 shutil.copy2(entry, dest, follow_symlinks=False)
+        if not self.byobu:
+            self.disable_byobu(dest_dir)
         if self.harness != "none":
             hook = dest_dir / "autowp-packages/hooks/setup-base"
             snippet = (TEMPLATES / "common/harness" / f"{self.harness}.sh").read_text()
             hook.write_text(hook.read_text() + "\n" + snippet)
         self.out.append(f"copied  {self.show('.workshop')} (workshop: {WORKSHOP_NAME})")
+
+    @staticmethod
+    def disable_byobu(dest_dir):
+        """Drop the byobu auto-attach configuration (--no-byobu, §3.7).
+
+        Removes the setup-project hook that configures byobu and takes the
+        `byobu` package out of setup-base's apt line; `workshop shell` then
+        opens a plain shell instead of auto-attaching a session.
+        """
+        hooks = dest_dir / "autowp-packages/hooks"
+        setup_project = hooks / "setup-project"
+        if setup_project.exists():
+            setup_project.unlink()
+        setup_base = hooks / "setup-base"
+        if setup_base.exists():
+            text = setup_base.read_text()
+            setup_base.write_text(text.replace("byobu tmux", "tmux")
+                                      .replace("byobu ", ""))
 
     def link(self):
         width = len(self.show(max((rel for rel, _ in LINKS), key=len)))
@@ -518,7 +544,8 @@ def main(argv=None):
     run = None
     try:
         args = parse_args(argv)
-        run = Run(args.directory, args.language, args.harness, args.driver, args.level)
+        run = Run(args.directory, args.language, args.harness, args.driver, args.level,
+                  byobu=args.byobu)
         run.execute()
         print("\n".join(run.out))
         for w in run.warnings:

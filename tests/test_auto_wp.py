@@ -760,6 +760,27 @@ class TestAutoWp(AutoWpTestCase):
                 sdk = (ws / "autowp-packages/sdk.yaml").read_text()
                 self.assertRegex(sdk, r"(?m)^name: autowp-packages$")
 
+    def test_20b_byobu_default_and_opt_out(self):
+        """Byobu is configured by default; --no-byobu strips the hook and the package."""
+        hooks = ".workshop/autowp-packages/hooks"
+        for lang in ("c", "rust"):
+            with self.subTest(lang=lang):
+                # default: setup-project hook present, byobu in setup-base's apt line
+                r = self.run_auto_wp("--" + lang, "--harness", "none", "with" + lang)
+                self.assertOk(r)
+                proj = self.tmp / ("with" + lang)
+                self.assertTrue((proj / hooks / "setup-project").is_file())
+                self.assertIn("byobu tmux", (proj / hooks / "setup-base").read_text())
+                # --no-byobu: hook removed, byobu dropped from the apt line, tmux kept
+                r = self.run_auto_wp("--" + lang, "--harness", "none", "--no-byobu",
+                                     "no" + lang)
+                self.assertOk(r)
+                proj = self.tmp / ("no" + lang)
+                self.assertFalse(os.path.lexists(proj / hooks / "setup-project"))
+                base = (proj / hooks / "setup-base").read_text()
+                self.assertNotIn("byobu", base)
+                self.assertIn("tmux curl", base)
+
     # 21 ---------------------------------------------------------------------
     def test_21_workshop_reserved_paths(self):
         cases = {

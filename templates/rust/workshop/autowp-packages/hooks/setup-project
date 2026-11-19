@@ -1,0 +1,39 @@
+# Enable byobu auto-attach and session restore for `workshop shell`.
+
+configure() {
+    set -euo pipefail
+
+    byobu-enable >/dev/null 2>&1 || true
+
+    local conf_dir="$HOME/.config/byobu"
+    [ -d "$HOME/.byobu" ] && conf_dir="$HOME/.byobu"
+    mkdir -p "$conf_dir"
+    grep -qs "^BYOBU_BACKEND=" "$conf_dir/backend" || echo "BYOBU_BACKEND=tmux" >"$conf_dir/backend"
+
+    local plugins="$HOME/.tmux/plugins" p
+    mkdir -p "$plugins"
+    for p in tmux-resurrect tmux-continuum; do
+        [ -d "$plugins/$p" ] || git clone -q --depth 1 "https://github.com/tmux-plugins/$p" "$plugins/$p"
+    done
+
+    if ! grep -qs "continuum.tmux" "$conf_dir/.tmux.conf"; then
+        cat >>"$conf_dir/.tmux.conf" <<"EOF"
+set -g @resurrect-capture-pane-contents "on"
+set -g @continuum-restore "on"
+set -g @continuum-save-interval "5"
+run-shell ~/.tmux/plugins/tmux-resurrect/resurrect.tmux
+run-shell ~/.tmux/plugins/tmux-continuum/continuum.tmux
+EOF
+    fi
+
+    # `workshop shell` runs a non-interactive login shell, so byobu-launch in ~/.profile never fires.
+    if ! grep -qs "#byobu-autoattach#" "$HOME/.bashrc"; then
+        cat >>"$HOME/.bashrc" <<"EOF"
+if [ -z "$TMUX" ] && [ "$BYOBU_DISABLE" != 1 ] && [ "$TERM" != dumb ] && command -v byobu >/dev/null; then  #byobu-autoattach#
+    exec byobu new-session -A -s main  #byobu-autoattach#
+fi  #byobu-autoattach#
+EOF
+    fi
+}
+
+configure

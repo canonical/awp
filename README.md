@@ -45,12 +45,27 @@ Once logged in, to run a loop for 96 hours on the repo `gzip-1.15/` type:
 /time-loop gzip-1.15 96
 ```
 
+### Get back to it
+
+1. Detach — F6 (or Ctrl-b d, since the backend is tmux). The campaign keeps
+   running. Then `exit` leaves the container.
+2. Reconnect — from the host, in the generated directory:
+
+```
+workshop shell
+```
+
+Unless the project was generated with `--no-byobu`, `workshop shell`
+auto-attaches to the persistent byobu session, so the running campaign is
+right there again.
+
 ## Command line option
 
 
 ```
 ./auto-wp.py [-h] [--c|--rust] [--driver rmf|fips] [--level 1|2|3|4]
-             [--harness claude|opencode|copilot|none] [<directory-name>]
+             [--harness claude|opencode|copilot|none] [--no-byobu]
+             [<directory-name>]
 ```
 
 Missing choices are asked in order: language, harness, then directory, only
@@ -74,6 +89,13 @@ selected harness without credentials; login happens inside the container.
 `--harness copilot` and interactive choice 3 install the standalone CLI
 and document in-container login. Automated `HARNESS=copilot` campaigns
 remain gated on the runtime spike ([`spec/choose-harness.md`](spec/choose-harness.md)).
+
+By default the workshop is set up so that `workshop shell` auto-attaches to a
+persistent [byobu](https://www.byobu.org/) session (tmux backend, with
+tmux-resurrect/continuum so the session survives a container restart): detach
+with F6, reconnect with `workshop shell`, and the running campaign is right
+there again. Pass `--no-byobu` to skip that configuration; `workshop shell`
+then opens a plain shell and you manage `tmux` yourself.
 
 The generated directory is stand-alone. It has its own `README.md` with the
 quick start: clone the code to analyse next to the configuration, then run
