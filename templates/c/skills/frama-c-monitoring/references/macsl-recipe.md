@@ -7,9 +7,22 @@ so there is no separate-project / `-then-last` / file-position dance). Use macsl
 property (STRIDE: confidentiality, integrity, availability, authorization, …). It runs on this switch
 (Frama-C 32.1).
 
-> macsl lives in the repo at `macsl/` (built plugin: `macsl/_build/install/default/lib/macsl/core/macsl.cmxs`).
-> Its full STRIDE coverage map + per-letter test fixtures are in `macsl/tests/README.md`; the property
-> language + STRIDE↔HAPPY table are in `macsl.md` and `macsl/happy-roadmap.md`.
+> macsl has **two parts, provisioned differently** — never conflate them:
+> - **The built plugin** is always present in a workshop at `$FRAMA_C_SDK_MACSL`
+>   (`/opt/frama-c-sdk/macsl/macsl.cmxs`, shipped read-only by the frama-c-sdk SDK). This is what you
+>   `-load-module`; it is **never** "missing in the project".
+> - **The source tree** `macsl/` at the project root (`README`, `tests/`, `macsl.md`,
+>   `happy-roadmap.md`, `src/macsl.ml`, `docs/usage.md`, hardened `axiom-wp/coqwp/`) holds the docs,
+>   examples and fixtures the skill reads — the SDK does **not** ship it. It is cloned by
+>   `bin/fetch-sources.sh` (project root; `canonical/macsl` at the pinned commit).
+>
+> **PREFLIGHT (self-heal, do this before concluding anything about macsl):** if the plugin is needed,
+> use `$FRAMA_C_SDK_MACSL`. If `macsl/` is absent and you need its docs/tests, **run
+> `bin/fetch-sources.sh` to clone it, then continue** — do **not** report "macsl is not in the
+> project". A missing `macsl/` means the sources were never fetched, not that macsl is unavailable;
+> the plugin still loads from `$FRAMA_C_SDK_MACSL` regardless. Its full STRIDE coverage map + per-letter
+> test fixtures are in `macsl/tests/README.md`; the property language + STRIDE↔HAPPY table are in
+> `macsl.md` and `macsl/happy-roadmap.md`.
 
 > **Why macsl over stock Frama-C — two independent wins.** (1) The HAPPY policy language below.
 > (2) **A strictly smaller Coq TCB:** macsl vendored + hardened WP's Coq realization library
@@ -57,7 +70,8 @@ macsl instruments the current project directly, so you run `-wp` straight after 
 installed stock MetAcsl (if present in the switch) registers the same `\prop`/`\written` builtins,
 **load macsl with autoload OFF**:
 ```sh
-MACSL=macsl/_build/install/default/lib/macsl/core/macsl.cmxs
+# In a workshop the SDK ships the built plugin; prefer it and never rebuild from source.
+MACSL="${FRAMA_C_SDK_MACSL:-macsl/_build/install/default/lib/macsl/core/macsl.cmxs}"
 frama-c -no-autoload-plugins -load-module "$MACSL" -load-plugin wp \
         <preprocess flags> -macsl -wp -wp-rte -wp-prover alt-ergo,z3 file.c
 ```

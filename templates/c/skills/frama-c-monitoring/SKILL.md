@@ -880,8 +880,10 @@ a filled `../frama-c-launch/templates/ebios-crosswalk.md` exist; otherwise skip.
   (`\writing`/`\reading`/`\precond`/`\postcond`/`\total`/`\noninterference`) covering all six STRIDE
   letters, exemptions (`\fguard`/`\diff`), the **in-place** command line
   (`-no-autoload-plugins -load-module <macsl.cmxs> -macsl -wp`, **no `-then-last`**), and the
-  **mandatory negative control** — is in `references/macsl-recipe.md`. macsl lives in the repo at
-  `macsl/` (STRIDE coverage map: `macsl/tests/README.md`; policy language: `macsl.md`). **RUNS on this
+  **mandatory negative control** — is in `references/macsl-recipe.md`. **The built plugin is always at
+  `$FRAMA_C_SDK_MACSL` (never "missing in the project"); the source tree `macsl/` (docs/tests:
+  `macsl/tests/README.md`, `macsl.md`) is cloned by `bin/fetch-sources.sh` — if it is absent, run that
+  script, do not report macsl unavailable.** **RUNS on this
   switch.** What still gates a real Tier-3 *result* is the **target code**: a logic-class risk in
   BLOCKED validation code (out of WP reach) must be lifted into scope first. Never trust a
   `[macsl] Will process N` + `Proved N/N` line without the negative control going red.
