@@ -10,3 +10,7 @@ export PATH
 export FRAMA_C_SDK_SWITCH=framac-coq8
 export FRAMA_C_SDK_MACSL=/opt/frama-c-sdk/macsl/macsl.cmxs
 export FRAMA_C_SDK_SRC=/opt/frama-c-sdk/src/frama-c-32.1
+# framac-mcp probe marker for the skills' MCP capability row (spec section 5/6).
+# The venv lives OUTSIDE the read-only switch (open point O-3); only this marker
+# is exported, PATH is not touched (the skills invoke the binary by path).
+export FRAMAC_MCP_BIN=/opt/frama-c-mcp/venv/bin/framac-mcp

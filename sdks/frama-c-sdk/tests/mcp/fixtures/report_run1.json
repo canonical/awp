@@ -1,0 +1,11 @@
+{
+  "_SYNTHETIC": "HAND-WRITTEN fixture, NOT produced by Frama-C. There is no frama-c on this host (see mcp/MANIFEST.md). Record shape follows frama-c-internals SKILL.md section 6: (file, function, property, line, passed, verdict, provers). Object envelope form with run metadata.",
+  "wp:timeout": 10,
+  "wp:model": "Typed",
+  "goals": [
+    {"goal": "typed_foo_assigns", "file": "behaviors.c", "function": "foo", "property": "assigns", "line": 10, "passed": true, "verdict": "valid", "provers": [{"name": "Qed", "verdict": "valid", "time": 0.0}]},
+    {"goal": "typed_foo_ensures", "file": "behaviors.c", "function": "foo", "property": "ensures", "line": 12, "passed": true, "verdict": "valid", "provers": [{"name": "Alt-Ergo", "verdict": "valid", "time": 0.03}]},
+    {"goal": "typed_bar_ensures", "file": "behaviors.c", "function": "bar", "property": "ensures", "line": 30, "passed": false, "verdict": "timeout", "provers": [{"name": "Alt-Ergo", "verdict": "timeout", "time": 10.0}]},
+    {"goal": "typed_baz_loop_invariant_3", "file": "loops.c", "function": "baz", "property": "loop invariant inv", "line": 45, "passed": false, "verdict": "unknown", "provers": [{"name": "Z3", "verdict": "unknown", "time": 2.1}]}
+  ]
+}

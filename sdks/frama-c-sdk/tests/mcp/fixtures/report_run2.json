@@ -1,0 +1,6 @@
+[
+  {"goal": "bytes_g1", "file": "behaviors.c", "function": "foo", "property": "assigns", "line": 10, "passed": true, "verdict": "valid", "provers": [{"name": "Qed", "verdict": "valid", "time": 0.0}]},
+  {"goal": "bytes_g5", "file": "behaviors.c", "function": "foo", "property": "ensures", "line": 12, "passed": false, "verdict": "timeout", "provers": [{"name": "Alt-Ergo", "verdict": "timeout", "time": 10.0}]},
+  {"goal": "bytes_g2", "file": "behaviors.c", "function": "bar", "property": "ensures", "line": 30, "passed": true, "verdict": "valid", "provers": [{"name": "Coq:8.20.1", "verdict": "valid", "time": 1.4}]},
+  {"goal": "bytes_g8", "file": "loops.c", "function": "baz", "property": "loop invariant inv", "line": 45, "passed": false, "verdict": "unknown", "provers": [{"name": "Z3", "verdict": "unknown", "time": 2.1}]}
+]

@@ -86,3 +86,11 @@ parts:
   config:
     plugin: dump
     source: files
+  # The read-only framac-mcp adapter source (spec frama-c-mcp.md). setup-base
+  # pip-installs it from $SDK/mcp into a venv OUTSIDE the read-only switch
+  # (open point O-3). Only the adapter ships here; its tests stay in the repo.
+  mcp:
+    plugin: dump
+    source: mcp
+    organize:
+      '*': mcp/

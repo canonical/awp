@@ -3,7 +3,26 @@
 # The opam switch was built at /opt/frama-c-sdk; point that path at the SDK.
 ln -sfn "$SDK" /opt/frama-c-sdk
 # Run-time libraries, and the tools a C campaign runs next to Frama-C.
+# python3-venv: the framac-mcp venv below (the base image has python3 but not
+# the venv module -- the Lean SDK installs both; spec frama-c-mcp.md section 1/5).
 apt-get update
 apt-get install libgmp10 zlib1g libgtk-3-0t64 libgtksourceview-3.0-1 graphviz \
-    build-essential pkg-config bear git ripgrep python3
+    build-essential pkg-config bear git ripgrep python3 python3-venv
 install -m 644 "$SDK/frama-c-sdk.profile" /etc/profile.d/frama-c-sdk.sh
+
+# framac-mcp, pinned, in a venv at a fixed path -- the shape of
+# sdks/lean/hooks/setup-base. The venv lives OUTSIDE the read-only
+# /opt/frama-c-sdk switch (spec section 5 / open point O-3): the switch is
+# read-only and opam-root absolute paths must not be disturbed. Re-created only
+# on a version mismatch. Mode A is standard-library only, so the adapter has no
+# external runtime dependency; the official MCP protocol-library pin is deferred
+# with Mode B (O-1) -- the adapter speaks raw JSON-RPC over stdio.
+FRAMAC_MCP_VERSION=0.1.0
+FRAMAC_MCP_HOME=/opt/frama-c-mcp
+if ! "$FRAMAC_MCP_HOME/venv/bin/pip" show framac-mcp 2>/dev/null \
+        | grep -qx "Version: $FRAMAC_MCP_VERSION"; then
+    rm -rf "$FRAMAC_MCP_HOME/venv"
+    mkdir -p "$FRAMAC_MCP_HOME"
+    python3 -m venv "$FRAMAC_MCP_HOME/venv"
+    "$FRAMAC_MCP_HOME/venv/bin/pip" install --quiet "$SDK/mcp"
+fi

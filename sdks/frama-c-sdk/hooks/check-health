@@ -7,6 +7,10 @@ if ! out=$(runuser -u workshop -- bash -lc '
         frama-c -version | grep -q "^32\.1"
         d=$(frama-c -wp-detect 2>&1)
         for p in Alt-Ergo Z3 Coq; do echo "$d" | grep -qi "$p" || { echo "no $p in -wp-detect"; exit 1; }; done
+        # Server plugin present in the shipped switch (spec frama-c-mcp.md
+        # section 1/5, test T-B0): Mode B needs it; report a switch rebuilt
+        # without it instead of discovering the gap at first Mode-B call.
+        frama-c -plugins | grep -qi server || { echo "no Server plugin in -plugins"; exit 1; }
         grep -q land_le_l "$(frama-c -print-share-path)/wp/why3/frama_c_wp/cbits.mlw"
         frama-c -load-module "$FRAMA_C_SDK_MACSL" -version >/dev/null' 2>&1); then
     workshopctl set-health error "frama-c-sdk: $(echo "$out" | tail -3 | tr '\n' ' ')"

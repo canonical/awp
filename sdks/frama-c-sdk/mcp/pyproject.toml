@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "framac-mcp"
+version = "0.1.0"
+description = "Read-only MCP query surface over the Frama-C/WP property database (Mode A)"
+requires-python = ">=3.10"
+# Mode A is standard-library only (-I-safe), so the adapter has no hard runtime
+# dependency. The official MCP protocol library pin (spec section 4/5) is left
+# to setup-base's venv as an explicit, enumerated add when Mode B lands; the
+# adapter speaks raw JSON-RPC over stdio so it runs with the stdlib alone.
+dependencies = []
+
+[project.scripts]
+framac-mcp = "framac_mcp.server:main"
+
+[tool.setuptools]
+packages = ["framac_mcp"]

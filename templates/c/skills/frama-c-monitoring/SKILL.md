@@ -428,6 +428,20 @@ per-unit Tier-3 gate therefore adds:
    residue. (W5 effect: a *banked* byte-model close earns a **likelihood ↓**; a byte-model pass that
    merely finds 0 counterexamples on the residue is corroboration → **residual-weight ↓** only — see
    `frama-c-launch/references/ebios-feedback.md`.)
+
+   **MCP capability (optional, canary-gated — spec `frama-c-mcp.md`).** When the
+   `frama-c-sdk` ships `framac-mcp` (probe: `$FRAMAC_MCP_BIN` set, and the
+   registered `framac` MCP answers the cheap canary `wp_status` on the last
+   report), the loop MAY read the property database through it instead of
+   regex-ing WP stderr: `wp_status`/`wp_remaining`/`wp_goal`/`wp_provenance`/
+   `wp_diff` are **Mode A** reads over the same committed `-wp-report-json`
+   tables this §4b/`frama-c-internals` §6 already banks, keyed by
+   `(file, function, property, line)`. **It is a faster path to the same data,
+   never a source of truth** (banking still comes from the batch run's report;
+   the MCP cannot close a goal). **Fallback is mandatory and is the default:**
+   on any canary failure — or a "Mode A only" refusal of a Mode-B tool, which
+   is **not** a canary failure — fall back to the existing `-wp-report-json` /
+   console parsing. Never assume the MCP is present.
 5. **Base-SL monitor** runs the **four gates** on that sub-loop's output (faithfulness,
    Gate B, non-vacuity, gold-completeness) and audits any Coq escalation for soundness,
    then audits its *soft outputs* — newly written
