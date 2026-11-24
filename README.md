@@ -64,7 +64,8 @@ right there again.
 
 ```
 ./auto-wp.py [-h] [--c|--rust] [--driver rmf|fips] [--level 1|2|3|4]
-             [--harness claude|opencode|copilot|none] [--no-byobu]
+             [--harness claude|opencode|copilot|none]
+             [--local-inference|--no-local-inference] [--no-byobu]
              [<directory-name>]
 ```
 
@@ -89,6 +90,83 @@ selected harness without credentials; login happens inside the container.
 `--harness copilot` and interactive choice 3 install the standalone CLI
 and document in-container login. Automated `HARNESS=copilot` campaigns
 remain gated on the runtime spike ([`spec/choose-harness.md`](spec/choose-harness.md)).
+
+### Local inference (OpenCode)
+
+`--harness opencode` can drive a model on your own network instead of a cloud
+provider. `--local-inference` writes `~/.config/opencode/opencode.json` in the
+container, pointing OpenCode at an OpenAI-compatible server (Ollama, for
+example) and starting it on that model; `--no-local-inference` keeps the cloud
+provider. With neither flag, OpenCode is the one harness that gets a fourth
+question — asked after the harness and before the directory, and only when
+both stdin and stderr are terminals:
+
+```text
+Use a local inference server for OpenCode?
+1. No (connect OpenCode to a cloud provider)
+2. Yes (an OpenAI-compatible server on your network, such as Ollama)
+Type 1 or 2:
+```
+
+Scripts are unaffected: when the question cannot be asked the answer is "no",
+which generates exactly what earlier versions did. The options are only
+accepted next to `--harness opencode`; anywhere else they are a usage error.
+
+The generated configuration is tuned for a single-slot local runner, where a
+long prompt takes far longer than any cloud call:
+
+- `headerTimeout` is one hour. No response header is sent until the prompt has
+  been processed, so OpenCode's 5-minute default aborts turns the server would
+  have finished — it then retries three times and halts the session.
+- OpenCode's Ollama discovery is disabled. It takes over any provider named
+  `ollama` and replaces its `settings`, which would silently drop those
+  timeouts, so `package` and `models` are given explicitly instead.
+- Subagents get a second server of their own, on port 11435. A subagent's
+  prompt shares almost no prefix with its parent's, so on one server it
+  evicts the parent's prompt cache and the next parent turn reprocesses the
+  whole context.
+- `compaction.buffer` is `50%`, keeping prompts in the range that stays fast
+  instead of compacting only at the context limit.
+
+The host address is **not** configured here or hardcoded anywhere: it is read
+from `~/.local-llm-machine-ip.txt` in the container, the one-line file this
+project already uses to reach the cross-provider judge
+(`skills/sl-auditor/SKILL.md`, `no_ceiling_gate.py`, `skills/time-loop/SKILL.md`).
+Create it before the first `workshop refresh`:
+
+```sh
+echo 192.0.2.10 > ~/.local-llm-machine-ip.txt
+```
+
+If the file is missing, the hook writes no configuration and prints why,
+rather than guessing an address — the same rule `sl-auditor` applies to the
+judge. Provisioning itself still succeeds: the file lives in the container's
+home, which does not exist until the hook has run.
+
+Both servers must then be reachable from the container before a campaign
+starts. On the LLM host:
+
+```sh
+OLLAMA_HOST=0.0.0.0 OLLAMA_KEEP_ALIVE=2h ollama serve
+OLLAMA_HOST=0.0.0.0:11435 OLLAMA_KEEP_ALIVE=2h ollama serve
+```
+
+Two things about those servers are easy to get wrong and expensive:
+
+- **Give both the same context length.** OpenCode sizes prompts against a
+  single window, so a smaller window on the subagent server truncates
+  subagent prompts silently — corrupting their reasoning without an error.
+- **Keep the runners loaded between cycles.** A runner that unloads takes its
+  prompt cache with it, so the next cycle reprocesses the whole context from
+  scratch — minutes of prompt processing per wake at campaign-sized contexts.
+  `OLLAMA_KEEP_ALIVE` must comfortably exceed the watchdog's wake interval.
+
+`AUTOWP_INFERENCE_HOST` overrides the file; `AUTOWP_INFERENCE_PORT`,
+`AUTOWP_INFERENCE_SUBAGENT_PORT`, `AUTOWP_INFERENCE_MODEL` and
+`AUTOWP_INFERENCE_USER` change the rest. All of them are read in
+[`templates/common/harness/opencode-local-inference.sh`](templates/common/harness/opencode-local-inference.sh).
+An existing `opencode.json` is never overwritten, so edits survive
+`workshop refresh`.
 
 By default the workshop is set up so that `workshop shell` auto-attaches to a
 persistent [byobu](https://www.byobu.org/) session (tmux backend, with
