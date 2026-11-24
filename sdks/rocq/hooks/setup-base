@@ -5,7 +5,30 @@ ln -sfn "$SDK" /opt/rocq
 # Run-time libraries of the OCaml-compiled binaries, the skill's tools, and
 # make and gcc for `rocq makefile` projects and native OCaml (ocamlopt needs
 # the assembler, linker and libc6-dev for -lm; extracted code and dune
-# executables need them).
+# executables need them).  python3-venv: the rocq-mcp adapter's venv.
 apt-get update
-apt-get install libgmp10 zlib1g python3 ripgrep make gcc libc6-dev
+apt-get install libgmp10 zlib1g python3 python3-venv ripgrep make gcc libc6-dev
+
+# coq-lsp / Petanque adapter (spec/rocq-mcp.md §4).  pet-server and pet are
+# built into the read-only opam switch at pack time (O-2) and reach PATH via
+# /opt/rocq/env.sh.  rocq-mcp + pytanque are pinned in a venv at a FIXED path
+# OUTSIDE /opt/rocq (that path is a link to the read-only, root-owned $SDK; a
+# venv there would be refused or lost on refresh).  The adapter tree ships in
+# the SDK at $SDK/rocq-mcp.  Mode A needs only the standard library, so the
+# venv install never blocks the SDK; the live Petanque backend (pytanque) is
+# added only once its commit is pinned (O-1/O-2) — PYTANQUE_COMMIT empty here.
+ROCQ_MCP_VERSION=0.1.0
+PYTANQUE_COMMIT=                      # O-2: pin a commit built against Rocq 9.2
+VENV=/opt/rocq-mcp/venv
+if [ -d "$SDK/rocq-mcp" ] \
+   && ! "$VENV/bin/pip" show rocq-mcp 2>/dev/null | grep -qx "Version: $ROCQ_MCP_VERSION"; then
+    rm -rf "$VENV"; mkdir -p /opt/rocq-mcp
+    python3 -m venv "$VENV"
+    if [ -n "$PYTANQUE_COMMIT" ]; then
+        "$VENV/bin/pip" install --quiet \
+            "pytanque @ git+https://github.com/LLM4Coq/pytanque@$PYTANQUE_COMMIT"
+    fi
+    "$VENV/bin/pip" install --quiet "$SDK/rocq-mcp"
+fi
+
 install -m 644 "$SDK/rocq.profile" /etc/profile.d/rocq.sh

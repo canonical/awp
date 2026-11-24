@@ -1,0 +1,6 @@
+{
+  "_synthetic": "hand-written, not a real Petanque capture; see README.md",
+  "st": 7,
+  "proof_finished": false,
+  "feedback": [[1, "Error: Unable to unify \"5\" with \"2 + 2\"."], [2, "Warning: unused intro-pattern."]]
+}

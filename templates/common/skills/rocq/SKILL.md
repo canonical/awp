@@ -119,7 +119,7 @@ rocq_query("SearchPattern (_ * _ = _ * _).")    # Pattern-based search
 | coqc | yes | `coqc --version` | none — run `/rocq:doctor` |
 | Python 3 | yes (scripts) | `$ROCQ_PYTHON_BIN` set by bootstrap | none for script-dependent operations |
 | `$ROCQ_SCRIPTS` | yes (set by bootstrap) | `echo "$ROCQ_SCRIPTS"` | run `/rocq:doctor` |
-| Rocq MCP | no | try `rocq_query("Check nat.")` | scripts + `coqc` (file-level only) |
+| Rocq MCP | no | `$ROCQ_MCP_BIN` set, then canary `rocq_query("Check nat.")` (never `rocq_compile` — it waits on the heavy slot) | `scripts_only`: `$ROCQ_SCRIPTS` + `coqc` (file-level only) |
 | Subagent dispatch | no | host-dependent | run work in main thread |
 | Slash commands | no | host-dependent | follow skill instructions directly |
 

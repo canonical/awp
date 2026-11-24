@@ -1,0 +1,7 @@
+{
+  "_synthetic": "hand-written, not a real Petanque capture; see README.md",
+  "goals": [
+    {"hyps": [{"names": ["n"], "ty": "nat"}], "ty": "n + 0 = n"},
+    {"hyps": [], "ty": "True"}
+  ]
+}

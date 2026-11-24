@@ -6,3 +6,12 @@ if [ -r /opt/rocq/env.sh ]; then
 fi
 # The rocq skill's capability table reads this.
 export ROCQ_PYTHON_BIN=/usr/bin/python3
+# coq-lsp/Petanque adapter (spec/rocq-mcp.md §4): the venv bin on PATH and a
+# marker the skill's capability table can probe.  The venv lives OUTSIDE the
+# read-only /opt/rocq switch.
+case ":$PATH:" in
+    *":/opt/rocq-mcp/venv/bin:"*) ;;
+    *) PATH="$PATH:/opt/rocq-mcp/venv/bin" ;;
+esac
+export PATH
+export ROCQ_MCP_BIN=/opt/rocq-mcp/venv/bin/rocq-mcp

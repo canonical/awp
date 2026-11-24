@@ -1,0 +1,7 @@
+{
+  "_synthetic": "hand-written, not a real Petanque capture; see README.md",
+  "premises": [
+    {"name": "Stdlib.Arith.PeanoNat.Nat.add_comm"},
+    {"name": "Stdlib.Init.Nat.add"}
+  ]
+}

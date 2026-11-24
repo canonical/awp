@@ -1,0 +1,9 @@
+{
+  "_synthetic": "hand-written, not a real Petanque capture; see README.md",
+  "toc": [
+    {"name": "Sort", "kind": "section", "children": [
+      {"name": "insert", "kind": "definition"},
+      {"name": "isort_sorted", "kind": "theorem"}
+    ]}
+  ]
+}

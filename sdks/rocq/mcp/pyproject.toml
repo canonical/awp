@@ -1,0 +1,30 @@
+# rocq-mcp: the vendored stdio-MCP adapter for coq-lsp/Petanque.
+# Installed into the SDK's venv by sdks/rocq/hooks/setup-base (see spec §4):
+#   pip install "pytanque @ git+...@<sha>" "$SDK/rocq-mcp"
+# The console script `rocq-mcp` is what the harness registration launches
+# (spec §5: claude mcp add --transport stdio --scope user rocq -- \
+#          /opt/rocq-mcp/venv/bin/rocq-mcp).
+#
+# Mode A (this tree) needs only the standard library.  The live Petanque
+# backend adds `pytanque` and an `mcp` lib; those are optional extras here so
+# the standard-library core stays installable and testable with no prover.
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "rocq-mcp"
+version = "0.1.0"
+description = "Thin stdio-MCP adapter mapping the rocq skill tools onto coq-lsp/Petanque"
+requires-python = ">=3.8"
+dependencies = []
+
+[project.optional-dependencies]
+# Blocked on O-1/O-2; pinned by setup-base, not resolved from PyPI here.
+live = ["pytanque", "mcp"]
+
+[project.scripts]
+rocq-mcp = "rocq_mcp.server:main"
+
+[tool.setuptools]
+packages = ["rocq_mcp"]
