@@ -22,6 +22,13 @@ workshop shell
 claude mcp add --transport stdio --scope user rocq -- "$ROCQ_MCP_BIN"
 ```
 
+To register it with OpenCode instead (the same user scope, written to
+`~/.config/opencode/opencode.json`):
+
+```bash
+opencode mcp add rocq --global -- "$ROCQ_MCP_BIN"
+```
+
 The `rocq` skill then runs its MCP-first workflow (`rocq_start`, `rocq_check`,
 `rocq_step_multi`, `rocq_query`, …). The skill's capability table probes
 `$ROCQ_MCP_BIN` and a canary `rocq_query("Check nat.")`; if either fails it

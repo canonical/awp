@@ -22,6 +22,16 @@ workshop shell
 claude mcp add --transport stdio --scope user frama-c -- "$FRAMAC_MCP_BIN"
 ```
 
+To register it with OpenCode instead (the same user scope, written to
+`~/.config/opencode/opencode.json`):
+
+```bash
+opencode mcp add frama-c --global -- "$FRAMAC_MCP_BIN"
+```
+
+The server is stdio and reads its report directory from the environment, so
+export `FRAMAC_MCP_REPORTS` the same way for both harnesses.
+
 Point it at the directory holding WP's JSON reports with
 `FRAMAC_MCP_REPORTS`; each tool resolves a report from an explicit `run`
 argument or the newest `*.json` there. The `frama-c-monitoring` skill then runs

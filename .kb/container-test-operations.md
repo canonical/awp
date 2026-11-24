@@ -108,3 +108,24 @@ pushes it at the start of the next cycle, so state cycle N's work sits in
 the commit labelled N-1. M.6 verifies pushes by hash: every
 `checkpoint <hash> pushed` entry in `time-loop.state` must exist in
 `~/remote.git`.
+## MCP harness parity (2026-11-09..11)
+
+Claude Code ships a first-party remote MCP server (claude.ai Claude Docs);
+it appears in `claude mcp list` but lives in no config file. OpenCode parity
+is one command plus one interactive step:
+`opencode mcp add <name> --global --url <url>` (or `-- <command...>` for
+stdio servers — the SDK MCP servers' registrations are documented in both
+harnesses in their READMEs), then a ONE-TIME OAuth sign-in: `opencode mcp
+list` shows the server as `needs authentication`, and the sign-in is
+`/mcps` in the TUI (the docs forbid running `opencode mcp auth` through
+shell tools — the authorization link hides in background output).
+Sessions report no MCP tools until the sign-in completes.
+
+## Never restart the service from inside a session
+
+`opencode service restart` restarts the server hosting YOUR OWN session:
+background shells (watchdogs, drivers) are cancelled with it. On
+2026-11-09 the MCP-parity work lost the campaign watchdog that way. The
+fresh service does re-read the global config at startup — sometimes that
+is exactly what a stuck MCP registration needs; accept the shell loss,
+re-arm what died, and move on.

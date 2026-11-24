@@ -23,6 +23,13 @@ workshop shell
 claude mcp add --transport stdio --scope user creusot -- "$CREUSOT_MCP_BIN"
 ```
 
+To register it with OpenCode instead (the same user scope, written to
+`~/.config/opencode/opencode.json`):
+
+```bash
+opencode mcp add creusot --global -- "$CREUSOT_MCP_BIN"
+```
+
 The `creusot`, `creusot-sl` and `creusot-monitoring` skills then run their
 MCP-first workflow and degrade to the scripted path when the server's
 `creusot_status` canary is unavailable.
