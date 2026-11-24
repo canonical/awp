@@ -106,6 +106,14 @@ same requirement — and no single actor can certify it alone.
   unproven `#[law]`/axiom, over-promising `extern_spec!`, `absurd`/unreachable on
   reachable code); **standing proof count** holds (previously discharged VCs stay
   discharged); determinism re-run gives the identical verdict.
+  - **Reading the gate output (optional MCP).** A `creusot-mcp` server may read
+    the `proof.json` artifacts as typed queries — canary `creusot_status`, with
+    fallback to parsing `proof.json` + the `cargo creusot` summary directly (the
+    `proofjson-check.py` shape). It speeds the *read* of which VCs are open /
+    which prover closed the rest / whether a standing proof regressed
+    (`creusot_diff` between committed revisions). **The MCP NEVER banks a
+    verdict:** Gate B is still a committed `cargo creusot` batch run over the
+    real crate, re-runnable from committed files (`spec/creusot-mcp.md` §0, §8).
 - **Gate C — coverage / no-blend / coherent-and-wrong.** Every requirement clause
   maps to a *proven* contract clause, **and the proved theorem is the intended one**:
   the **mutation probe** must break the proof (non-vacuity); the **proof plane**

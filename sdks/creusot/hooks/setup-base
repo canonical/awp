@@ -3,7 +3,21 @@
 # Creusot was built at /opt/creusot; point that path at the SDK.
 ln -sfn "$SDK" /opt/creusot
 # build-essential: the linker cargo calls. libgmp10, zlib1g: Why3/why3find.
+# python3-venv: the creusot-mcp venv (lean-lsp-mcp style).
 apt-get update
 apt-get install build-essential pkg-config git curl ca-certificates ripgrep \
-    python3 libgmp10 zlib1g
+    python3 python3-venv libgmp10 zlib1g
+
+# creusot-mcp (read-only Mode A over proof.json), pinned, in a venv at a fixed
+# path OUTSIDE the read-only /opt/creusot overlay (spec creusot-mcp.md §5, O-3:
+# writing under /opt/creusot would trip the SDK test `sdk-untouched`). The
+# Mode-B scratch, if ever enabled, also lives outside the overlay.
+CREUSOT_MCP_VERSION=0.1.0
+if ! /opt/creusot-mcp/venv/bin/pip show creusot-mcp 2>/dev/null | grep -qx "Version: $CREUSOT_MCP_VERSION"; then
+    rm -rf /opt/creusot-mcp/venv
+    mkdir -p /opt/creusot-mcp
+    python3 -m venv /opt/creusot-mcp/venv
+    /opt/creusot-mcp/venv/bin/pip install --quiet "$SDK/mcp"
+fi
+
 install -m 644 "$SDK/creusot.profile" /etc/profile.d/creusot.sh

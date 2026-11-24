@@ -387,6 +387,24 @@ barriered from the code).
   ghost idioms, prover tips).
 - `references/learned-verifier.md` — adversarial-property & mutation patterns.
 
+## Creusot MCP (optional, read-only)
+
+A `creusot-mcp` server may expose the why3find proof artifacts as typed queries
+(`creusot_status`, `creusot_remaining`, `vc_tree`, `vc_goal`, `vc_provenance`,
+`creusot_diff`). It is a **faster read** over the same committed
+`proof.json` / `why3session.xml` / `verdicts.tsv`, never a source of truth.
+
+| Capability | Required | Canary | Fallback |
+|---|---|---|---|
+| creusot-mcp (Mode A, read-only) | no | `creusot_status` returns totals (`$CREUSOT_MCP_BIN` set) | parse `proof.json` + `cargo creusot` summary directly (the `proofjson-check.py` shape: `.coma`↔`proof.json` coverage, `vc_<name>` presence, `null` leaves, the `Proved (N files) ✔` line) |
+
+**The MCP NEVER banks a verdict.** `DONE`/Gate B still come only from a
+committed `cargo creusot` batch run over the real crate (§0, §8 of
+`spec/creusot-mcp.md`). The MCP reads and (optionally, Mode B — blocked without
+the toolchain) experiments off to the side; it cannot close a goal of record,
+and its "regressed" signal is computed only between committed revisions. When
+the canary fails, fall back to the script parsing above — triage still works.
+
 ## Source of truth
 
 This summarizes the Creusot guide (`guide/src/` in the creusot repo:

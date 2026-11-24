@@ -1,0 +1,3 @@
+unit	SA#	function	verdict	goals	notes
+demo/src/lib.rs	SA1	offsetnz	VERIFIED	14/14	split_vc tree; mutation killed
+demo/src/lib.rs	SA1	default_config_is_strict	VERIFIED	3/3	const selector

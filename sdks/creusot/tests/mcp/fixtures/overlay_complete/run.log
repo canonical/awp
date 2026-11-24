@@ -1,0 +1,2 @@
+Running why3find prove -j 4 --summary verif/demo_rlib
+Proved (4 files) ✔

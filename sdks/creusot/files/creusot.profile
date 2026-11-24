@@ -16,3 +16,7 @@ case ":$PATH:" in
     *) PATH="/opt/creusot/bin:$PATH" ;;
 esac
 export PATH
+# The creusot/creusot-sl/creusot-monitoring skills probe for this (the MCP's
+# canary). The venv lives OUTSIDE the read-only /opt/creusot overlay (O-3);
+# $CREUSOT_DATA_HOME/bin stays off PATH, so the MCP never exposes a prover.
+export CREUSOT_MCP_BIN=/opt/creusot-mcp/venv/bin/creusot-mcp

@@ -110,6 +110,15 @@ order + cross-unit Gate B.
   guidance or another unit is caught by the monitor (§6); a base **local** WP verdict
   never stands in for the **cross-unit** obligation (no plane blend); every tooling
   surprise was **routed** (§7), never absorbed.
+  - **Cross-crate read (optional MCP).** A `creusot-mcp` server speeds the
+    cross-unit *read* — `creusot_status`/`creusot_remaining` over the whole
+    `verif/` tree, `creusot_diff` between committed revisions to feed the
+    standing-proof-count check. Canary `creusot_status`; fallback to parsing
+    `proof.json` + the `cargo creusot` summary directly (`proofjson-check.py`
+    shape). **The MCP NEVER banks a verdict:** Gate B_top is still the committed
+    `cargo creusot` runs and the aggregated `creusot-sl` DONEs
+    (`spec/creusot-mcp.md` §0, §8). Mode A honours oracle-integrity: it refuses
+    to summarize a `verif/` tree while a `why3find prove` is active on it.
 - **Gate S — skill-consistency (both levels).** The base loop's learned skills are
   audited by the monitor (§6). The monitoring loop's **own** learned skills are
   audited from a *disjoint base* (a cross-provider agent or a human — the recursion

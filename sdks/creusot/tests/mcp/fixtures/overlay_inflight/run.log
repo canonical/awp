@@ -1,0 +1,2 @@
+Compiling demo v0.1.0
+Running why3find prove -j 4 --summary verif/demo_rlib

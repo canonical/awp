@@ -1,0 +1,215 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE why3session PUBLIC "-//Why3//proof session v5//EN"
+"https://www.why3.org/why3session.dtd">
+<why3session shape_version="6">
+<prover id="0" name="CVC4" version="" timelimit="0.2199" memlimit="1000"/>
+<prover id="1" name="CVC5" version="" timelimit="29.8266" memlimit="1000"/>
+<prover id="2" name="Z3" version="" timelimit="27.768" memlimit="1000"/>
+<prover id="3" name="Alt-Ergo" version="" timelimit="28.768" memlimit="1000"/>
+<file format="coma">
+<path name=".."/><path name="parse_reason.coma"/>
+<theory name="Coma">
+ <goal name="vc_next" proved="true">
+ <proof prover="3" timelimit="0.042227"><result status="valid" time="0.042227" steps="0"/></proof>
+ </goal>
+ <goal name="vc_elim_Some" proved="true">
+ <proof prover="3" timelimit="0.045562"><result status="valid" time="0.045562" steps="0"/></proof>
+ </goal>
+ <goal name="vc_slice_skip" proved="true">
+ <proof prover="3" timelimit="0.04178"><result status="valid" time="0.041780" steps="0"/></proof>
+ </goal>
+ <goal name="vc_new_u8" proved="true">
+ <proof prover="3" timelimit="0.045571"><result status="valid" time="0.045571" steps="0"/></proof>
+ </goal>
+ <goal name="vc_parse_reason">
+ <transf name="compute_specified" >
+  <goal name="vc_parse_reason.0">
+  <transf name="split_vc" >
+   <goal name="vc_parse_reason.0.0" expl="inferred invariant: type invariant" proved="true">
+   <proof prover="3" timelimit="0.042113"><result status="valid" time="0.042113" steps="0"/></proof>
+   </goal>
+   <goal name="vc_parse_reason.0.1" expl="loop invariant #1" proved="true">
+   <proof prover="3" timelimit="0.041764"><result status="valid" time="0.041764" steps="0"/></proof>
+   </goal>
+   <goal name="vc_parse_reason.0.2" expl="loop invariant #2" proved="true">
+   <proof prover="3" timelimit="0.053213"><result status="valid" time="0.053213" steps="0"/></proof>
+   </goal>
+   <goal name="vc_parse_reason.0.3" expl="loop invariant #3" proved="true">
+   <proof prover="3" timelimit="0.036401"><result status="valid" time="0.036401" steps="0"/></proof>
+   </goal>
+   <goal name="vc_parse_reason.0.4" expl="loop invariant #4" proved="true">
+   <proof prover="3" timelimit="0.054723"><result status="valid" time="0.054723" steps="0"/></proof>
+   </goal>
+   <goal name="vc_parse_reason.0.5" expl="next &#39;self&#39; type invariant" proved="true">
+   <proof prover="3" timelimit="0.057271"><result status="valid" time="0.057271" steps="0"/></proof>
+   </goal>
+   <goal name="vc_parse_reason.0.6">
+   <proof prover="0" timelimit="0.243254"><result status="unknown" time="0.243254" steps="0"/></proof>
+   <proof prover="1"><result status="timeout" time="29.826580" steps="0"/></proof>
+   <proof prover="2"><result status="timeout" time="27.768045" steps="0"/></proof>
+   <proof prover="3"><result status="timeout" time="28.768000" steps="0"/></proof>
+   <transf name="split_vc" >
+    <goal name="vc_parse_reason.0.6.0">
+    <proof prover="0" timelimit="0.230498"><result status="unknown" time="0.230498" steps="0"/></proof>
+    <proof prover="1"><result status="timeout" time="29.826580" steps="0"/></proof>
+    <proof prover="2"><result status="timeout" time="27.768045" steps="0"/></proof>
+    <proof prover="3"><result status="timeout" time="28.768000" steps="0"/></proof>
+    <transf name="split_vc" >
+     <goal name="vc_parse_reason.0.6.0.0">
+     <proof prover="0"><result status="unknown" time="0.219900" steps="0"/></proof>
+     <proof prover="1" timelimit="59.6532"><result status="timeout" time="59.653161" steps="0"/></proof>
+     <proof prover="2" timelimit="55.5361"><result status="timeout" time="55.536091" steps="0"/></proof>
+     <proof prover="3" timelimit="57.536"><result status="timeout" time="57.536000" steps="0"/></proof>
+     </goal>
+    </transf>
+    </goal>
+   </transf>
+   </goal>
+   <goal name="vc_parse_reason.0.7" expl="elim Some" proved="true">
+   <proof prover="3" timelimit="0.068332"><result status="valid" time="0.068332" steps="0"/></proof>
+   </goal>
+   <goal name="vc_parse_reason.0.8" expl="type invariant" proved="true">
+   <proof prover="3" timelimit="0.057716"><result status="valid" time="0.057716" steps="0"/></proof>
+   </goal>
+   <goal name="vc_parse_reason.0.9" expl="assertion" proved="true">
+   <proof prover="3" timelimit="0.092004"><result status="valid" time="0.092004" steps="0"/></proof>
+   </goal>
+   <goal name="vc_parse_reason.0.10" expl="loop variant" proved="true">
+   <proof prover="3" timelimit="0.106337"><result status="valid" time="0.106337" steps="0"/></proof>
+   </goal>
+   <goal name="vc_parse_reason.0.11" expl="inferred invariant: type invariant" proved="true">
+   <proof prover="3" timelimit="0.072952"><result status="valid" time="0.072952" steps="0"/></proof>
+   </goal>
+   <goal name="vc_parse_reason.0.12" expl="inferred invariant: unchanged value" proved="true">
+   <proof prover="3" timelimit="0.072156"><result status="valid" time="0.072156" steps="0"/></proof>
+   </goal>
+   <goal name="vc_parse_reason.0.13" expl="loop invariant #0" proved="true">
+   <proof prover="3" timelimit="0.119495"><result status="valid" time="0.119495" steps="0"/></proof>
+   </goal>
+   <goal name="vc_parse_reason.0.14" expl="loop invariant #1" proved="true">
+   <proof prover="3" timelimit="0.098788"><result status="valid" time="0.098788" steps="0"/></proof>
+   </goal>
+   <goal name="vc_parse_reason.0.15" expl="loop invariant #2" proved="true">
+   <proof prover="3" timelimit="0.225347"><result status="valid" time="0.225347" steps="0"/></proof>
+   </goal>
+   <goal name="vc_parse_reason.0.16" expl="loop invariant #3" proved="true">
+   <proof prover="3" timelimit="0.101027"><result status="valid" time="0.101027" steps="0"/></proof>
+   </goal>
+   <goal name="vc_parse_reason.0.17" expl="loop invariant #4" proved="true">
+   <proof prover="3" timelimit="0.237206"><result status="valid" time="0.237206" steps="0"/></proof>
+   </goal>
+   <goal name="vc_parse_reason.0.18" expl="loop invariant #5" proved="true">
+   <proof prover="3" timelimit="0.24581"><result status="valid" time="0.245810" steps="0"/></proof>
+   </goal>
+   <goal name="vc_parse_reason.0.19" expl="assertion" proved="true">
+   <proof prover="3" timelimit="0.071358"><result status="valid" time="0.071358" steps="0"/></proof>
+   </goal>
+   <goal name="vc_parse_reason.0.20" expl="assertion" proved="true">
+   <proof prover="3" timelimit="0.068917"><result status="valid" time="0.068917" steps="0"/></proof>
+   </goal>
+   <goal name="vc_parse_reason.0.21" expl="assertion" proved="true">
+   <proof prover="3" timelimit="0.072125"><result status="valid" time="0.072125" steps="0"/></proof>
+   </goal>
+   <goal name="vc_parse_reason.0.22" expl="loop variant" proved="true">
+   <proof prover="3" timelimit="0.072462"><result status="valid" time="0.072462" steps="0"/></proof>
+   </goal>
+   <goal name="vc_parse_reason.0.23" expl="inferred invariant: type invariant" proved="true">
+   <proof prover="3" timelimit="0.073257"><result status="valid" time="0.073257" steps="0"/></proof>
+   </goal>
+   <goal name="vc_parse_reason.0.24" expl="inferred invariant: unchanged value" proved="true">
+   <proof prover="3" timelimit="0.072733"><result status="valid" time="0.072733" steps="0"/></proof>
+   </goal>
+   <goal name="vc_parse_reason.0.25" expl="loop invariant #0" proved="true">
+   <proof prover="3" timelimit="0.078768"><result status="valid" time="0.078768" steps="0"/></proof>
+   </goal>
+   <goal name="vc_parse_reason.0.26" expl="loop invariant #1" proved="true">
+   <proof prover="3" timelimit="0.077997"><result status="valid" time="0.077997" steps="0"/></proof>
+   </goal>
+   <goal name="vc_parse_reason.0.27" expl="loop invariant #2" proved="true">
+   <proof prover="3" timelimit="0.079487"><result status="valid" time="0.079487" steps="0"/></proof>
+   </goal>
+   <goal name="vc_parse_reason.0.28" expl="loop invariant #3" proved="true">
+   <proof prover="3" timelimit="0.079115"><result status="valid" time="0.079115" steps="0"/></proof>
+   </goal>
+   <goal name="vc_parse_reason.0.29" expl="loop invariant #5" proved="true">
+   <proof prover="3" timelimit="0.08139"><result status="valid" time="0.081390" steps="0"/></proof>
+   </goal>
+   <goal name="vc_parse_reason.0.30" expl="parse_reason ensures #1 (parse_reason ensures)" proved="true">
+   <proof prover="2" timelimit="0.035063"><result status="valid" time="0.035063" steps="0"/></proof>
+   </goal>
+   <goal name="vc_parse_reason.0.31" expl="type invariant" proved="true">
+   <proof prover="2" timelimit="0.021923"><result status="valid" time="0.021923" steps="0"/></proof>
+   </goal>
+   <goal name="vc_parse_reason.0.32" expl="assertion" proved="true">
+   <proof prover="3" timelimit="0.150039"><result status="valid" time="0.150039" steps="0"/></proof>
+   </goal>
+   <goal name="vc_parse_reason.0.33" expl="next &#39;self&#39; type invariant" proved="true">
+   <proof prover="2" timelimit="0.014865"><result status="valid" time="0.014865" steps="0"/></proof>
+   </goal>
+   <goal name="vc_parse_reason.0.34" expl="parse_reason ensures #1 (parse_reason ensures)" proved="true">
+   <proof prover="2" timelimit="0.045164"><result status="valid" time="0.045164" steps="0"/></proof>
+   </goal>
+   <goal name="vc_parse_reason.0.35" expl="type invariant" proved="true">
+   <proof prover="2" timelimit="0.016227"><result status="valid" time="0.016227" steps="0"/></proof>
+   </goal>
+   <goal name="vc_parse_reason.0.36" expl="slice_skip requires" proved="true">
+   <proof prover="2" timelimit="0.039334"><result status="valid" time="0.039334" steps="0"/></proof>
+   </goal>
+   <goal name="vc_parse_reason.0.37" expl="assertion" proved="true">
+   <proof prover="2" timelimit="0.057962"><result status="valid" time="0.057962" steps="0"/></proof>
+   </goal>
+   <goal name="vc_parse_reason.0.38" expl="parse_reason ensures #0 (parse_reason ensures)" proved="true">
+   <proof prover="2" timelimit="0.069961"><result status="valid" time="0.069961" steps="0"/></proof>
+   </goal>
+   <goal name="vc_parse_reason.0.39" expl="assertion" proved="true">
+   <proof prover="2" timelimit="0.018338"><result status="valid" time="0.018338" steps="0"/></proof>
+   </goal>
+   <goal name="vc_parse_reason.0.40" expl="parse_reason ensures #0 (parse_reason ensures)" proved="true">
+   <proof prover="2" timelimit="0.116723"><result status="valid" time="0.116723" steps="0"/></proof>
+   </goal>
+   <goal name="vc_parse_reason.0.41" expl="type invariant" proved="true">
+   <proof prover="2" timelimit="0.026528"><result status="valid" time="0.026528" steps="0"/></proof>
+   </goal>
+   <goal name="vc_parse_reason.0.42" expl="type invariant" proved="true">
+   <proof prover="2" timelimit="0.011866"><result status="valid" time="0.011866" steps="0"/></proof>
+   </goal>
+   <goal name="vc_parse_reason.0.43" expl="parse_reason ensures #2 (parse_reason ensures)" proved="true">
+   <proof prover="2" timelimit="0.042489"><result status="valid" time="0.042489" steps="0"/></proof>
+   </goal>
+   <goal name="vc_parse_reason.0.44" expl="type invariant" proved="true">
+   <proof prover="2" timelimit="0.017549"><result status="valid" time="0.017549" steps="0"/></proof>
+   </goal>
+   <goal name="vc_parse_reason.0.45" expl="elim Some" proved="true">
+   <proof prover="3" timelimit="0.090654"><result status="valid" time="0.090654" steps="0"/></proof>
+   </goal>
+   <goal name="vc_parse_reason.0.46" expl="type invariant" proved="true">
+   <proof prover="2" timelimit="0.016742"><result status="valid" time="0.016742" steps="0"/></proof>
+   </goal>
+   <goal name="vc_parse_reason.0.47" expl="slice_skip requires" proved="true">
+   <proof prover="3" timelimit="0.109814"><result status="valid" time="0.109814" steps="0"/></proof>
+   </goal>
+   <goal name="vc_parse_reason.0.48" expl="assertion" proved="true">
+   <proof prover="2" timelimit="0.049416"><result status="valid" time="0.049416" steps="0"/></proof>
+   </goal>
+   <goal name="vc_parse_reason.0.49" expl="parse_reason ensures #0 (parse_reason ensures)" proved="true">
+   <proof prover="3" timelimit="0.638302"><result status="valid" time="0.638302" steps="0"/></proof>
+   </goal>
+   <goal name="vc_parse_reason.0.50" expl="assertion" proved="true">
+   <proof prover="3" timelimit="0.069345"><result status="valid" time="0.069345" steps="0"/></proof>
+   </goal>
+   <goal name="vc_parse_reason.0.51" expl="parse_reason ensures #0 (parse_reason ensures)" proved="true">
+   <proof prover="2" timelimit="0.059017"><result status="valid" time="0.059017" steps="0"/></proof>
+   </goal>
+   <goal name="vc_parse_reason.0.52" expl="type invariant" proved="true">
+   <proof prover="3" timelimit="0.068939"><result status="valid" time="0.068939" steps="0"/></proof>
+   </goal>
+   <goal name="vc_parse_reason.0.53" expl="type invariant" proved="true">
+   <proof prover="3" timelimit="0.064481"><result status="valid" time="0.064481" steps="0"/></proof>
+   </goal>
+  </transf>
+  </goal>
+ </transf>
+ </goal>
+</theory>
+</file>
+</why3session>

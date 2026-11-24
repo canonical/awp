@@ -1,0 +1,10 @@
+{
+  "profile": [],
+  "proofs": {
+    "Coma": {
+      "vc_default_ParserConfig": { "prover": "alt-ergo", "time": 0.011 },
+      "vc_default_bool": { "prover": "alt-ergo", "time": 0.014 },
+      "vc_default_config_is_strict": { "prover": "alt-ergo", "time": 0.015 }
+    }
+  }
+}

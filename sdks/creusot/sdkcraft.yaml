@@ -183,3 +183,11 @@ parts:
   config:
     plugin: dump
     source: files
+  mcp:
+    # The creusot-mcp adapter (read-only Mode A over proof.json). setup-base
+    # pip-installs it into a venv at /opt/creusot-mcp (outside the read-only
+    # overlay). Shipped under $SDK/mcp alongside the dumped files/.
+    plugin: dump
+    source: mcp
+    organize:
+      "*": mcp/
