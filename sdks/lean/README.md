@@ -74,6 +74,13 @@ workshop shell
 claude mcp add lean-lsp -- lean-lsp-mcp
 ```
 
+To register it with OpenCode instead (the same user scope, written to
+`~/.config/opencode/opencode.json`):
+
+```bash
+opencode mcp add lean-lsp --global -- lean-lsp-mcp
+```
+
 Its `lean_local_search` tool uses the bundled ripgrep. Run `lake build` once
 before the first session, so the server starts on built imports.
 
