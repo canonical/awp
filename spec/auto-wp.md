@@ -11,6 +11,11 @@ corpus `specs/`, [`fips-corpus-spec.md`](fips-corpus-spec.md); no PDF ships in
 completed interactively as specified in [`interactive-mode.md`](interactive-mode.md);
 scripts must supply all three explicitly. The `--harness` option (§1.1) selects
 `claude`, `opencode`, `copilot` (manual use only) or `none`.
+Two further options take no choice away from a script, because each has a
+default that reproduces earlier behavior: `--local-inference` /
+`--no-local-inference` (§1.2) points OpenCode at a local inference server
+whose address comes from `~/.local-llm-machine-ip.txt`, and `--no-byobu`
+(§3.7.5) drops the workshop's byobu auto-attach.
 Automated Copilot campaigns remain gated in the test drivers.
 Skills have strict YAML descriptions within 1,024 characters, and the
 common tools include the OpenCode watchdog. Compared with 0.5.0, the Rust layer has its
@@ -42,7 +47,9 @@ by hand or by `frama-c-launch`) is kept as the fallback.
 
 ```
 ./auto-wp.py [-h] [--c|--rust] [--driver rmf|fips] [--level 1|2|3|4]
-             [--harness claude|opencode|copilot|none] [<directory-name>]
+             [--harness claude|opencode|copilot|none]
+             [--local-inference|--no-local-inference] [--no-byobu]
+             [<directory-name>]
 ```
 
 | Argument           | Meaning                                                                  |
@@ -52,6 +59,9 @@ by hand or by `frama-c-launch`) is kept as the fallback.
 | `--driver`         | Which skill drives the campaign: `rmf` (NIST RMF, the default) or `fips` (FIPS 140-3). Each driver installs its own campaign command (`/rmf` or `/fips`); both skills, both linters and the vendored PDF are installed whatever the driver (§4.1). |
 | `--level`          | The target FIPS 140-3 security level, 1–4. Required with `--driver fips` and refused otherwise — Ann. 7 says the level "must be chosen", so there is no default. |
 | `--harness`        | Which agent harness the project is generated for: `claude`, `opencode`, `copilot` (manual use only) or `none`. No default; asked interactively when omitted and stdin and stderr are terminals. It selects the README's harness and what Workshop installs. `none` installs no harness: the user installs one by hand (§1.1). |
+| `--local-inference` | Only with `--harness opencode`: point OpenCode at a local OpenAI-compatible inference server instead of a cloud provider (§1.2). Asked interactively when neither spelling is given; off when it cannot be asked. |
+| `--no-local-inference` | Only with `--harness opencode`: keep the cloud provider and ask no question. The generated project is then identical to one from before §1.2 existed. |
+| `--no-byobu`       | Do not configure the byobu auto-attach session in the workshop (§3.7.5): the `setup-project` hook is dropped and the `byobu` package is taken out of `setup-base`'s apt line, so `workshop shell` opens a plain shell and `tmux` is the user's to manage. Byobu is configured by default. |
 | `<directory-name>` | Path of the project directory to create, asked interactively when omitted and stdin and stderr are terminals. Relative paths resolve against the current working directory. |
 
 - `--c` and `--rust` are mutually exclusive; giving both is a usage error.
@@ -61,6 +71,14 @@ by hand or by `frama-c-launch`) is kept as the fallback.
 - `--harness` takes one of the four values above; any other is a usage
   error. Copilot generation does not enable automated campaigns
   (`choose-harness.md` §1.5).
+- `--local-inference` and `--no-local-inference` exclude each other, and
+  either one without an explicit `--harness opencode` is a usage error
+  (exit 2, nothing created): the option configures that one harness, and with
+  `--harness` omitted the harness is not yet known when the options are
+  validated. They are the only options that are *not* required of a script:
+  when neither is given and the question cannot be asked, the answer is "no"
+  (§1.2), so a command that predates them generates what it always did.
+- `--no-byobu` takes no value and is accepted under every harness.
 - At most one positional argument is accepted. Missing language, harness and
   directory are asked in that order, only when both stdin and stderr are
   terminals; otherwise all missing choices are reported together as a usage
@@ -166,6 +184,105 @@ check launches a generated workshop for each of `claude` and `opencode` and
 confirms the harness is on the `workshop` user's `PATH` (the **unverified**
 point of item 3), and one for `none` that confirms none of them is.
 
+### 1.2 `--local-inference` — OpenCode against a local model
+
+`--harness opencode` can drive a model on the local network instead of a
+cloud provider. This is the only option that applies to a single harness, and
+the only one with an interactive question of its own.
+
+**Asking.** When neither `--local-inference` nor `--no-local-inference` is
+given, the harness resolves to `opencode`, and both stdin and stderr are
+terminals, one further menu is asked — after the harness it belongs to and
+before the directory, so the questions follow the order of the generated
+configuration:
+
+```text
+Use a local inference server for OpenCode?
+1. No (connect OpenCode to a cloud provider)
+2. Yes (an OpenAI-compatible server on your network, such as Ollama)
+Type 1 or 2:
+```
+
+`1` has the effect of `--no-local-inference`, `2` of `--local-inference`;
+an invalid answer repeats this menu alone, as in `interactive-mode.md` §3.
+
+This deliberately departs from `interactive-mode.md` §1's "a fully specified
+invocation runs without questions": `--c --harness opencode foo` at a
+terminal now asks this one. The three choices of that specification remain
+*required* and this one does not, which is what keeps the departure safe —
+when the question cannot be asked the answer is "no", so no script changes
+behavior and no new value has to be supplied anywhere. `--no-local-inference`
+suppresses the question for a user who wants the old terminal behavior.
+
+**The host is not an argument.** It is read at hook time from
+`~/.local-llm-machine-ip.txt` in the container — one line, the address of the
+local LLM host — the file `skills/sl-auditor`, `skills/time-loop` and
+`sl-internal/scripts/no_ceiling_gate.py` already use to reach the
+cross-provider judge. No address is stored in `templates/`, in the generated
+project, or on the command line. `AUTOWP_INFERENCE_HOST` overrides the file
+for a test run; `AUTOWP_INFERENCE_PORT`, `AUTOWP_INFERENCE_SUBAGENT_PORT`,
+`AUTOWP_INFERENCE_MODEL` and `AUTOWP_INFERENCE_USER` change the rest.
+
+When the file is absent or empty and no override is set, **no configuration
+is written** and the hook prints why — the rule `sl-auditor` states for the
+judge: ask for the file, never invent an address. It is not an error: the
+file lives in the container's home, which does not exist before the hook has
+run, so failing would leave no container in which to create it.
+
+**What changes with the value.** Under `--no-local-inference`, nothing: the
+generated tree is byte-identical to one produced before this option existed,
+which `1.2.1` tests directly. Under `--local-inference`:
+
+1. **`config/auto-wp.json`** records `"local_inference": true` (§3.2).
+2. **The Workshop definition.** A second snippet,
+   `templates/common/harness/opencode-local-inference.sh`, is appended to
+   `setup-base` after `opencode.sh` — after, because it configures a binary
+   that snippet has just installed (§3.7.1). It writes
+   `~/.config/opencode/opencode.json` for the workshop user, and keeps an
+   existing file, so a `workshop refresh` never discards local edits. That
+   check precedes host resolution: a configuration already in place needs no
+   address.
+3. **The README.** The harness's login paragraph is replaced by the
+   "Local inference" paragraph: no login and no API key, how to create
+   `~/.local-llm-machine-ip.txt`, the two servers to run, and the two things
+   about them that are easy to get wrong (below).
+4. **The output** (§3.6) reads `  harness:  opencode (local inference)`.
+
+**What the written configuration says, and why.** Each setting answers a
+failure mode of a single-slot local runner observed in an Ollama server log:
+
+| Setting | Reason |
+|---|---|
+| `headerTimeout` 3600000 | No response header is sent until the prompt has been processed, so OpenCode's 5-minute default aborts turns the server would have finished; it then retries three times and halts the session. |
+| `plugins: ["-opencode.provider.ollama"]`, with `package` and `models` given explicitly | OpenCode's discovery takes over any provider named `ollama` and replaces its `settings`, silently dropping those timeouts. |
+| a second provider `ollama-sub`, with `agents.general` and `agents.explore` on it | A subagent's prompt shares almost no prefix with its parent's; on one server it evicts the parent's prompt cache and the next parent turn reprocesses the whole context. |
+| `compaction.buffer: "50%"` | Keeps prompts in the range that stays fast instead of compacting only near the context limit. |
+| `model` | `opencode run` — what the `time-loop` watchdog calls — takes the config default, so without it the campaign runs on whatever cloud model OpenCode would otherwise pick. |
+
+Two properties of the servers themselves are documented rather than
+configured, because they live on the LLM host: both servers need the **same
+context length** (OpenCode sizes prompts against one window, so a smaller one
+on the subagent server truncates subagent prompts with no error), and
+`OLLAMA_KEEP_ALIVE` must exceed the watchdog's wake interval (a runner that
+unloads takes its prompt cache with it).
+
+#### 1.2.1 Tests
+
+`tests/test_auto_wp.py` gains, for both languages: `--no-local-inference` and
+the flagless default leave `setup-base` byte-identical to the template plus
+`opencode.sh` and record `"local_inference": false`; `--local-inference`
+appends the second snippet after the harness's, keeps the hook valid under
+`bash -n`, and records `true`; either option under another harness, or
+without `--harness`, exits 2 and creates nothing; the two spellings exclude
+each other; the other harnesses record no `local_inference` key at all. The
+snippet itself is executed against a throw-away home: with a
+`~/.local-llm-machine-ip.txt` it produces both `baseURL`s from that file;
+with the file missing or empty it writes nothing, says so, and still exits 0;
+with the environment overrides it honors them. One test fails on any literal
+IPv4 address outside the documentation range 192.0.2.0/24 in the snippet or
+in a generated README, so the hardcoded address this option first shipped
+with cannot come back.
+
 ## 2. Implementation constraints
 
 - A single executable file `auto-wp.py` at the repository root, starting with
@@ -263,7 +380,11 @@ Symbolic links in the templates are copied as links.
 }
 ```
 
-`harness` (0.7.0, §1.1) is `claude`, `opencode`, `copilot` or `none`. `created` is the UTC time of the run in ISO 8601. `skills` and `commands` are
+`harness` (0.7.0, §1.1) is `claude`, `opencode`, `copilot` or `none`.
+`local_inference` (§1.2) is a boolean, present only under
+`"harness": "opencode"` — the only harness it means anything for — and
+`false` unless `--local-inference` was given or the question was answered
+yes. `created` is the UTC time of the run in ISO 8601. `skills` and `commands` are
 sorted lists of the names actually installed. `driver` is `rmf` (the
 default) or `fips`; `fips_level` is present only under `fips` and is the
 single place the target level is stored — `fips-sl`, `/fips` and
@@ -851,10 +972,11 @@ after it; Workshop runs only on Linux and needs LXD 6.8 or later.
 └── autowp-packages/            the project-local SDK, listed as project-autowp-packages
     ├── sdk.yaml
     └── hooks/
-        └── setup-base          executable; apt-get install of the project's packages
+        ├── setup-base          executable; apt-get install of the project's packages
+        └── setup-project       byobu auto-attach; removed by --no-byobu (§3.7.5)
 ```
 
-The three files come verbatim from `templates/c/workshop/` or
+The four files come verbatim from `templates/c/workshop/` or
 `templates/rust/workshop/` (§4), copied like the tools of §4.2.1 (byte for
 byte, permission bits kept, `*~` skipped) to `<directory-name>/.workshop/`,
 which is created if missing. There is no common layer for `workshop/`: the
@@ -862,9 +984,13 @@ definition differs per language in full. The program replaces no
 placeholder in them (the workshop name is the fixed `autowp`, not the
 project's name, so that the commands of the README are the same for every
 project and no name rule of Workshop's is hit). The files are therefore
-template changes only, and what follows fixes their content. The one
-exception is the harness snippet that `--harness` appends to `setup-base`
-(§1.1, item 3), so that file is the template's plus that snippet.
+template changes only, and what follows fixes their content. The exceptions
+are the harness snippet that `--harness` appends to `setup-base` (§1.1,
+item 3) — joined, under `--harness opencode --local-inference`, by
+`opencode-local-inference.sh` appended after it (§1.2, item 2) — and the
+`setup-project` hook that `--no-byobu` removes (§3.7.5). `setup-base` is
+therefore the template's file plus the snippets of the chosen harness, in
+that order.
 
 `.workshop/autowp.yaml` for `--c`:
 
@@ -1033,6 +1159,31 @@ project's files still name no host path.
   `.gitignore` lists it (§4.2.1, §4.3.2).
 - The program does not run `workshop`, and §2 is unchanged: no network,
   `git` the only external program.
+
+#### 3.7.5 Byobu auto-attach, and `--no-byobu`
+
+By default the workshop is set up so that `workshop shell` auto-attaches to a
+persistent [byobu](https://www.byobu.org/) session (name `main`, tmux
+backend, with tmux-resurrect and tmux-continuum so the session survives a
+container restart). This is what lets a campaign be left running: detach with
+F6, come back with `workshop shell`, and the run is still there. Two template
+files carry it, in both language layers — the `setup-project` hook, which
+runs as the workshop user and configures byobu, the backend and the two tmux
+plugins, and appends a guarded `#byobu-autoattach#` block to `~/.bashrc`
+(`workshop shell` runs a non-interactive login shell, so `byobu-launch` in
+`~/.profile` never fires); and the `byobu` package in `setup-base`'s apt
+line.
+
+`--no-byobu` opts out, and does so by subtraction rather than by a second
+template: the program deletes `hooks/setup-project` and rewrites
+`hooks/setup-base`'s apt line without `byobu`, keeping `tmux`. `workshop
+shell` then opens a plain shell and `tmux` is the user's to start and attach.
+Nothing else differs: the SDK list, the harness snippets and every other
+generated file are the same.
+
+Tests: for both languages, the default generates `setup-project` and leaves
+`byobu tmux` in `setup-base`, and `--no-byobu` leaves no `setup-project`, no
+occurrence of `byobu` in `setup-base`, and `tmux` still installed.
 
 ## 4. Templates
 
