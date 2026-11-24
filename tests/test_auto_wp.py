@@ -306,9 +306,13 @@ class TestAutoWp(AutoWpTestCase):
                 self.assertIn("usage", r.stdout.lower())
                 self.assertIn("--rust", r.stdout)
                 help_text = " ".join(r.stdout.split())
+                # --c/--rust, --harness and --local-inference: none of the
+                # three claims a default, all three are asked for instead.
                 self.assertEqual(help_text.count(
-                    "asked interactively when omitted and stdin is a terminal"), 2)
+                    "asked interactively when omitted and stdin is a terminal"), 3)
                 self.assertIn("[<directory-name>]", help_text)
+                self.assertIn("--local-inference", help_text)
+                self.assertIn("--no-local-inference", help_text)
                 self.assertNotIn("default: claude", help_text)
                 self.assertEqual(r.stderr, "")
                 self.assertEqual(os.listdir(self.tmp), [])
@@ -913,6 +917,8 @@ class TerminalProcess:
 class TestInteractiveCompletion(AutoWpTestCase):
     PROMPTS = ("Choose the language:", "Choose the agent harness:", "Project directory:")
     QUESTIONS = ("Type 1 or 2: ", "Type 1, 2, 3 or 4: ", "Project directory: ")
+    # Asked only under --harness opencode, so it is not one of PROMPTS.
+    LOCAL_QUESTION = "Use a local inference server for OpenCode?"
 
     def assertPrompts(self, result, expected):
         prompts = re.findall("|".join(map(re.escape, self.PROMPTS)), result.stderr)
@@ -963,18 +969,27 @@ class TestInteractiveCompletion(AutoWpTestCase):
                 with self.subTest(language=language, harness=harness):
                     name = f"prompted-{language}-{harness}"
                     other = f"explicit-{language}-{harness}"
+                    # OpenCode is asked one more question, between the harness
+                    # and the directory; "1" is the cloud provider, which is
+                    # what the explicit command below selects.
+                    extra = "1\n" if harness == "opencode" else ""
+                    flags = (("--no-local-inference",) if harness == "opencode"
+                             else ())
                     p = TerminalProcess(self)
                     p.wait_for(self.QUESTIONS[0])
-                    p.send(f"{number}\n{selection}\n{name}\n".encode())
+                    p.send(f"{number}\n{selection}\n{extra}{name}\n".encode())
                     r = p.finish()
                     self.assertOk(r)
-                    explicit = self.run_auto_wp("--" + language, "--harness", harness, other)
+                    explicit = self.run_auto_wp("--" + language, "--harness", harness,
+                                                *flags, other)
                     self.assertOk(explicit)
                     self.assertEqual(self.comparable_tree(self.tmp / name),
                                      self.comparable_tree(self.tmp / other))
                     self.assertEqual(r.stdout.replace(name, "PROJECT"),
                                      explicit.stdout.replace(other, "PROJECT"))
                     self.assertPrompts(r, list(self.PROMPTS))
+                    self.assertEqual(self.LOCAL_QUESTION in r.stderr,
+                                     harness == "opencode", r.stderr)
 
     def test_t3_open_pipe_never_read(self):
         for args, code in ((("--rust", "--harness", "none", "foo"), 0), ((), 2)):
@@ -1456,6 +1471,200 @@ class TestFipsDriver(AutoWpTestCase):
         self.assertEqual(r.stdout, "")
         self.assertFalse(os.path.lexists(work / "foo"))
         self.assertEqual(os.listdir(work), [])
+
+
+class TestLocalInference(AutoWpTestCase):
+    """--local-inference / --no-local-inference under --harness opencode."""
+
+    HOOK = ".workshop/autowp-packages/hooks/setup-base"
+    SNIPPET = TEMPLATES / "common/harness/opencode-local-inference.sh"
+
+    def hook(self, project):
+        return (project / self.HOOK).read_text()
+
+    def baseline(self, language):
+        """The hook as --no-local-inference leaves it: base + opencode.sh."""
+        base = (TEMPLATES / language
+                / "workshop/autowp-packages/hooks/setup-base").read_text()
+        return base + "\n" + (TEMPLATES / "common/harness/opencode.sh").read_text()
+
+    def test_off_is_byte_identical_to_previous_behavior(self):
+        """--no-local-inference, and the flagless default, change nothing."""
+        for language in ("c", "rust"):
+            for args, name in ((("--no-local-inference",), "off"), ((), "default")):
+                with self.subTest(language=language, name=name):
+                    target = f"{language}-{name}"
+                    self.assertOk(self.run_auto_wp(
+                        "--" + language, "--harness", "opencode", *args, target))
+                    project = self.tmp / target
+                    self.assertEqual(self.hook(project), self.baseline(language))
+                    manifest = json.loads((project / "config/auto-wp.json").read_text())
+                    self.assertIs(manifest["local_inference"], False)
+
+    def test_on_appends_the_snippet_after_the_harness(self):
+        for language in ("c", "rust"):
+            with self.subTest(language=language):
+                target = f"{language}-on"
+                r = self.run_auto_wp("--" + language, "--harness", "opencode",
+                                     "--local-inference", target)
+                self.assertOk(r)
+                self.assertIn("harness:  opencode (local inference)", r.stdout)
+                project = self.tmp / target
+                hook = self.hook(project)
+                self.assertEqual(hook, self.baseline(language) + "\n"
+                                 + self.SNIPPET.read_text())
+                # The config is written after the binary it configures.
+                self.assertLess(hook.index("opencode.ai/v2/install"),
+                                hook.index("AUTOWP_INFERENCE_HOST"))
+                subprocess.run(["bash", "-n"], input=hook, text=True,
+                               check=True, timeout=15)
+                manifest = json.loads((project / "config/auto-wp.json").read_text())
+                self.assertIs(manifest["local_inference"], True)
+
+    def run_snippet(self, **env):
+        """Run the generated hook's snippet against a throw-away home.
+
+        getent does not know the test user, so the snippet falls back to
+        /home/$user; redirect that to the temporary tree.
+        """
+        script = self.SNIPPET.read_text().replace("/home/$user", str(self.tmp / "home/$user"))
+        return subprocess.run(["bash", "-s"], input=script, text=True,
+                              capture_output=True, timeout=60,
+                              env=dict(os.environ, AUTOWP_INFERENCE_USER="tester", **env))
+
+    def test_snippet_reads_the_local_llm_ip_file(self):
+        """The host comes from ~/.local-llm-machine-ip.txt, not from a default."""
+        home = self.tmp / "home/tester"
+        home.mkdir(parents=True)
+        # One line, the address only; surrounding whitespace is ignored.
+        (home / ".local-llm-machine-ip.txt").write_text("  198.51.100.7  \n")
+        r = self.run_snippet()
+        self.assertEqual(r.returncode, 0, r.stderr)
+        cfg = json.loads((home / ".config/opencode/opencode.json").read_text())
+        self.assertEqual(cfg["providers"]["ollama"]["settings"]["baseURL"],
+                         "http://198.51.100.7:11434/v1")
+        self.assertEqual(cfg["providers"]["ollama-sub"]["settings"]["baseURL"],
+                         "http://198.51.100.7:11435/v1")
+        self.assertIn(".local-llm-machine-ip.txt", r.stdout)
+
+    def test_snippet_writes_nothing_without_the_ip_file(self):
+        """No file and no override: explain, write nothing, never guess."""
+        for name, prepare in (("missing", lambda h: None),
+                              ("empty", lambda h: (h / ".local-llm-machine-ip.txt")
+                               .write_text("\n"))):
+            with self.subTest(case=name):
+                home = self.tmp / "home/tester"
+                shutil.rmtree(home, ignore_errors=True)
+                home.mkdir(parents=True)
+                prepare(home)
+                r = self.run_snippet()
+                # Provisioning must still succeed: the file lives in a home
+                # that does not exist before this hook runs.
+                self.assertEqual(r.returncode, 0, r.stderr)
+                self.assertFalse((home / ".config/opencode/opencode.json").exists())
+                self.assertIn(".local-llm-machine-ip.txt", r.stderr)
+                self.assertIn("was NOT written", r.stderr)
+
+    def test_no_hardcoded_address_anywhere(self):
+        """Neither the snippet nor the generated README may carry an address."""
+        octet = r"(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)"
+        # 192.0.2.0/24 is the RFC 5737 documentation range, allowed as an
+        # example; any other literal IPv4 address is not.
+        real_ip = re.compile(rf"(?<![\d.])(?!192\.0\.2\.)(?!0\.0\.0\.0)(?!127\.0\.0\.1)"
+                             rf"{octet}\.{octet}\.{octet}\.{octet}(?![\d.])")
+        self.assertOk(self.run_auto_wp("--c", "--harness", "opencode",
+                                       "--local-inference", "scan"))
+        for label, text in (("snippet", self.SNIPPET.read_text()),
+                            ("README", (self.tmp / "scan/README.md").read_text())):
+            with self.subTest(file=label):
+                self.assertEqual(real_ip.findall(text), [], f"literal address in {label}")
+
+    def test_snippet_writes_valid_json_and_honours_the_environment(self):
+        home = self.tmp / "home/tester"
+        home.mkdir(parents=True)
+        r = self.run_snippet(AUTOWP_INFERENCE_HOST="10.1.2.3",
+                             AUTOWP_INFERENCE_PORT="9100",
+                             AUTOWP_INFERENCE_SUBAGENT_PORT="9101",
+                             AUTOWP_INFERENCE_MODEL="some-model:7b")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        conf = home / ".config/opencode/opencode.json"
+        cfg = json.loads(conf.read_text())
+        self.assertEqual(cfg["$schema"], "https://opencode.ai/config.json")
+        # Discovery would otherwise replace settings and drop the timeouts.
+        self.assertIn("-opencode.provider.ollama", cfg["plugins"])
+        self.assertEqual(cfg["providers"]["ollama"]["settings"]["baseURL"],
+                         "http://10.1.2.3:9100/v1")
+        self.assertEqual(cfg["providers"]["ollama-sub"]["settings"]["baseURL"],
+                         "http://10.1.2.3:9101/v1")
+        for provider in cfg["providers"].values():
+            settings = provider["settings"]
+            self.assertEqual(settings["headerTimeout"], 3600000)
+            self.assertIs(settings["chunkTimeout"], False)
+            self.assertIs(settings["timeout"], False)
+            self.assertIn("some-model:7b", provider["models"])
+        # Subagents run on the second server, so they cannot evict the
+        # parent session's prompt cache.
+        for agent in ("general", "explore"):
+            self.assertEqual(cfg["agents"][agent]["model"],
+                             "ollama-sub/some-model:7b")
+        self.assertEqual(cfg["model"], "ollama/some-model:7b")
+        self.assertEqual(cfg["compaction"]["buffer"], "50%")
+
+    def test_snippet_keeps_an_existing_config(self):
+        home = self.tmp / "home/tester"
+        conf = home / ".config/opencode/opencode.json"
+        conf.parent.mkdir(parents=True)
+        conf.write_text('{"mine": true}\n')
+        script = self.SNIPPET.read_text().replace("/home/$user", str(self.tmp / "home/$user"))
+        r = subprocess.run(["bash", "-s"], input=script, text=True, capture_output=True,
+                           timeout=60, env=dict(os.environ, AUTOWP_INFERENCE_USER="tester"))
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(json.loads(conf.read_text()), {"mine": True})
+        self.assertIn("left as it is", r.stderr)
+
+    def test_flag_requires_harness_opencode(self):
+        for harness in ("claude", "copilot", "none"):
+            for flag in ("--local-inference", "--no-local-inference"):
+                with self.subTest(harness=harness, flag=flag):
+                    r = self.run_auto_wp("--c", "--harness", harness, flag, "foo")
+                    self.assertEqual(r.returncode, 2, r.stderr)
+                    self.assertIn("only valid with --harness opencode", r.stderr)
+                    self.assertEqual(os.listdir(self.tmp), [])
+        # Without --harness at all the harness is not yet known, so the
+        # option has nothing to attach to.
+        r = self.run_auto_wp("--c", "--local-inference", "foo")
+        self.assertEqual(r.returncode, 2, r.stderr)
+        self.assertIn("only valid with --harness opencode", r.stderr)
+        # The two spellings exclude each other.
+        r = self.run_auto_wp("--c", "--harness", "opencode",
+                             "--local-inference", "--no-local-inference", "foo")
+        self.assertEqual(r.returncode, 2, r.stderr)
+        self.assertIn("not allowed with argument", r.stderr)
+        self.assertEqual(os.listdir(self.tmp), [])
+
+    def test_other_harnesses_record_no_local_inference(self):
+        for harness in ("claude", "copilot", "none"):
+            with self.subTest(harness=harness):
+                self.assertOk(self.run_auto_wp("--c", "--harness", harness, harness))
+                manifest = json.loads(
+                    (self.tmp / harness / "config/auto-wp.json").read_text())
+                self.assertNotIn("local_inference", manifest)
+
+    def test_readme_documents_the_inference_host(self):
+        self.assertOk(self.run_auto_wp("--c", "--harness", "opencode",
+                                       "--local-inference", "on"))
+        self.assertOk(self.run_auto_wp("--c", "--harness", "opencode",
+                                       "--no-local-inference", "off"))
+        on = (self.tmp / "on/README.md").read_text()
+        off = (self.tmp / "off/README.md").read_text()
+        self.assertNotIn("{{", on)
+        self.assertIn("**Local inference.**", on)
+        self.assertIn("AUTOWP_INFERENCE_HOST", on)
+        self.assertIn("OLLAMA_HOST=0.0.0.0:11435", on)
+        # The cloud-login paragraph is replaced, not added to.
+        self.assertNotIn("/connect", on)
+        self.assertIn("/connect", off)
+        self.assertNotIn("Local inference", off)
 
 
 if __name__ == "__main__":

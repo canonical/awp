@@ -2,11 +2,16 @@
 """auto-wp: bootstrap a formal-verification project for C (Frama-C/WP) or Rust (Creusot).
 
 Usage: ./auto-wp.py [-h] [--c|--rust] [--driver rmf|fips] [--level 1|2|3|4]
-                   [--harness claude|opencode|copilot|none] [--no-byobu]
+                   [--harness claude|opencode|copilot|none]
+                   [--local-inference|--no-local-inference] [--no-byobu]
                    [<directory-name>]
 
 Missing language, harness and directory are asked interactively when both
 stdin and stderr are terminals. Scripts must supply all three explicitly.
+
+Under --harness opencode, local inference is asked for too when neither
+--local-inference nor --no-local-inference was given and both streams are
+terminals; it defaults to off, so scripts keep the previous behavior.
 
 The generated project works with Claude Code and with OpenCode: both find the
 same skills and commands through the links of §3.3. See spec/auto-wp.md.
@@ -34,6 +39,10 @@ LANGUAGES = {"c": "C (Frama-C/WP)", "rust": "Rust (Creusot)"}
 DRIVERS = ["rmf", "fips"]
 HARNESSES = ["claude", "opencode", "copilot", "none"]
 DRIVER_COMMANDS = {"rmf": "rmf.md", "fips": "fips.md"}
+# The harness that can be pointed at a local inference server: its generated
+# `opencode.json` names a local OpenAI-compatible provider instead of a cloud
+# one (templates/common/harness/opencode-local-inference.sh).
+LOCAL_INFERENCE_HARNESS = "opencode"
 
 # Links created in the project: (path relative to the project, link target).
 # The first two harnesses are wired the same way: `config/` holds the skills
@@ -102,6 +111,17 @@ def parse_args(argv):
                         help="agent harness; asked interactively when omitted "
                         "and stdin is a terminal; none leaves "
                         "installation to you")
+    inference = parser.add_mutually_exclusive_group()
+    inference.add_argument("--local-inference", dest="local_inference",
+                           action="store_const", const=True,
+                           help="with --harness opencode: point OpenCode at a "
+                           "local OpenAI-compatible inference server instead of "
+                           "a cloud provider; asked interactively when omitted "
+                           "and stdin is a terminal, and off otherwise")
+    inference.add_argument("--no-local-inference", dest="local_inference",
+                           action="store_const", const=False,
+                           help="with --harness opencode: keep the cloud "
+                           "provider and ask no question about local inference")
     parser.add_argument("--no-byobu", dest="byobu", action="store_false",
                         help="do not configure the byobu auto-attach session in "
                         "the workshop; `workshop shell` then opens a plain shell")
@@ -112,10 +132,18 @@ def parse_args(argv):
         parser.error("--driver fips needs --level 1, 2, 3 or 4")
     if args.driver != "fips" and args.level is not None:
         parser.error("--level is only valid with --driver fips")
+    # Local inference is a property of one harness, so it is only accepted
+    # next to that harness spelled out: with --harness omitted the answer
+    # would have to be validated after the harness question, and with another
+    # harness it has no meaning at all.
+    if args.local_inference is not None and args.harness != LOCAL_INFERENCE_HARNESS:
+        parser.error("--local-inference/--no-local-inference is only valid "
+                     f"with --harness {LOCAL_INFERENCE_HARNESS}")
+    interactive = sys.stdin.isatty() and sys.stderr.isatty()
     missing = [label for value, label in (
         (args.language, "--c/--rust"), (args.harness, "--harness"),
         (args.directory, "<directory-name>")) if value is None]
-    if missing and not (sys.stdin.isatty() and sys.stderr.isatty()):
+    if missing and not interactive:
         parser.error(f"missing {', '.join(missing)} "
                      "(not prompting: stdin or stderr is not a terminal)")
     if args.language is None:
@@ -135,6 +163,20 @@ def parse_args(argv):
             "Type 1, 2, 3 or 4:",
             {"1": "claude", "2": "opencode", "3": "copilot", "4": "none"},
             "Type 1, 2, 3 or 4.")
+    # Asked after the harness it belongs to and before the directory, so the
+    # questions stay in the order of the generated configuration. Off unless
+    # the question is both relevant and answerable: scripts and the other
+    # harnesses keep the behavior they had before this option existed.
+    if args.harness == LOCAL_INFERENCE_HARNESS and args.local_inference is None \
+            and interactive:
+        args.local_inference = prompt_choice(
+            "Use a local inference server for OpenCode?\n"
+            "1. No (connect OpenCode to a cloud provider)\n"
+            "2. Yes (an OpenAI-compatible server on your network, such as Ollama)\n"
+            "Type 1 or 2:",
+            {"1": False, "2": True}, "Type 1 or 2.")
+    if args.local_inference is None:
+        args.local_inference = False
     if args.directory is None:
         args.directory = prompt_choice("Project directory:")
     return args
@@ -144,7 +186,7 @@ class Run:
     """One invocation. Records what it creates so it can be rolled back."""
 
     def __init__(self, directory, language, harness, driver="rmf", level=None,
-                 byobu=True):
+                 byobu=True, local_inference=False):
         self.arg = directory
         self.target = Path(directory)
         self.language = language
@@ -152,6 +194,9 @@ class Run:
         self.level = level
         self.harness = harness
         self.byobu = byobu
+        # Only meaningful for the one harness it configures; a true value with
+        # any other harness is a usage error caught in parse_args.
+        self.local_inference = local_inference and harness == LOCAL_INFERENCE_HARNESS
         self.layers = [TEMPLATES / "common", TEMPLATES / language]
         self.created = []  # (kind, path) in creation order
         self.out = []      # stdout lines, printed only on success
@@ -209,15 +254,20 @@ class Run:
         }
         if self.driver == "fips":
             manifest["fips_level"] = self.level
+        if self.harness == LOCAL_INFERENCE_HARNESS:
+            manifest["local_inference"] = self.local_inference
         (config / "auto-wp.json").write_text(json.dumps(manifest, indent=2) + "\n")
         if self.driver == "fips":
             driver_line = f"  driver:   {self.driver} (FIPS 140-3 level {self.level})"
         else:
             driver_line = f"  driver:   {self.driver}"
+        harness_line = f"  harness:  {self.harness}"
+        if self.local_inference:
+            harness_line += " (local inference)"
         self.out += [
             f"created {self.show('config')} (language: {self.language})",
             driver_line,
-            f"  harness:  {self.harness}",
+            harness_line,
             f"  skills:   {len(skills)}",
             f"  commands: {len(commands)}",
         ]
@@ -347,8 +397,15 @@ class Run:
             self.disable_byobu(dest_dir)
         if self.harness != "none":
             hook = dest_dir / "autowp-packages/hooks/setup-base"
-            snippet = (TEMPLATES / "common/harness" / f"{self.harness}.sh").read_text()
-            hook.write_text(hook.read_text() + "\n" + snippet)
+            names = [self.harness]
+            if self.local_inference:
+                # After the harness snippet: it writes the configuration of a
+                # binary that snippet has just installed.
+                names.append(f"{self.harness}-local-inference")
+            text = hook.read_text()
+            for name in names:
+                text += "\n" + (TEMPLATES / "common/harness" / f"{name}.sh").read_text()
+            hook.write_text(text)
         self.out.append(f"copied  {self.show('.workshop')} (workshop: {WORKSHOP_NAME})")
 
     @staticmethod
@@ -447,6 +504,53 @@ class Run:
                 "outside a container.",
             ),
         }[self.harness]
+        if self.local_inference:
+            # There is no cloud account to connect under --local-inference, so
+            # the login paragraph is replaced by what has to be true of the
+            # inference host instead.
+            harness_text = harness_text[:3] + (
+                "**Local inference.** No login and no API key: Workshop writes "
+                "`~/.config/opencode/opencode.json` in the container, naming a "
+                "local OpenAI-compatible provider, and `opencode` starts on that "
+                "model. An existing file is kept, so your edits survive "
+                "`workshop refresh`.\n\n"
+                "The address comes from **`~/.local-llm-machine-ip.txt`** in the "
+                "container — the same one-line file the cross-provider judge "
+                "uses (`skills/sl-auditor/SKILL.md`). Create it before the "
+                "first `workshop refresh`, with the address and nothing else:\n\n"
+                "```sh\n"
+                "echo 192.0.2.10 > ~/.local-llm-machine-ip.txt\n"
+                "```\n\n"
+                "Without that file no configuration is written and the hook says "
+                "so: an invented address is worse than none.\n\n"
+                "Two servers must be reachable from the container before you "
+                "start a campaign: the main one on port 11434 and a second on "
+                "11435 that only subagents use. On the LLM host, with Ollama:\n\n"
+                "```sh\n"
+                "OLLAMA_HOST=0.0.0.0 OLLAMA_KEEP_ALIVE=2h ollama serve\n"
+                "OLLAMA_HOST=0.0.0.0:11435 OLLAMA_KEEP_ALIVE=2h ollama serve\n"
+                "```\n\n"
+                "Give both servers the **same** context length. OpenCode sizes "
+                "prompts against one window, so a smaller one on the subagent "
+                "server truncates their prompts silently. A long "
+                "`OLLAMA_KEEP_ALIVE` matters just as much: when the runner "
+                "unloads between cycles its prompt cache goes with it, and the "
+                "next cycle reprocesses the whole context from scratch.\n\n"
+                "The second server is what keeps a subagent from evicting the "
+                "parent session's prompt cache and forcing a full reprocess of "
+                "the context. The configuration also raises `headerTimeout` to "
+                "an hour, because a long prompt is processed before any response "
+                "header is sent and the 5-minute default would abort turns the "
+                "server would otherwise finish, and it disables OpenCode's "
+                "Ollama discovery, which would replace those settings.\n\n"
+                "To override the file, or to change the ports or the model, set "
+                "`AUTOWP_INFERENCE_HOST`, `AUTOWP_INFERENCE_PORT`, "
+                "`AUTOWP_INFERENCE_SUBAGENT_PORT` or `AUTOWP_INFERENCE_MODEL` "
+                "before `workshop launch`, or edit the generated "
+                "`opencode.json`. A local model is slower than a cloud one: "
+                "expect long turns and check `opencode` is still advancing "
+                "before assuming it stalled.",
+            ) + harness_text[4:]
         for key, value in zip(
                 ("HARNESS", "HARNESS_INSTALL", "HARNESS_START", "HARNESS_LOGIN",
                  "HARNESS_HOST"), harness_text):
@@ -545,7 +649,7 @@ def main(argv=None):
     try:
         args = parse_args(argv)
         run = Run(args.directory, args.language, args.harness, args.driver, args.level,
-                  byobu=args.byobu)
+                  byobu=args.byobu, local_inference=args.local_inference)
         run.execute()
         print("\n".join(run.out))
         for w in run.warnings:
