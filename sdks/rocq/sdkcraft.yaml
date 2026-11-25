@@ -58,3 +58,11 @@ parts:
   config:
     plugin: dump
     source: files
+  mcp:
+    # The rocq-mcp adapter (coq-lsp/Petanque, read-only Mode A). setup-base
+    # pip-installs it into a venv at /opt/rocq-mcp (outside the read-only
+    # /opt/rocq switch). Shipped under $SDK/rocq-mcp.
+    plugin: dump
+    source: mcp
+    organize:
+      '*': rocq-mcp/
