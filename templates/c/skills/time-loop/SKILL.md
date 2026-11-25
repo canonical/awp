@@ -535,7 +535,8 @@ on other lines. Each wake:
    wrapper with a "shim" that called itself, and tasks went 860 → 11 746 in ten minutes on top of
    uncapped parallelism. Prose limits did not prevent it, so the guard is MECHANICAL:
    - **`bin/heavy <cmd>`** — every heavy job (frama-c, WP provers, clang preprocessing, coqc) runs under
-     it: a slot pool shared by ALL agents (`HEAVY_SLOTS`, default 4, flock), `ulimit -v` per process
+     it: a slot pool shared by ALL agents (`HEAVY_SLOTS`, default `nproc / -wp-par` — 3 on a 6-core
+     box — flock), `ulimit -v` per process
      (`HEAVY_MEM_KB`, default 1.5 GiB), `oom_score_adj=1000` (the kernel kills a prover, never the
      session), its own process group killed on exit (no orphan solvers), and a nesting-depth guard
      that refuses wrapper recursion. `verify.sh`, the patched-frama-c wrapper and the parse-sweep tool
@@ -553,6 +554,26 @@ on other lines. Each wake:
    - **Never bypass the guard:** calling `frama-c` or a prover directly (not via `verify.sh` /
      `frama-c-patched` / `bin/heavy`) is a loop-behaviour bug of the same class as recording from a
      mid-run artifact; say so in every verifier prompt.
+   **CONTEXT HYGIENE (the parent's context is the scarcest resource).** 85 % of the visible stream is
+   bash I/O, and ledger/state queries are its single biggest source (measured 2026-11-24: 158k
+   characters in one session; single `notes` fields reach 4 853 characters).
+   - **Query the ledger with `bin/ledger`, never with `cat` / `grep -n` / `awk` on `verdicts.tsv`.**
+     It selects rows by unit, function or status, prints only the columns asked for, clips every field
+     (default 200 chars), caps rows (default 40) and prints a count of what it omitted. It finds
+     `XXX-analysis-acsl/verdicts.tsv` by itself, is read-only and never writes the ledger. Examples:
+     `bin/ledger -s RESIDUE -n 20` · `bin/ledger -u zlib -c unit,verdict,notes -w 80` ·
+     `bin/ledger -f adler32 -c all` · `bin/ledger --count -s VERIFIED` · `bin/ledger --help`.
+   - **Tool output is capped at 300 lines / 12 KiB** (`tool_output` in
+     `/home/workshop/.config/opencode/opencode.json` under `--local-inference`). Output past the cap
+     is spilled to a file whose ABSOLUTE path is
+     **`/home/workshop/.local/share/opencode/tool-output/tool_<id>`** — read it with that absolute
+     path. Never guess a relative one: three reads failed that way on 2026-11-24
+     (`File not found: /project/.local/share/opencode/tool-output/tool_…`,
+     `File not found: .local/share/opencode/tool-output/tool_…`). Cheaper than reading the spill file
+     is re-running the command with a narrower filter.
+   - **Gate a subagent delivery with `bin/check-delivery <cycle>`** before reading anything it claims:
+     one line, read-only, checks that the report exists, the logs are non-empty and the commit is
+     present (c191 reported DELIVERED with none of the three, and establishing that cost ~540 log lines).
    **BUILD IN A COPY — the code under study `XXX/` is read-only, for builds too.** Never run
    `configure`, `make`, a compiler, `cargo` or any tool that writes inside `XXX/` (object files, a
    regenerated `Cargo.lock`, `config.status`); copy it first (`cp -a XXX build_XXX-analysis/…`) and
@@ -979,6 +1000,12 @@ not re-arming. The primitives differ:
   `python3 bin/time-loop-watchdog.py stop`; it stops the recorded process group, including an
   active wake. `status` checks the pidfile with process-start identity; `start` locks it to
   prevent duplicate watchdogs and removes the stop flag only for an unexpired deadline.
+  **It fails loudly.** A wake that exits under `--min-runtime` (60 s), prints a session-fatal
+  `Error:` line, or whose `build · <model>` banner is not `--expect-model` stops the re-firing,
+  writes `.time-loop-watchdog.alert` and says so in `status` — 55 h of one 96 h budget were lost to
+  a watchdog that re-fired every 8 minutes into a provider error and told nobody. Pass
+  `--expect-model <model>` when the campaign does not run the default local model, and
+  `--no-fail-fast` only to downgrade all three to warnings.
   Verify the watchdog at the start of every cycle: a live process is not enough on its own — check
   the state file is being refreshed and, if the watchdog died (container restart), re-arm it.
   Entry point: `/time-loop XXX N`. Verifier spawn/report read-back and background stop are

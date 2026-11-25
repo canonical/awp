@@ -543,7 +543,8 @@ class TestAutoWp(AutoWpTestCase):
         self.assertOk(self.run_auto_wp("--rust", "--harness", "claude", "foobar"))
         d = self.tmp / "foobar"
         self.assertEqual(sorted(p.name for p in (d / "bin").iterdir()),
-                         ["heavy", "mem-watchdog", "rmf-lint.sh", "time-loop-watchdog.py"])
+                         ["check-delivery", "heavy", "ledger", "mem-watchdog",
+                          "rmf-lint.sh", "time-loop-watchdog.py"])
         # The R6 resource guard (2026-11-15 OOM crash) ships from the common layer, executable.
         for name in ("heavy", "mem-watchdog"):
             g = d / "bin" / name
@@ -1473,6 +1474,262 @@ class TestFipsDriver(AutoWpTestCase):
         self.assertEqual(os.listdir(work), [])
 
 
+class TestCampaignTools(AutoWpTestCase):
+    """The common-layer campaign tools: bin/ledger, bin/check-delivery,
+    bin/heavy and bin/time-loop-watchdog.py (auto-wp.md 4.1).
+
+    They live in the common layer, so both languages install them; `ledger`
+    and `check-delivery` discover the campaign directory instead of naming
+    one, which is what lets a single copy serve `XXX-analysis-acsl/` (C) and
+    `XXX-creusot/` (Rust).
+    """
+
+    NEW_TOOLS = ("ledger", "check-delivery")
+
+    def generate(self, language="c", name=None):
+        name = name or f"tools-{language}"
+        self.assertOk(self.run_auto_wp("--" + language, "--harness", "claude", name))
+        return self.tmp / name
+
+    def assertCompiles(self, path):
+        """Byte-compile a shipped tool; a cfile in the sandbox, never /dev/null."""
+        out = self.tmp / (Path(path).name + ".pyc")
+        subprocess.run(
+            [sys.executable, "-c",
+             "import py_compile,sys; py_compile.compile(sys.argv[1], cfile=sys.argv[2],"
+             " doraise=True)", str(path), str(out)],
+            check=True, timeout=60, capture_output=True)
+
+    def tool(self, project, name, *args, cwd=None):
+        return subprocess.run([sys.executable, str(project / "bin" / name), *args],
+                              cwd=str(cwd or project), capture_output=True,
+                              text=True, timeout=60)
+
+    def ledger_rows(self, campaign, notes_len=500):
+        """A campaign directory with the pinned six-column ledger (4.2.2 5)."""
+        campaign.mkdir(parents=True, exist_ok=True)
+        rows = ["unit\tSA#\tfunction\tverdict\tgoals\tnotes",
+                "zlib/adler32.c\tSA1\tadler32\tVERIFIED\t131/136\t" + "x" * notes_len,
+                "dtrace/x.c\t-\tfoo\tRESIDUE(A)\t3/9\tout-of-reach: casts",
+                "zlib/inflate.c\tSA3\tinflate\tPARSE-BLOCKED\t\tc23 attribute"]
+        (campaign / "verdicts.tsv").write_text("\n".join(rows) + "\n")
+
+    def test_tools_installed_in_both_languages(self):
+        """Both languages get both tools, as real files, mode 0755."""
+        for language in ("c", "rust"):
+            with self.subTest(language=language):
+                project = self.generate(language)
+                for name in self.NEW_TOOLS:
+                    tool = project / "bin" / name
+                    self.assertTrue(tool.is_file() and not tool.is_symlink(), name)
+                    self.assertTrue(os.access(tool, os.X_OK), f"{name} not executable")
+                    self.assertEqual(stat.S_IMODE(tool.stat().st_mode), 0o755, name)
+                    src = TEMPLATES / "common/tools/bin" / name
+                    self.assertEqual(tool.read_bytes(), src.read_bytes(), name)
+                    # Read-only by construction: no open() for writing.
+                    self.assertEqual(
+                        re.findall(r'open\([^)]*"[wax][b+t]*"', tool.read_text()), [],
+                        f"{name} opens a file for writing")
+
+    def test_ledger_finds_the_campaign_in_both_layouts(self):
+        """The ledger path is discovered, so one tool serves both layers."""
+        for language, campaign in (("c", "xnu-analysis-acsl"), ("rust", "sudo-rs-creusot")):
+            with self.subTest(language=language):
+                project = self.generate(language)
+                self.ledger_rows(project / campaign)
+                r = self.tool(project, "ledger")
+                self.assertEqual(r.returncode, 0, r.stderr)
+                self.assertIn("adler32", r.stdout)
+                self.assertIn("3 ledger rows; 3 matched; 3 shown", r.stdout)
+
+    def test_ledger_filters_clips_caps_and_says_what_it_omitted(self):
+        project = self.generate("c")
+        self.ledger_rows(project / "xnu-analysis-acsl")
+        # Selection by status, with the columns asked for.
+        r = self.tool(project, "ledger", "-s", "RESIDUE", "-c", "unit,verdict")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("dtrace/x.c\tRESIDUE(A)", r.stdout)
+        self.assertNotIn("adler32", r.stdout)
+        # Clipping: the 500-character notes field does not reach the context.
+        r = self.tool(project, "ledger", "-u", "adler32", "-c", "notes", "-w", "40")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertNotIn("x" * 60, r.stdout)
+        self.assertIn("1 fields clipped at 40 chars", r.stdout)
+        # Row cap, and a count of what it dropped.
+        r = self.tool(project, "ledger", "-n", "1")
+        self.assertIn("2 rows omitted by -n 1", r.stdout)
+        # --count prints the number only.
+        r = self.tool(project, "ledger", "--count", "-s", "VERIFIED")
+        self.assertIn("1 matching rows of 3", r.stdout)
+        # No ledger, and none in the project either: exit 2, say where it looked.
+        bare = self.tmp / "bare"
+        bare.mkdir()
+        r = subprocess.run([sys.executable, str(project / "bin/ledger")], cwd=str(bare),
+                           capture_output=True, text=True, timeout=60,
+                           env=dict(os.environ, AUTOWP_PROJECT_DIR=str(bare)))
+        self.assertEqual(r.returncode, 2)
+        self.assertIn("no campaign ledger found", r.stderr)
+        self.assertIn("--file", r.stderr)
+
+    def test_ledger_never_writes_the_ledger(self):
+        project = self.generate("c")
+        campaign = project / "xnu-analysis-acsl"
+        self.ledger_rows(campaign)
+        before = (campaign / "verdicts.tsv").read_bytes()
+        os.chmod(campaign / "verdicts.tsv", 0o444)
+        self.assertEqual(self.tool(project, "ledger", "-c", "all").returncode, 0)
+        self.assertEqual((campaign / "verdicts.tsv").read_bytes(), before)
+
+    def test_check_delivery_gates_a_claimed_delivery(self):
+        if shutil.which("git") is None:
+            self.skipTest("git not installed")
+        project = self.generate("c")
+        campaign = project / "xnu-analysis-acsl"
+        self.ledger_rows(campaign)
+        unit = campaign / "units/zlib-r16"
+        (unit / "logs").mkdir(parents=True)
+        # 1. Nothing delivered: NOT-DELIVERED, exit 1, all three named.
+        r = self.tool(project, "check-delivery", "194")
+        self.assertEqual(r.returncode, 1, r.stdout)
+        self.assertIn("c194 NOT-DELIVERED", r.stdout)
+        self.assertIn("FAILED: report,logs,commit", r.stdout)
+        self.assertEqual(len(r.stdout.strip().splitlines()), 1, "one line of output")
+        # 2. A stub report is not a report (the 500-byte floor).
+        (unit / "REPORT.md").write_text("# c194 - VERIFIER report: zlib\n")
+        r = self.tool(project, "check-delivery", "194")
+        self.assertEqual(r.returncode, 1, r.stdout)
+        self.assertIn("STUB", r.stdout)
+        # 3. Real report, empty log: still NOT-DELIVERED.
+        (unit / "REPORT.md").write_text("# c194 - VERIFIER report: zlib\n" + "body " * 200)
+        (unit / "logs/wp.log").write_text("")
+        r = self.tool(project, "check-delivery", "194")
+        self.assertEqual(r.returncode, 1, r.stdout)
+        self.assertIn("log files are EMPTY", r.stdout)
+        # 4. Report, log and commit: DELIVERED, exit 0.
+        (unit / "logs/wp.log").write_text("Valid 131/136\n")
+        git = dict(os.environ, GIT_AUTHOR_NAME="t", GIT_AUTHOR_EMAIL="t@example.com",
+                   GIT_COMMITTER_NAME="t", GIT_COMMITTER_EMAIL="t@example.com")
+        for cmd in (["add", "-A"], ["commit", "-qm", "c194: zlib adler32 VERIFIED"]):
+            subprocess.run(["git", "-C", str(project), *cmd], check=True, timeout=60,
+                           env=git, capture_output=True)
+        r = self.tool(project, "check-delivery", "194", "-v")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("c194 DELIVERED", r.stdout)
+        self.assertIn("units/zlib-r16/REPORT.md", r.stdout)
+        # The cycle id is accepted in the forms the skill uses.
+        for spelling in ("c194", "194", "cycle194"):
+            self.assertEqual(self.tool(project, "check-delivery", spelling).returncode,
+                             0, spelling)
+        self.assertEqual(self.tool(project, "check-delivery", "nonsense").returncode, 2)
+
+    def test_check_delivery_finds_a_rust_campaign(self):
+        """No `units/` under Rust, so reports are looked for in the campaign itself."""
+        project = self.generate("rust")
+        campaign = project / "sudo-rs-creusot"
+        self.ledger_rows(campaign)
+        r = self.tool(project, "check-delivery", "12")
+        self.assertEqual(r.returncode, 1, r.stdout)
+        self.assertIn("c12 NOT-DELIVERED", r.stdout)
+        self.assertIn("*/REPORT.md", r.stdout)
+        # No campaign at all is an environment error, not a verdict.
+        bare = self.tmp / "nocampaign"
+        bare.mkdir()
+        r = subprocess.run([sys.executable, str(project / "bin/check-delivery"), "12"],
+                           cwd=str(bare), capture_output=True, text=True, timeout=60,
+                           env=dict(os.environ, AUTOWP_PROJECT_DIR=str(bare)))
+        self.assertEqual(r.returncode, 2, r.stdout)
+        self.assertIn("UNKNOWN", r.stdout)
+
+    def test_new_tools_are_stdlib_only(self):
+        """Like auto-wp.py itself (2): no third-party import in a shipped tool."""
+        allowed = {"argparse", "glob", "os", "re", "subprocess", "sys"}
+        for name in self.NEW_TOOLS:
+            with self.subTest(tool=name):
+                text = (TEMPLATES / "common/tools/bin" / name).read_text()
+                self.assertTrue(text.startswith("#!/usr/bin/env python3\n"), name)
+                found = set(re.findall(r"^(?:import|from)\s+([A-Za-z_][\w.]*)",
+                                       text, re.MULTILINE))
+                self.assertLessEqual(found, allowed, f"{name} imports {found - allowed}")
+                self.assertCompiles(TEMPLATES / "common/tools/bin" / name)
+
+    def test_watchdog_fails_loudly(self):
+        """The heartbeat stops re-firing on a broken run (ideas item 7)."""
+        project = self.generate("c")
+        watchdog = project / "bin/time-loop-watchdog.py"
+        self.assertCompiles(watchdog)
+        r = subprocess.run([sys.executable, str(watchdog), "--help"], cwd=str(project),
+                           capture_output=True, text=True, timeout=60)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        for flag in ("--min-runtime", "--expect-model", "--no-fail-fast"):
+            self.assertIn(flag, r.stdout, flag)
+        text = watchdog.read_text()
+        # The alert file is what makes the failure outlive the run.
+        self.assertIn(".time-loop-watchdog.alert", text)
+        # A benign tool failure must not halt the campaign: the `✗ <tool>
+        # failed` marker is what tells the two apart.
+        self.assertIn("TOOL_FAILURE", text)
+        r = subprocess.run([sys.executable, str(watchdog), "status"], cwd=str(project),
+                           capture_output=True, text=True, timeout=60)
+        self.assertIn("watchdog stopped", r.stdout)
+        self.assertNotIn("ALERT PENDING", r.stdout)
+        (project / ".time-loop-watchdog.alert").write_text("boom\n")
+        r = subprocess.run([sys.executable, str(watchdog), "status"], cwd=str(project),
+                           capture_output=True, text=True, timeout=60)
+        self.assertIn("ALERT PENDING", r.stdout)
+        # Defaults, as the skills document them.
+        r = subprocess.run([sys.executable, str(watchdog), "start", "nope", "1", "p",
+                            "--min-runtime", "-1"], cwd=str(project),
+                           capture_output=True, text=True, timeout=60)
+        self.assertEqual(r.returncode, 2)
+        self.assertIn("min-runtime must be nonnegative", r.stderr)
+
+    def test_heavy_sizes_its_slots_to_the_cores(self):
+        """R6's slot pool is cores / -wp-par, not a flat 4 (ideas item 3)."""
+        project = self.generate("c")
+        heavy = project / "bin/heavy"
+        subprocess.run(["bash", "-n", str(heavy)], check=True, timeout=30,
+                       capture_output=True)
+        text = heavy.read_text()
+        self.assertIn("SLOTS=${HEAVY_SLOTS:-$DEFAULT_SLOTS}", text)
+        self.assertNotIn("SLOTS=${HEAVY_SLOTS:-4}", text)
+        # The computation itself, run in isolation: 6 cores / -wp-par 2 = 3,
+        # and never 0 on a single-core machine.
+        block = "\n".join(text.splitlines()[text.splitlines().index("set -u"):])
+        block = block.split("MEM_KB=", 1)[0]
+        for cores, par, expected in (("6", "2", "3"), ("1", "2", "1"), ("12", "4", "3")):
+            with self.subTest(cores=cores, par=par):
+                r = subprocess.run(
+                    ["bash", "-c", f'nproc() {{ echo {cores}; }}\n{block}\necho "$SLOTS"'],
+                    capture_output=True, text=True, timeout=30,
+                    env=dict(os.environ, HEAVY_WP_PAR=par))
+                self.assertEqual(r.stdout.strip(), expected, r.stderr)
+        # An explicit HEAVY_SLOTS still wins.
+        r = subprocess.run(["bash", "-c", f'{block}\necho "$SLOTS"'],
+                           capture_output=True, text=True, timeout=30,
+                           env=dict(os.environ, HEAVY_SLOTS="7"))
+        self.assertEqual(r.stdout.strip(), "7", r.stderr)
+
+    def test_time_loop_skills_point_at_the_new_tools(self):
+        """Both layers' time-loop skills carry the CONTEXT HYGIENE block (4.2.2)."""
+        for language, ledger in (("c", "XXX-analysis-acsl/verdicts.tsv"),
+                                 ("rust", "XXX-creusot/verdicts.tsv")):
+            with self.subTest(language=language):
+                text = (TEMPLATES / language / "skills/time-loop/SKILL.md").read_text()
+                self.assertIn("CONTEXT HYGIENE", text)
+                self.assertIn("bin/ledger", text)
+                self.assertIn("bin/check-delivery", text)
+                self.assertIn(ledger, text)
+                # The spill path the model guessed wrong three times.
+                self.assertIn("/home/workshop/.local/share/opencode/tool-output/", text)
+                self.assertIn("300 lines / 12 KiB", text)
+                # The fail-loud flags, so a campaign on another model knows.
+                self.assertIn("--expect-model", text)
+                self.assertNotIn("`HEAVY_SLOTS`, default 4", text)
+        # time-loop is a language-layer skill in both layers, not a common one,
+        # so there is no third copy to keep in step.
+        self.assertFalse((TEMPLATES / "common/skills/time-loop").exists())
+
+
 class TestLocalInference(AutoWpTestCase):
     """--local-inference / --no-local-inference under --harness opencode."""
 
@@ -1681,6 +1938,99 @@ class TestLocalInference(AutoWpTestCase):
         self.assertEqual(cfg["model"], "ollama/some-model:7b")
         self.assertEqual(cfg["compaction"]["buffer"], "50%")
 
+    def written_config(self, **env):
+        """Run the snippet against a throw-away home; return the JSON it wrote."""
+        home = self.tmp / "home/tester"
+        shutil.rmtree(home, ignore_errors=True)
+        home.mkdir(parents=True)
+        r = self.run_snippet(AUTOWP_INFERENCE_HOST="192.0.2.10", **env)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        conf = home / ".config/opencode/opencode.json"
+        # Valid JSON whatever the combination of optional keys.
+        return json.loads(conf.read_text())
+
+    def test_snippet_declares_the_context_limit_on_every_model(self):
+        """Undeclared, OpenCode assumes 262 144 and compacts at about 131k."""
+        cfg = self.written_config()
+        for provider in cfg["providers"].values():
+            for name, entry in provider["models"].items():
+                with self.subTest(model=name):
+                    self.assertEqual(entry["limit"],
+                                     {"context": 120000, "output": 16000})
+        cfg = self.written_config(AUTOWP_INFERENCE_CONTEXT="65536",
+                                  AUTOWP_INFERENCE_OUTPUT="8000")
+        for provider in cfg["providers"].values():
+            for name, entry in provider["models"].items():
+                with self.subTest(model=name, override=True):
+                    self.assertEqual(entry["limit"],
+                                     {"context": 65536, "output": 8000})
+
+    def test_snippet_writes_the_measured_budget_defaults(self):
+        cfg = self.written_config()
+        # Kept text is re-read after every compaction, and compactions are
+        # more frequent once the window is declared.
+        self.assertEqual(cfg["compaction"]["keep"]["tokens"], 15000)
+        self.assertEqual(cfg["compaction"]["buffer"], "50%")
+        self.assertEqual(cfg["tool_output"], {"max_lines": 300, "max_bytes": 12288})
+        cfg = self.written_config(AUTOWP_INFERENCE_KEEP_TOKENS="9000",
+                                  AUTOWP_INFERENCE_TOOL_MAX_LINES="120",
+                                  AUTOWP_INFERENCE_TOOL_MAX_BYTES="4096")
+        self.assertEqual(cfg["compaction"]["keep"]["tokens"], 9000)
+        self.assertEqual(cfg["tool_output"], {"max_lines": 120, "max_bytes": 4096})
+
+    def test_snippet_sets_the_reasoning_effort_on_the_request_body(self):
+        """83.5 % of decode tokens were invisible reasoning.
+
+        Through the per-agent request body, never a model variant: a variant
+        changes the model id, and an id the provider cannot resolve falls back
+        to a cloud model without saying so.
+        """
+        cfg = self.written_config()
+        self.assertEqual(cfg["agents"]["build"],
+                         {"request": {"body": {"reasoning_effort": "low"}}})
+        self.assertNotIn("#", json.dumps(cfg), "no model variant in the config")
+        cfg = self.written_config(AUTOWP_INFERENCE_REASONING_EFFORT="medium")
+        self.assertEqual(
+            cfg["agents"]["build"]["request"]["body"]["reasoning_effort"], "medium")
+        # An empty value omits the key entirely, leaving the model's default.
+        cfg = self.written_config(AUTOWP_INFERENCE_REASONING_EFFORT="")
+        self.assertNotIn("build", cfg["agents"])
+        self.assertEqual(sorted(cfg["agents"]), ["explore", "general"])
+
+    def test_snippet_small_model_is_opt_in(self):
+        """Unset, `explore` stays on the subagent slot exactly as before."""
+        cfg = self.written_config(AUTOWP_INFERENCE_MODEL="some-model:7b")
+        self.assertEqual(cfg["agents"]["explore"]["model"], "ollama-sub/some-model:7b")
+        self.assertEqual(list(cfg["providers"]["ollama"]["models"]), ["some-model:7b"])
+        # Set, it joins the main provider with its own limit and takes explore.
+        cfg = self.written_config(AUTOWP_INFERENCE_MODEL="some-model:7b",
+                                  AUTOWP_INFERENCE_SMALL_MODEL="small-model:3b")
+        self.assertEqual(list(cfg["providers"]["ollama"]["models"]),
+                         ["some-model:7b", "small-model:3b"])
+        self.assertEqual(cfg["providers"]["ollama"]["models"]["small-model:3b"]["limit"],
+                         {"context": 120000, "output": 16000})
+        self.assertEqual(cfg["agents"]["explore"]["model"], "ollama/small-model:3b")
+        # The parent and `general` are untouched by it.
+        self.assertEqual(cfg["model"], "ollama/some-model:7b")
+        self.assertEqual(cfg["agents"]["general"]["model"], "ollama-sub/some-model:7b")
+        self.assertEqual(list(cfg["providers"]["ollama-sub"]["models"]),
+                         ["some-model:7b"])
+        # Both optional keys off at once is still valid JSON with no stray comma.
+        cfg = self.written_config(AUTOWP_INFERENCE_REASONING_EFFORT="",
+                                  AUTOWP_INFERENCE_SMALL_MODEL="small-model:3b")
+        self.assertEqual(cfg["agents"]["explore"]["model"], "ollama/small-model:3b")
+        self.assertNotIn("build", cfg["agents"])
+
+    def test_snippet_documents_every_variable_it_reads(self):
+        """Each setting is parameterised, with its default in the header block."""
+        text = self.SNIPPET.read_text()
+        header = text.split("(\n    set -eu", 1)[0]
+        read = set(re.findall(r"\$\{(AUTOWP_[A-Z_]+)[:\-}]", text))
+        self.assertIn("AUTOWP_INFERENCE_CONTEXT", read)
+        for name in sorted(read):
+            with self.subTest(variable=name):
+                self.assertIn(name, header, f"{name} is not documented")
+
     def test_snippet_keeps_an_existing_config(self):
         home = self.tmp / "home/tester"
         conf = home / ".config/opencode/opencode.json"
@@ -1736,6 +2086,44 @@ class TestLocalInference(AutoWpTestCase):
         self.assertNotIn("/connect", on)
         self.assertIn("/connect", off)
         self.assertNotIn("Local inference", off)
+
+
+class TestTemplateByproducts(AutoWpTestCase):
+    """A template's own Python byproducts must never reach a project.
+
+    `tools/bin/` ships Python tools and a skill's `scripts/` does too, so
+    running either in place leaves a `__pycache__` next to the sources. Before
+    IGNORED_COPIES covered it, that directory was copied into every project
+    generated afterwards.
+    """
+
+    BYPRODUCTS = [
+        "templates/common/tools/bin/__pycache__/ledger.cpython-99.pyc",
+        "templates/common/tools/bin/stale.pyc",
+        "templates/common/skills/sl-internal/scripts/__pycache__/x.cpython-99.pyc",
+        "templates/c/skills/time-loop/leftover~",
+    ]
+
+    def test_pycache_and_backups_are_not_installed(self):
+        prog = self._copy_program()
+        for rel in self.BYPRODUCTS:
+            victim = prog / rel
+            victim.parent.mkdir(parents=True, exist_ok=True)
+            victim.write_bytes(b"byproduct")
+        for lang in ("c", "rust"):
+            with self.subTest(lang=lang):
+                target = "noby-" + lang
+                self.assertOk(self.run_auto_wp("--" + lang, "--harness", "none",
+                                               target, script=prog / "auto-wp.py"))
+                project = self.tmp / target
+                strays = [str(p.relative_to(project))
+                          for p in project.rglob("*")
+                          if p.name == "__pycache__"
+                          or p.suffix in (".pyc", ".pyo")
+                          or p.name.endswith("~")]
+                self.assertEqual(strays, [], f"byproducts copied into {target}")
+                # The tools themselves must still be there.
+                self.assertTrue((project / "bin/ledger").is_file())
 
 
 if __name__ == "__main__":

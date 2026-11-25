@@ -22,7 +22,19 @@
 #   5. RECURSION   — refuses to run beyond HEAVY_MAX_DEPTH nested levels (a wrapper that calls
 #                    itself was the fork bomb behind the 2026-11-15 OOM crash).
 set -u
-SLOTS=${HEAVY_SLOTS:-4}
+# SLOT SIZING (default derived from the core count, 2026-11-25).
+# The machine-wide prover concurrency is SLOTS * (per-job -wp-par). verify.sh and
+# frama-c-monitoring pass `-wp-par 2` AFTER "$@", so a caller cannot raise it: the default slot
+# count is therefore cores / 2, i.e. at most <cores> concurrent prover processes. The previous
+# flat default of 4 allowed 8 provers on 6 cores (observed: load 8.58, 30 prover processes,
+# 527 MB of swap in use), which makes -wp-timeout depend on machine load. Override with
+# HEAVY_SLOTS=<n> for a deliberately heavier run.
+WP_PAR=${HEAVY_WP_PAR:-2}
+CORES=$(nproc 2>/dev/null || getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)
+case $CORES in ''|*[!0-9]*) CORES=4 ;; esac
+DEFAULT_SLOTS=$(( CORES / WP_PAR ))
+if [ "$DEFAULT_SLOTS" -lt 1 ]; then DEFAULT_SLOTS=1; fi
+SLOTS=${HEAVY_SLOTS:-$DEFAULT_SLOTS}
 MEM_KB=${HEAVY_MEM_KB:-1572864}          # 1.5 GiB per process
 LOCKDIR=${HEAVY_LOCKDIR:-/tmp/heavy-slots}
 MAX_DEPTH=${HEAVY_MAX_DEPTH:-4}

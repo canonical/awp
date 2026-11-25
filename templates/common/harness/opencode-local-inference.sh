@@ -20,8 +20,24 @@
 #   AUTOWP_INFERENCE_SUBAGENT_PORT  a second server, used only by subagents
 #   AUTOWP_INFERENCE_MODEL          model name as the server reports it
 #   AUTOWP_INFERENCE_USER           container user whose config is written
+#   AUTOWP_PROJECT_DIR              the mounted project directory, searched for
+#                                   the address file (default /project)
+#   AUTOWP_INFERENCE_CONTEXT        declared context window, per model entry
+#                                   (default 120000). Must stay at or below
+#                                   OLLAMA_CONTEXT_LENGTH on BOTH servers.
+#   AUTOWP_INFERENCE_OUTPUT         declared output budget (default 16000)
+#   AUTOWP_INFERENCE_KEEP_TOKENS    compaction.keep.tokens (default 15000)
+#   AUTOWP_INFERENCE_TOOL_MAX_LINES tool_output.max_lines (default 300)
+#   AUTOWP_INFERENCE_TOOL_MAX_BYTES tool_output.max_bytes (default 12288)
+#   AUTOWP_INFERENCE_REASONING_EFFORT
+#                                   reasoning effort for the `build` agent
+#                                   (default low). An EMPTY value omits the
+#                                   key, leaving the model's own default.
+#   AUTOWP_INFERENCE_SMALL_MODEL    a second, smaller model for the `explore`
+#                                   subagent (unset by default: `explore`
+#                                   stays on the subagent slot)
 #
-# The written config addresses three failure modes seen with a single-slot
+# The written config addresses eight failure modes seen with a single-slot
 # local runner; see the generated README's "Local inference" section.
 #   1. headerTimeout: a long prompt is processed before any response header is
 #      sent, so the 5-minute default aborts turns the server would finish.
@@ -32,6 +48,28 @@
 #   3. Subagents get their own server (a separate prefix cache), because a
 #      subagent's prompt shares almost no prefix with its parent's and would
 #      otherwise evict it, forcing a full reprocess of the whole context.
+#   4. `limit` on every model entry: with none declared OpenCode falls back to
+#      its own assumed window (262 144 observed in 2.3.2), so `buffer: "50%"`
+#      compacted at about 131k tokens -- measured decode there is 28.9 tok/s
+#      against 45-52 tok/s under 60k. 120000 moves the threshold to 60k AND
+#      keeps the declared window at or below the servers' OLLAMA_CONTEXT_LENGTH:
+#      OpenCode sizes prompts against its own figure, never the server's, so a
+#      declared window larger than the server's truncates silently.
+#   5. `compaction.keep.tokens` 15000 rather than 24000: kept text is re-read
+#      after every compaction, and compactions are now more frequent.
+#   6. `tool_output` 300 lines / 12 KiB rather than the 2000 / 50 KiB default,
+#      which let a single bash output of 48.9k characters into the context.
+#      Output past the cap is spilled to a file under
+#      ~/.local/share/opencode/tool-output/ (the skill gives the absolute path).
+#   7. `reasoning_effort` on the `build` agent's REQUEST BODY, not through a
+#      model variant: 83.5 % of decode tokens were invisible reasoning, while
+#      visible assistant text averaged 523 characters a turn. The variant
+#      syntax (`provider/model#low`) changes the model id, and an id the
+#      provider cannot resolve falls back to a cloud model without saying so;
+#      an unknown request-body key is at worst ignored by the server.
+#   8. `AUTOWP_INFERENCE_SMALL_MODEL`, when set, gives `explore` a smaller
+#      model on the main server. Unset, `explore` stays on the subagent slot
+#      exactly as before, because a model that is not loaded is not faster.
 (
     set -eu
     set -o pipefail
@@ -41,6 +79,31 @@
     subagent_port=${AUTOWP_INFERENCE_SUBAGENT_PORT:-11435}
     model=${AUTOWP_INFERENCE_MODEL:-qwen3.8:27b-mlx}
     user=${AUTOWP_INFERENCE_USER:-workshop}
+    context=${AUTOWP_INFERENCE_CONTEXT:-120000}
+    output=${AUTOWP_INFERENCE_OUTPUT:-16000}
+    keep_tokens=${AUTOWP_INFERENCE_KEEP_TOKENS:-15000}
+    tool_max_lines=${AUTOWP_INFERENCE_TOOL_MAX_LINES:-300}
+    tool_max_bytes=${AUTOWP_INFERENCE_TOOL_MAX_BYTES:-12288}
+    # No colon: a value set to the empty string is kept empty, and omits the key.
+    reasoning_effort=${AUTOWP_INFERENCE_REASONING_EFFORT-low}
+    small_model=${AUTOWP_INFERENCE_SMALL_MODEL:-}
+
+    # The optional fragments, assembled before the heredoc so the JSON below
+    # has no conditional commas in it. `limit` is the same on every entry:
+    # OpenCode sizes prompts against one window for all of them.
+    limit="\"limit\": { \"context\": $context, \"output\": $output }"
+    small_entry=
+    explore_model="ollama-sub/$model"
+    if [ -n "$small_model" ]; then
+        small_entry=",
+        \"$small_model\": { \"name\": \"$small_model (small)\", $limit }"
+        explore_model="ollama/$small_model"
+    fi
+    build_agent=
+    if [ -n "$reasoning_effort" ]; then
+        build_agent=",
+    \"build\": { \"request\": { \"body\": { \"reasoning_effort\": \"$reasoning_effort\" } } }"
+    fi
 
     home=$(getent passwd "$user" 2>/dev/null | cut -d: -f6) || home=
     home=${home:-/home/$user}
@@ -120,7 +183,7 @@
         "timeout": false
       },
       "models": {
-        "$model": { "name": "$model (local)" }
+        "$model": { "name": "$model (local)", $limit }$small_entry
       }
     },
 
@@ -135,22 +198,27 @@
         "timeout": false
       },
       "models": {
-        "$model": { "name": "$model (subagent slot)" }
+        "$model": { "name": "$model (subagent slot)", $limit }
       }
     }
   },
 
   "agents": {
     "general": { "model": "ollama-sub/$model" },
-    "explore": { "model": "ollama-sub/$model" }
+    "explore": { "model": "$explore_model" }$build_agent
   },
 
   "compaction": {
     "buffer": "50%",
-    "keep": { "tokens": 24000 }
+    "keep": { "tokens": $keep_tokens }
   },
 
-  "model": "ollama/$model"
+  "model": "ollama/$model",
+
+  "tool_output": {
+    "max_lines": $tool_max_lines,
+    "max_bytes": $tool_max_bytes
+  }
 }
 EOF
         chown -R "$user" "$home/.config" 2>/dev/null || true

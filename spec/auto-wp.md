@@ -222,7 +222,14 @@ cross-provider judge. No address is stored in `templates/` or on the command
 line. `AUTOWP_INFERENCE_HOST` overrides the file for a test run;
 `AUTOWP_INFERENCE_PORT`, `AUTOWP_INFERENCE_SUBAGENT_PORT`,
 `AUTOWP_INFERENCE_MODEL`, `AUTOWP_INFERENCE_USER` and `AUTOWP_PROJECT_DIR`
-change the rest.
+change the rest. Every budget setting of the table below has a variable of
+its own too — `AUTOWP_INFERENCE_CONTEXT`, `AUTOWP_INFERENCE_OUTPUT`,
+`AUTOWP_INFERENCE_KEEP_TOKENS`, `AUTOWP_INFERENCE_TOOL_MAX_LINES`,
+`AUTOWP_INFERENCE_TOOL_MAX_BYTES`, `AUTOWP_INFERENCE_REASONING_EFFORT` and
+`AUTOWP_INFERENCE_SMALL_MODEL` — all with defaults, so the snippet needs no
+argument. Each is listed with its default in the snippet's own header block,
+and a test fails on a variable the snippet reads and the header does not
+document.
 
 **Two locations, and why there must be two.** The hook looks in the
 container's home (`~/.local-llm-machine-ip.txt`) first, then in the project
@@ -269,7 +276,9 @@ which `1.2.1` tests directly. Under `--local-inference`:
 4. **The output** (§3.6) reads `  harness:  opencode (local inference)`.
 
 **What the written configuration says, and why.** Each setting answers a
-failure mode of a single-slot local runner observed in an Ollama server log:
+failure mode of a single-slot local runner observed in an Ollama server log,
+or a measured cost of a 96-hour campaign against one (the figures are from
+`mac-optim.md` and the 2026-11-24 session logs):
 
 | Setting | Reason |
 |---|---|
@@ -278,13 +287,20 @@ failure mode of a single-slot local runner observed in an Ollama server log:
 | a second provider `ollama-sub`, with `agents.general` and `agents.explore` on it | A subagent's prompt shares almost no prefix with its parent's; on one server it evicts the parent's prompt cache and the next parent turn reprocesses the whole context. |
 | `compaction.buffer: "50%"` | Keeps prompts in the range that stays fast instead of compacting only near the context limit. |
 | `model` | `opencode run` — what the `time-loop` watchdog calls — takes the config default, so without it the campaign runs on whatever cloud model OpenCode would otherwise pick. |
+| `limit: {context, output}` on **every** model entry (`AUTOWP_INFERENCE_CONTEXT` 120000, `AUTOWP_INFERENCE_OUTPUT` 16000) | With no `limit` declared, OpenCode sizes prompts against its own assumed window — 262 144 in 2.3.2 — so `buffer: "50%"` compacted only near 131k tokens, where decode measures 28.9 tok/s against 45–52 tok/s under 60k. Declaring 120000 moves the threshold to about 60k and shrinks a cold re-prefill after a prover wait by the same factor. The declared window is also the one that must stay **at or below** `OLLAMA_CONTEXT_LENGTH` on both servers: OpenCode never reads the server's figure, so declaring more than the server allows is the silent truncation cliff. Lowering the servers first, with the window still undeclared, *creates* it. |
+| `compaction.keep.tokens` 15000 (`AUTOWP_INFERENCE_KEEP_TOKENS`), rather than the 24000 this option first shipped with | Kept text is re-read after every compaction, and declaring the window makes compactions more frequent. |
+| `tool_output: {max_lines: 300, max_bytes: 12288}` (`AUTOWP_INFERENCE_TOOL_MAX_LINES`, `AUTOWP_INFERENCE_TOOL_MAX_BYTES`) | The 2000-line / 50 KiB default let a single bash output of 48.9k characters into the parent's context; bash I/O is 85 % of the visible stream. Output past the cap is spilled to a file, whose absolute path the `time-loop` skill states (§4.2.2) because guessing it failed three times. |
+| `agents.build.request.body.reasoning_effort` (`AUTOWP_INFERENCE_REASONING_EFFORT`, default `low`; an **empty** value omits the key) | 83.5 % of decode tokens were invisible reasoning, while visible assistant text averaged 523 characters a turn. It is set through the per-agent **request body**, never through a model variant (`provider/model#low`): a variant changes the model id, and an id the provider cannot resolve falls back to a cloud model without saying so, whereas an unknown body key is at worst ignored by the server. |
+| `AUTOWP_INFERENCE_SMALL_MODEL`, **unset** by default | Set, it adds that model to the `ollama` provider with its own `limit` and points `agents.explore` at it, so search turns do not occupy the big model. Unset, `explore` stays on `ollama-sub` with the main model, because a model that is not loaded on the host is not faster. |
 
 Two properties of the servers themselves are documented rather than
 configured, because they live on the LLM host: both servers need the **same
-context length** (OpenCode sizes prompts against one window, so a smaller one
-on the subagent server truncates subagent prompts with no error), and
-`OLLAMA_KEEP_ALIVE` must exceed the watchdog's wake interval (a runner that
-unloads takes its prompt cache with it).
+context length**, and at least the declared `limit.context` (OpenCode sizes
+prompts against its own window, so a smaller one on either server truncates
+prompts with no error), and `OLLAMA_KEEP_ALIVE` must exceed the watchdog's
+wake interval (a runner that unloads takes its prompt cache with it). The
+generated README names `OLLAMA_CONTEXT_LENGTH` for the first and gives both
+`ollama serve` lines.
 
 #### 1.2.1 Tests
 
@@ -302,6 +318,20 @@ with the environment overrides it honors them. One test fails on any literal
 IPv4 address outside the documentation range 192.0.2.0/24 in the snippet or
 in a generated README, so the hardcoded address this option first shipped
 with cannot come back.
+
+Five further tests cover the budget settings of the table above, each by
+reading back the JSON the snippet wrote: the `limit` of every model entry in
+both providers and its two overrides; `compaction.keep.tokens` 15000 and the
+`tool_output` pair with theirs; `agents.build` carrying
+`request.body.reasoning_effort` `low`, honoring another value, and
+disappearing entirely — `agents` reduced to `explore` and `general` — when
+the variable is set to the empty string, with the whole configuration
+asserted free of the `#` of a model variant; `explore` on `ollama-sub` with
+no `AUTOWP_INFERENCE_SMALL_MODEL` and on `ollama/<small model>`, which is
+then the second entry of the `ollama` provider with a `limit` of its own,
+when there is one; and that the snippet's header block documents every
+`AUTOWP_*` variable the snippet reads. Each of those runs parses the written
+file, so no combination of the optional keys can produce invalid JSON.
 
 ## 2. Implementation constraints
 
@@ -866,8 +896,9 @@ differences:
   with C the Creusot checkout must stay where it was installed from (§4.3.6). No
   `use-frama-c` checkout is needed. The optional
   `~/.local-llm-machine-ip.txt` line is the same as for C.
-- *What is in this directory.* `bin/` holds `bin/rmf-lint.sh` and
-  `bin/time-loop-watchdog.py` (§4.1),
+- *What is in this directory.* `bin/` holds the six common-layer tools
+  (`rmf-lint.sh`, `heavy`, `mem-watchdog`, `time-loop-watchdog.py`, `ledger`
+  and `check-delivery`, §4.1),
   run from the project root, and, under `--driver fips`, the project root
   holds `specs/` (§3.6); `.workshop/` as for C, with
   `autowp-packages/hooks/setup-base` holding only `tmux` and `curl` and a
@@ -1270,11 +1301,38 @@ Skills: `directory-structure`, `ebios-risk-manager`, `ebios-sl`, `fips-sl`,
 
 Commands: none.
 
-Tools: `tools/bin/rmf-lint.sh`, the structure, coverage and
-endogeneity linter that is the machine gate of `rmf-sl`, moved here from
-`templates/c/tools/bin/` so that both languages install it as
-`bin/rmf-lint.sh` (§3.6: `tools/` directories are merged across layers). Its
-C8 endogeneity tripwire fails on C source artifacts (`.c`/`.h`, `#include`,
+Tools, six files in `tools/bin/`, installed by both languages as `bin/`
+(§3.6: `tools/` directories are merged across layers):
+
+- `rmf-lint.sh`, the structure, coverage and endogeneity linter that is the
+  machine gate of `rmf-sl`, moved here from `templates/c/tools/bin/` (§4.2.1);
+- `heavy`, the R6 resource guard every heavy verification job runs under: a
+  slot pool shared by all agents, `ulimit -v` per process,
+  `oom_score_adj=1000`, its own process group killed on exit and a
+  nesting-depth guard. The slot default is `nproc / HEAVY_WP_PAR` (3 on a
+  6-core box) rather than a flat 4, which allowed 8 provers on 6 cores and
+  made `-wp-timeout` depend on machine load; `HEAVY_SLOTS` still overrides it;
+- `mem-watchdog`, the last line of defence under the same rule: it kills the
+  heaviest `bin/heavy` job group when memory or the task count passes a
+  threshold, and only ever targets `bin/heavy` jobs;
+- `time-loop-watchdog.py`, the campaign heartbeat `time-loop` arms under
+  `--harness opencode`. It **fails loudly** (§4.2.2): a wake that exits under
+  `--min-runtime` (60 s), prints a session-fatal `Error:` line, or whose
+  `build · <model>` banner is not `--expect-model` stops the re-firing,
+  writes `.time-loop-watchdog.alert` and reports it in `status`. A benign
+  tool failure is told from a fatal session error by the `✗ <tool> failed`
+  marker that precedes it, so a missing file does not halt a campaign;
+  `--no-fail-fast` downgrades all three to warnings. 55 hours of one 96-hour
+  budget produced nothing because a watchdog re-fired every 8 minutes into a
+  provider error and told nobody;
+- `ledger` and `check-delivery`, the two read-only campaign query tools
+  (§4.2.2). They are in the common layer rather than the C one because
+  neither names a campaign directory: both **discover** it
+  (`*-analysis-acsl` for C, `*-creusot` for Rust, then `*-analysis-*`, in the
+  current directory and then `$AUTOWP_PROJECT_DIR`), and the ledger's
+  six-column schema is pinned identically in both layers' `time-loop` skill.
+
+`rmf-lint.sh`'s C8 endogeneity tripwire fails on C source artifacts (`.c`/`.h`, `#include`,
 `#define`, `0x` hex, `::`, `->`) and on Rust ones (`.rs`, `fn name(`,
 `impl X`, `unsafe {`, `#[attr]`, `&mut`, `Vec<`/`Option<`/`Result<`/`Box<`,
 `macro!(`, `.unwrap()`) in R1–R4, whatever the language of the project; the
@@ -1394,8 +1452,8 @@ applied that patch.
 
 `templates/c/skills/time-loop/SKILL.md` and
 `templates/c/commands/time-loop.md` are copied from `use-frama-c` with three
-behaviour changes, decided on 2026-10-28. These are the only content changes
-in the C layer (§4.4).
+behaviour changes, decided on 2026-10-28, and one later addition (item 4).
+These are the only content changes in the C layer (§4.4).
 
 1. **A re-run keeps the original deadline.** The deadline is fixed by the
    first invocation (`deadline = start + N hours`, stored in
@@ -1455,8 +1513,41 @@ in the C layer (§4.4).
    forbid such a stop, or describe the trap the triage exists to prevent,
    and are kept unchanged.
 
-All three changes are listed in §4.4. `tests.md` checks the first two with
-C3.x and C4.x, and the third with C4.2 and template check T6.
+4. **CONTEXT HYGIENE, and the tools it names.** The parent session's context
+   is the campaign's scarcest resource: 85 % of the visible stream is bash
+   I/O, and ledger and state queries are its single biggest source (158k
+   characters in one session, single `notes` fields of 4 853 characters). The
+   `RESOURCE GUARD` block therefore gains a `CONTEXT HYGIENE` block with
+   three rules:
+   - query the ledger with `bin/ledger`, never with `cat`, `grep -n` or `awk`
+     on `verdicts.tsv`. It selects rows by unit, function or status, prints
+     only the columns asked for, clips every field (200 characters by
+     default), caps the rows (40) and prints a count of what it omitted;
+   - tool output is capped at 300 lines / 12 KiB (§1.2), and what is past the
+     cap is spilled to a file whose **absolute** path the skill states
+     (`/home/workshop/.local/share/opencode/tool-output/tool_<id>`) — three
+     reads failed on a guessed relative path. Re-running the command with a
+     narrower filter is cheaper than reading the spill file;
+   - gate a claimed subagent delivery with `bin/check-delivery <cycle>`
+     before reading anything it claims: one line, read-only, checking that
+     the report exists and is over 500 bytes, that the unit's logs are
+     non-empty, and that a commit names the cycle. One cycle reported
+     DELIVERED with none of the three and cost about 540 log lines to
+     disprove by hand.
+
+   The same block is in `templates/rust/skills/time-loop/SKILL.md`, with
+   `XXX-creusot/verdicts.tsv` for the ledger and the Rust unit layout; both
+   layers' watchdog paragraph also documents the fail-loud flags of
+   `bin/time-loop-watchdog.py` (§4.1), because a campaign that does not run
+   the default local model must pass `--expect-model`. `time-loop` is a
+   language-layer skill in both layers and is not in `templates/common/`, so
+   there is no third copy to keep in step; a test asserts that.
+
+All three behaviour changes are listed in §4.4. `tests.md` checks the first
+two with C3.x and C4.x, and the third with C4.2 and template check T6.
+`test_auto_wp.py`'s `TestCampaignTools` covers item 4: both layers' skill
+carries the block, names both tools and the absolute spill path, and no
+longer states the old flat `HEAVY_SLOTS` default.
 
 ### 4.3 `templates/rust/` — Rust with Creusot
 
@@ -1982,8 +2073,10 @@ subprocess.
     with the executable bit on every script, `bin/rmf-lint.sh` identical to
     `templates/common/tools/bin/rmf-lint.sh` and `bin/fips-lint.sh` to its
     template (§4.1); `--rust` creates a
-    `bin/` holding those same two linters (regular, executable
-    files), none of the C data (`frama-c-patches/`, `framac-gold/`,
+    `bin/` holding exactly the six common-layer tools of §4.1
+    (`check-delivery`, `heavy`, `ledger`, `mem-watchdog`, `rmf-lint.sh`,
+    `time-loop-watchdog.py`), as regular, executable
+    files, none of the C data (`frama-c-patches/`, `framac-gold/`,
     `no-ceiling.md`) and no `specs/`, and a `.gitignore` listing `/.workshop.lock`; an
     existing `foo/.gitignore` is kept and reported with `kept`.
 14. `--rust foobar` writes a README that contains `creusot-launch`,
@@ -2039,6 +2132,28 @@ subprocess.
     PDF, the output reads `copied  foobar/specs (corpus: 1 of M documents)`,
     stderr warns about the M-1 others and `*~` files are not copied; without
     `specs/MANIFEST.tsv` the run exits 1 and leaves nothing.
+24. The campaign tools of §4.1, in `TestCampaignTools`, run against a fake
+    campaign inside a generated project. For both languages, `bin/ledger`
+    and `bin/check-delivery` are regular files of mode `0755`, byte-identical
+    to their template, and contain no `open()` for writing. `bin/ledger`
+    discovers `XXX-analysis-acsl/verdicts.tsv` under `--c` and
+    `XXX-creusot/verdicts.tsv` under `--rust`, selects by status, clips a
+    500-character `notes` field to `-w`, caps rows to `-n` and reports both
+    counts, prints a total under `--count`, leaves a read-only ledger
+    unchanged, and exits 2 naming `--file` when there is no ledger anywhere.
+    `bin/check-delivery` returns one line and exit 1 while the report, logs
+    or commit are missing (a report under 500 bytes is a `STUB`, an empty log
+    file is `EMPTY`), exit 0 and `DELIVERED` once all three are in place —
+    accepting `194`, `c194` and `cycle194` alike — exit 2 on a cycle id it
+    cannot parse, and exit 2 with `UNKNOWN` when no campaign directory
+    exists. Both tools byte-compile with the standard library only.
+    `bin/time-loop-watchdog.py` byte-compiles, offers `--min-runtime`,
+    `--expect-model` and `--no-fail-fast`, rejects a negative
+    `--min-runtime`, and reports `ALERT PENDING` from `status` when
+    `.time-loop-watchdog.alert` exists. `bin/heavy` passes `bash -n`, takes
+    its slot default from `$DEFAULT_SLOTS` rather than a literal 4, computes
+    3 from 6 cores at `-wp-par 2` and never 0 on one core, and still honours
+    an explicit `HEAVY_SLOTS`.
 
 The template checks of `tests.md` (§3.2 there) gain: the `workshop/` files
 of each language layer are the three of §3.7.1, with the exact `sdks` list

@@ -67,6 +67,12 @@ RESERVED = ["config", ".agents", ".claude/skills", ".claude/commands",
 # Directories that may pre-exist and are then reused (§3.1 item 3, §3.7.4).
 REUSED_DIRS = [".claude", ".opencode", ".workshop"]
 # The workshop definition written in .workshop/ (§3.7).
+# Never copied into a generated project: editor backups, and the byproducts
+# of running a template's own Python in place. `tools/bin/` and a skill's
+# `scripts/` both hold Python, so a stray __pycache__ there would otherwise
+# be installed into every project generated afterwards.
+IGNORED_COPIES = ("*~", "__pycache__", "*.pyc", "*.pyo")
+
 WORKSHOP_NAME = "autowp"
 
 
@@ -289,7 +295,7 @@ class Run:
         dest.mkdir()
         for name in sorted(chosen):
             shutil.copytree(chosen[name], dest / name, symlinks=True,
-                            ignore=shutil.ignore_patterns("*~"))
+                            ignore=shutil.ignore_patterns(*IGNORED_COPIES))
         return sorted(chosen)
 
     def copy_commands(self, dest):
@@ -339,7 +345,7 @@ class Run:
                 for entry in entries:
                     if entry.is_dir() and not entry.is_symlink():
                         shutil.copytree(entry, dest, symlinks=True, dirs_exist_ok=True,
-                                        ignore=shutil.ignore_patterns("*~"))
+                                        ignore=shutil.ignore_patterns(*IGNORED_COPIES))
             else:
                 self.created.append(("file", dest))
                 shutil.copy2(entries[-1], dest, follow_symlinks=False)
@@ -364,7 +370,7 @@ class Run:
             return
         self.created.append(("tree", dest))
         shutil.copytree(SPECS, dest, symlinks=False,
-                        ignore=shutil.ignore_patterns("*~", "__pycache__"))
+                        ignore=shutil.ignore_patterns(*IGNORED_COPIES))
         ids = [line.split("\t", 1)[0] for line in manifest.read_text().splitlines()
                if line and not line.startswith("#")][1:]
         present = sum((dest / "pdf" / f"{i}.pdf").is_file() for i in ids)
@@ -394,7 +400,7 @@ class Run:
             if entry.is_dir() and not entry.is_symlink():
                 self.created.append(("tree", dest))
                 shutil.copytree(entry, dest, symlinks=True,
-                                ignore=shutil.ignore_patterns("*~"))
+                                ignore=shutil.ignore_patterns(*IGNORED_COPIES))
             else:
                 self.created.append(("file", dest))
                 shutil.copy2(entry, dest, follow_symlinks=False)
@@ -580,9 +586,15 @@ class Run:
                 "OLLAMA_HOST=0.0.0.0 OLLAMA_KEEP_ALIVE=2h ollama serve\n"
                 "OLLAMA_HOST=0.0.0.0:11435 OLLAMA_KEEP_ALIVE=2h ollama serve\n"
                 "```\n\n"
-                "Give both servers the **same** context length. OpenCode sizes "
-                "prompts against one window, so a smaller one on the subagent "
-                "server truncates their prompts silently. A long "
+                "Give both servers the **same** context length, and make it at "
+                "least the window the configuration declares "
+                "(`limit.context`, 120000 by default, "
+                "`AUTOWP_INFERENCE_CONTEXT`): with Ollama that is "
+                "`OLLAMA_CONTEXT_LENGTH`. OpenCode sizes "
+                "prompts against its own declared window and never against the "
+                "server's, so a smaller one on either server truncates prompts "
+                "silently; declaring the window is also what makes compaction "
+                "fire in the fast range instead of near the limit. A long "
                 "`OLLAMA_KEEP_ALIVE` matters just as much: when the runner "
                 "unloads between cycles its prompt cache goes with it, and the "
                 "next cycle reprocesses the whole context from scratch.\n\n"
@@ -597,7 +609,17 @@ class Run:
                 "`AUTOWP_INFERENCE_HOST`, `AUTOWP_INFERENCE_PORT`, "
                 "`AUTOWP_INFERENCE_SUBAGENT_PORT` or `AUTOWP_INFERENCE_MODEL` "
                 "before `workshop launch`, or edit the generated "
-                "`opencode.json`. A local model is slower than a cloud one: "
+                "`opencode.json`. The budget settings have their own variables, "
+                "all with defaults: `AUTOWP_INFERENCE_CONTEXT` (120000) and "
+                "`AUTOWP_INFERENCE_OUTPUT` (16000) for the declared window, "
+                "`AUTOWP_INFERENCE_KEEP_TOKENS` (15000) for what compaction "
+                "keeps, `AUTOWP_INFERENCE_TOOL_MAX_LINES` (300) and "
+                "`AUTOWP_INFERENCE_TOOL_MAX_BYTES` (12288) for the tool-output "
+                "cap, `AUTOWP_INFERENCE_REASONING_EFFORT` (`low`; empty leaves "
+                "the model's own default) for the `build` agent, and "
+                "`AUTOWP_INFERENCE_SMALL_MODEL` (unset) to put the `explore` "
+                "subagent on a smaller model. "
+                "A local model is slower than a cloud one: "
                 "expect long turns and check `opencode` is still advancing "
                 "before assuming it stalled.",
             ) + harness_text[4:]
