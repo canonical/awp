@@ -3,21 +3,33 @@
 # Creusot was built at /opt/creusot; point that path at the SDK.
 ln -sfn "$SDK" /opt/creusot
 # build-essential: the linker cargo calls. libgmp10, zlib1g: Why3/why3find.
-# python3-venv: the creusot-mcp venv (lean-lsp-mcp style).
+# python3-venv + python3-setuptools/python3-wheel: the creusot-mcp venv and its
+# OFFLINE wheel build (the base-snapshot phase has apt but no PyPI, so the
+# venv's own setuptools/wheel must come from apt, not a pip download).
 apt-get update
 apt-get install build-essential pkg-config git curl ca-certificates ripgrep \
-    python3 python3-venv libgmp10 zlib1g
+    python3 python3-venv python3-pip python3-setuptools python3-wheel \
+    libgmp10 zlib1g
 
 # creusot-mcp (read-only Mode A over proof.json), pinned, in a venv at a fixed
 # path OUTSIDE the read-only /opt/creusot overlay (spec creusot-mcp.md §5, O-3:
 # writing under /opt/creusot would trip the SDK test `sdk-untouched`). The
 # Mode-B scratch, if ever enabled, also lives outside the overlay.
+# Installed OFFLINE: --system-site-packages exposes apt's setuptools/wheel to
+# the build, --no-build-isolation uses them instead of fetching from PyPI, and
+# --no-index forbids any network (the package is standard-library only, no deps).
+# The sources are copied to a writable temp dir first: $SDK/mcp is on the
+# read-only SDK mount, and an in-tree build (what --no-build-isolation does)
+# would fail with "could not create 'build': Read-only file system".
 CREUSOT_MCP_VERSION=0.1.0
 if ! /opt/creusot-mcp/venv/bin/pip show creusot-mcp 2>/dev/null | grep -qx "Version: $CREUSOT_MCP_VERSION"; then
     rm -rf /opt/creusot-mcp/venv
     mkdir -p /opt/creusot-mcp
-    python3 -m venv /opt/creusot-mcp/venv
-    /opt/creusot-mcp/venv/bin/pip install --quiet "$SDK/mcp"
+    python3 -m venv --system-site-packages /opt/creusot-mcp/venv
+    mcp_src=$(mktemp -d)
+    cp -a "$SDK/mcp/." "$mcp_src/"
+    /opt/creusot-mcp/venv/bin/pip install --quiet --no-build-isolation --no-index "$mcp_src"
+    rm -rf "$mcp_src"
 fi
 
 install -m 644 "$SDK/creusot.profile" /etc/profile.d/creusot.sh
