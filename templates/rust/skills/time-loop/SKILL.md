@@ -155,7 +155,8 @@ Each wake, in this order:
      the coordinator and every agent — a self-referential shared wrapper fork bomb on top of uncapped
      parallelism).** Prose limits did not prevent it, so the guard is MECHANICAL and applies here too:
      - **`bin/heavy <cmd>`** — every heavy job (cargo build, `creusot`, `why3`, the SMT provers) runs
-       through it: a slot pool shared by ALL agents (`HEAVY_SLOTS`, default 4, flock), `ulimit -v` per
+       through it: a slot pool shared by ALL agents (`HEAVY_SLOTS`, default `nproc / 2` — 3 on a
+       6-core box — flock), `ulimit -v` per
        process (`HEAVY_MEM_KB`, default 1.5 GiB), `oom_score_adj=1000` (the kernel kills a prover,
        never the session), its own process group killed on exit (no orphan solvers), and a
        nesting-depth guard that refuses wrapper recursion. The creusot/cargo driver execs through it,
@@ -169,6 +170,26 @@ Each wake, in this order:
        as an incident, and never record a verdict from a killed run. Never let an agent overwrite a
        SHARED tool (any driver script, `bin/*`); a variant gets its own name in its own directory.
        Calling `creusot`/`why3`/a prover directly, not through `bin/heavy`, is a loop-behaviour bug.
+   - **CONTEXT HYGIENE (the parent's context is the scarcest resource).** 85 % of the visible stream
+     is bash I/O, and ledger/state queries are its single biggest source (measured 2026-11-24 on the
+     C side: 158k characters in one session; single `notes` fields reach 4 853 characters).
+     - **Query the ledger with `bin/ledger`, never with `cat` / `grep -n` / `awk` on
+       `verdicts.tsv`.** It selects rows by unit, function or status, prints only the columns asked
+       for, clips every field (default 200 chars), caps rows (default 40) and prints a count of what
+       it omitted. It finds `XXX-creusot/verdicts.tsv` by itself, is read-only and never writes the
+       ledger. Examples: `bin/ledger -s RESIDUE -n 20` ·
+       `bin/ledger -u parser -c unit,verdict,notes -w 80` · `bin/ledger -f parse -c all` ·
+       `bin/ledger --count -s VERIFIED` · `bin/ledger --help`.
+     - **Tool output is capped at 300 lines / 12 KiB** (`tool_output` in
+       `/home/workshop/.config/opencode/opencode.json` under `--local-inference`). Output past the
+       cap is spilled to a file whose ABSOLUTE path is
+       **`/home/workshop/.local/share/opencode/tool-output/tool_<id>`** — read it with that absolute
+       path, never a guessed relative one (three reads failed that way on 2026-11-24). Cheaper than
+       reading the spill file is re-running the command with a narrower filter.
+     - **Gate a subagent delivery with `bin/check-delivery <cycle>`** before reading anything it
+       claims: one line, read-only, checks that the report exists, the logs are non-empty and the
+       commit is present (on the C side c191 reported DELIVERED with none of the three, and
+       establishing that cost ~540 log lines).
    - **BUILD IN A COPY** (§1) is in every verifier's prompt.
    - **A finding needs two witnesses:** an expected-failing model in `XXX-creusot/failing/<name>/`
      (the faithful model has exactly the unproved goal; the minimal fix makes it prove) **and**,
@@ -288,7 +309,13 @@ stop by not re-arming.
   `.time-loop-watchdog.stop`; externally, `python3 bin/time-loop-watchdog.py stop` stops the
   recorded process group including an active wake. `status` checks the pidfile with process-start
   identity. `start` locks it against duplicate watchdogs and removes the stop flag only for an
-  unexpired deadline. Check state-file freshness too; re-arm only if dead.
+  unexpired deadline. **It fails loudly:** a wake that exits under `--min-runtime` (60 s), prints a
+  session-fatal `Error:` line, or whose `build · <model>` banner is not `--expect-model` stops the
+  re-firing, writes `.time-loop-watchdog.alert` and says so in `status` (55 h of one 96 h budget
+  were lost to a watchdog that re-fired into a provider error and told nobody). Pass
+  `--expect-model <model>` when the campaign does not run the default local model, and
+  `--no-fail-fast` only to downgrade all three to warnings.
+  Check state-file freshness too; re-arm only if dead.
   Entry point: `/time-loop XXX N`. Until verifier spawn/report read-back is verified, **run
   the verifier inline**, a known weakening of the delegation barrier. If no fresh isolated
   study actor can be created, require an independently prepared code-blind risk report before

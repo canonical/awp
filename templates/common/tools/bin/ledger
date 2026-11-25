@@ -1,0 +1,247 @@
+#!/usr/bin/env python3
+"""ledger — read-only query tool for the campaign verdict ledger.
+
+Replaces `cat`/`grep -n`/`awk` on the campaign's `verdicts.tsv`, which is the
+single largest source of context in the parent session: measured 2026-11-24,
+ledger and state queries produced 158k characters (17.5 % of the visible
+stream) in one session, and single `notes` fields reach ~4.9k characters.
+
+The ledger is NOT hardcoded: it is discovered, so one tool serves both
+language layers, whose ledgers have the same pinned six-column schema
+(`skills/time-loop/SKILL.md` §5) but different directory names —
+`XXX-analysis-acsl/verdicts.tsv` under C, `XXX-creusot/verdicts.tsv` under
+Rust. Searched, first hit wins: `--file`, `$LEDGER_FILE`, a campaign
+directory of the current directory, then of `$AUTOWP_PROJECT_DIR`
+(default `/project`). Run from the project root, like every other `bin/` tool.
+
+This tool NEVER writes to the ledger: the file is opened read-only and no code
+path here opens any file for writing.
+
+Exit status: 0 = rows printed (or counted) — 2 = usage, or no ledger found.
+
+Examples
+  ledger -s RESIDUE -n 20                    # 20 residue rows, default columns
+  ledger -u zlib                             # every row whose unit matches zlib
+  ledger -f adler32 -c all                   # one function, all columns
+  ledger -s PARSE-BLOCKED -c unit,notes      # only two columns
+  ledger --count -s VERIFIED                 # just how many
+  ledger -u dtrace -w 60                     # tighter field clipping
+"""
+
+import argparse
+import glob
+import os
+import re
+import sys
+
+LEDGER_NAME = "verdicts.tsv"
+# Campaign directory names, in the order the layers are tried. `*-analysis-*`
+# is the catch-all for a campaign that names its directory differently.
+CAMPAIGN_GLOBS = ("*-analysis-acsl", "*-creusot", "*-analysis-*")
+COLUMNS = ["unit", "sa", "function", "verdict", "goals", "notes"]
+ALIASES = {
+    "sa#": "sa", "sa": "sa", "status": "verdict", "verdict": "verdict",
+    "unit": "unit", "file": "unit", "function": "function", "fn": "function",
+    "func": "function", "goals": "goals", "notes": "notes", "note": "notes",
+}
+DEFAULT_COLUMNS = ["unit", "function", "verdict", "goals"]
+
+
+def search_roots():
+    """Where a ledger is looked for: here first, then the mounted project."""
+    roots = [os.curdir]
+    project = os.environ.get("AUTOWP_PROJECT_DIR") or "/project"
+    if os.path.abspath(project) != os.path.abspath(os.curdir):
+        roots.append(project)
+    return roots
+
+
+def discover_ledger():
+    """The campaign ledger, found rather than hardcoded. None when absent."""
+    env = os.environ.get("LEDGER_FILE")
+    if env:
+        return env
+    for root in search_roots():
+        if not os.path.isdir(root):
+            continue
+        for pattern in CAMPAIGN_GLOBS:
+            for directory in sorted(glob.glob(os.path.join(root, pattern))):
+                candidate = os.path.join(directory, LEDGER_NAME)
+                if os.path.isfile(candidate):
+                    return candidate
+        candidate = os.path.join(root, LEDGER_NAME)
+        if os.path.isfile(candidate):
+            return candidate
+    return None
+
+
+def no_ledger():
+    print("ledger: no campaign ledger found. Looked for "
+          f"{'/'.join(CAMPAIGN_GLOBS)}/{LEDGER_NAME} under "
+          f"{', '.join(search_roots())}.", file=sys.stderr)
+    print("ledger: run this from the project root, or name the file: "
+          "ledger --file <path> (or LEDGER_FILE=<path>)", file=sys.stderr)
+    return 2
+
+
+def parse_columns(spec):
+    if spec.strip().lower() in ("all", "*"):
+        return list(COLUMNS)
+    out = []
+    for raw in spec.split(","):
+        key = raw.strip().lower()
+        if not key:
+            continue
+        if key.isdigit():
+            idx = int(key) - 1
+            if not 0 <= idx < len(COLUMNS):
+                raise SystemExit(f"ledger: column number out of range: {raw}")
+            name = COLUMNS[idx]
+        elif key in ALIASES:
+            name = ALIASES[key]
+        else:
+            raise SystemExit(
+                f"ledger: unknown column {raw!r}; known: {', '.join(COLUMNS)}, all")
+        if name not in out:
+            out.append(name)
+    if not out:
+        raise SystemExit("ledger: --columns selected nothing")
+    return out
+
+
+def make_matcher(pattern, regex, case_sensitive):
+    if pattern is None:
+        return None
+    if regex:
+        flags = 0 if case_sensitive else re.IGNORECASE
+        try:
+            rx = re.compile(pattern, flags)
+        except re.error as exc:
+            raise SystemExit(f"ledger: bad regex {pattern!r}: {exc}")
+        return lambda value: rx.search(value) is not None
+    if case_sensitive:
+        return lambda value: pattern in value
+    needle = pattern.lower()
+    return lambda value: needle in value.lower()
+
+
+def clip(value, width):
+    value = value.replace("\t", " ").replace("\r", " ").strip()
+    if width <= 0 or len(value) <= width:
+        return value, False
+    return value[: max(1, width - 1)] + "…", True
+
+
+def main(argv=None):
+    ap = argparse.ArgumentParser(
+        prog="ledger", description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("-u", "--unit", help="select rows whose unit matches")
+    ap.add_argument("-f", "--function", help="select rows whose function matches")
+    ap.add_argument("-s", "--status", "--verdict", dest="status",
+                    help="select rows whose verdict matches (VERIFIED, RESIDUE, PARSE-BLOCKED, ...)")
+    ap.add_argument("-g", "--grep", help="select rows matching anywhere in the row")
+    ap.add_argument("-c", "--columns", default=",".join(DEFAULT_COLUMNS),
+                    help="comma list of columns or numbers, or 'all' (default: %(default)s)")
+    ap.add_argument("-n", "--limit", type=int, default=40,
+                    help="maximum rows printed, 0 for no cap (default: %(default)s)")
+    ap.add_argument("-w", "--width", type=int, default=200,
+                    help="clip each field to this many characters, 0 to disable (default: %(default)s)")
+    ap.add_argument("-E", "--regex", action="store_true",
+                    help="treat selectors as regexes instead of substrings")
+    ap.add_argument("-S", "--case-sensitive", action="store_true",
+                    help="match case-sensitively (default: case-insensitive)")
+    ap.add_argument("--count", action="store_true",
+                    help="print only the number of matching rows")
+    ap.add_argument("--no-header", action="store_true", help="omit the column header")
+    ap.add_argument("--file", default=None,
+                    help="ledger path (default: the campaign ledger found from here, "
+                         "or $LEDGER_FILE)")
+    args = ap.parse_args(argv)
+
+    path = args.file or discover_ledger()
+    if not path:
+        return no_ledger()
+
+    columns = parse_columns(args.columns)
+    tests = []
+    for name, pattern in (("unit", args.unit), ("function", args.function),
+                          ("verdict", args.status)):
+        matcher = make_matcher(pattern, args.regex, args.case_sensitive)
+        if matcher is not None:
+            tests.append((COLUMNS.index(name), matcher))
+    row_matcher = make_matcher(args.grep, args.regex, args.case_sensitive)
+
+    try:
+        # Read-only by construction. This is the only file access in the tool.
+        with open(path, "r", encoding="utf-8", errors="replace") as fh:
+            lines = fh.read().splitlines()
+    except OSError as exc:
+        print(f"ledger: cannot read {path}: {exc}", file=sys.stderr)
+        return 2
+
+    if not lines:
+        print(f"ledger: {path} is empty", file=sys.stderr)
+        return 2
+
+    header = lines[0].split("\t")
+    body = lines[1:]
+    if len(header) != len(COLUMNS):
+        print(f"ledger: warning: {path} header has {len(header)} columns, "
+              f"expected {len(COLUMNS)} ({', '.join(COLUMNS)})", file=sys.stderr)
+
+    matched, malformed = [], 0
+    for line in body:
+        if not line.strip():
+            continue
+        fields = line.split("\t")
+        if len(fields) < len(COLUMNS):
+            fields = fields + [""] * (len(COLUMNS) - len(fields))
+            malformed += 1
+        elif len(fields) > len(COLUMNS):
+            fields = fields[: len(COLUMNS) - 1] + ["\t".join(fields[len(COLUMNS) - 1:])]
+            malformed += 1
+        if row_matcher is not None and not row_matcher(line):
+            continue
+        if all(test(fields[i]) for i, test in tests):
+            matched.append(fields)
+
+    total = sum(1 for line in body if line.strip())
+    if args.count:
+        print(f"{len(matched)} matching rows of {total} in {path}")
+        return 0
+
+    cap = len(matched) if args.limit <= 0 else min(args.limit, len(matched))
+    shown = matched[:cap]
+    idxs = [COLUMNS.index(c) for c in columns]
+
+    out = []
+    clipped = 0
+    if not args.no_header:
+        out.append("\t".join(columns))
+    for fields in shown:
+        cells = []
+        for i in idxs:
+            cell, was_clipped = clip(fields[i], args.width)
+            clipped += 1 if was_clipped else 0
+            cells.append(cell)
+        out.append("\t".join(cells))
+    sys.stdout.write("\n".join(out) + ("\n" if out else ""))
+
+    omitted = len(matched) - len(shown)
+    summary = [f"{total} ledger rows", f"{len(matched)} matched", f"{len(shown)} shown"]
+    if omitted:
+        summary.append(f"{omitted} rows omitted by -n {args.limit}")
+    if clipped:
+        summary.append(f"{clipped} fields clipped at {args.width} chars")
+    dropped = [c for c in COLUMNS if c not in columns]
+    if dropped:
+        summary.append(f"columns not shown: {','.join(dropped)}")
+    if malformed:
+        summary.append(f"{malformed} rows had an unexpected field count")
+    print("-- " + "; ".join(summary))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

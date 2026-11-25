@@ -1,0 +1,295 @@
+#!/usr/bin/env python3
+"""check-delivery <cycle> — mechanical gate on a subagent's claimed delivery.
+
+Run this BEFORE believing a verifier that says DELIVERED. In c191 a verifier
+reported DELIVERED with no report, no logs and no commit on disk, and the
+coordinator spent ~540 log lines establishing that by hand.
+
+Three checks, one line of output:
+  REPORT   <unit>/REPORT.md exists and is non-trivial (the report's own first
+           heading names the cycle, e.g. "# c194 - VERIFIER report: ...")
+  LOGS     that unit directory has captured, NON-EMPTY log files
+  COMMIT   a commit whose subject names the cycle is in the repo
+
+The campaign directory is NOT hardcoded: it is discovered, so one tool serves
+both language layers (`XXX-analysis-acsl/` under C, `XXX-creusot/` under
+Rust). Searched, first hit wins: `--campaign`, `$CAMPAIGN_DIR`, a campaign
+directory of `--repo` / `$CAMPAIGN_REPO` / the current directory, then of
+`$AUTOWP_PROJECT_DIR` (default `/project`). Per-unit reports are looked for
+under `<campaign>/units/*/` when that directory exists, and directly under
+`<campaign>/*/` otherwise. Run from the project root, like every other
+`bin/` tool.
+
+Read-only: it only reads files and runs `git log` / `git show`. It writes nothing.
+
+Exit status: 0 = DELIVERED, 1 = NOT-DELIVERED, 2 = usage or environment error.
+
+  check-delivery 194
+  check-delivery c194 -v
+  check-delivery 194 --dir units/sysv_msg-r16-ce
+"""
+
+import argparse
+import glob
+import os
+import re
+import subprocess
+import sys
+
+LEDGER_NAME = "verdicts.tsv"
+# Campaign directory names, in the order the layers are tried. `*-analysis-*`
+# is the catch-all for a campaign that names its directory differently.
+CAMPAIGN_GLOBS = ("*-analysis-acsl", "*-creusot", "*-analysis-*")
+MIN_REPORT_BYTES = 500          # a stub smaller than this is not a report
+LOG_SUFFIXES = (".log", ".txt", ".names", ".out", ".json", ".csv", ".err")
+
+
+def search_roots():
+    """Where a campaign is looked for: here first, then the mounted project."""
+    roots = [os.curdir]
+    project = os.environ.get("AUTOWP_PROJECT_DIR") or "/project"
+    if os.path.abspath(project) != os.path.abspath(os.curdir):
+        roots.append(project)
+    return roots
+
+
+def discover_campaign(repo=None):
+    """(repo, campaign directory), found rather than hardcoded; (None, None)."""
+    roots = [repo] if repo else search_roots()
+    for root in roots:
+        if not os.path.isdir(root):
+            continue
+        for pattern in CAMPAIGN_GLOBS:
+            for directory in sorted(glob.glob(os.path.join(root, pattern))):
+                if os.path.isfile(os.path.join(directory, LEDGER_NAME)) \
+                        or os.path.isdir(os.path.join(directory, "units")):
+                    return root, directory
+    return None, None
+
+
+def run(cmd, cwd):
+    """Read-only git helper. GIT_OPTIONAL_LOCKS=0 keeps git from touching the index."""
+    env = dict(os.environ, GIT_OPTIONAL_LOCKS="0")
+    try:
+        done = subprocess.run(cmd, cwd=cwd, env=env, stdout=subprocess.PIPE,
+                              stderr=subprocess.PIPE, text=True, timeout=120)
+    except (OSError, subprocess.SubprocessError):
+        return ""
+    return done.stdout if done.returncode == 0 else ""
+
+
+def normalise(raw):
+    m = re.fullmatch(r"[cC]?(?:ycle)?[-_ ]*0*(\d+)([a-zA-Z]?)", raw.strip())
+    if not m:
+        return None, None
+    return int(m.group(1)), (m.group(2) or "")
+
+
+def report_root(campaign):
+    """Where per-unit reports live: `units/` under C, the campaign itself otherwise."""
+    units = os.path.join(campaign, "units")
+    return units if os.path.isdir(units) else campaign
+
+
+def find_reports(units_dir, cycle):
+    """Reports whose own first heading names this cycle, newest first."""
+    headed, mentioned = [], []
+    if not os.path.isdir(units_dir):
+        return headed, mentioned
+    head_rx = re.compile(r"^#+\s*(?:cycle\s*|c)0*%d\b" % cycle, re.IGNORECASE)
+    body_rx = re.compile(r"\b(?:cycle\s*|c)0*%d\b" % cycle, re.IGNORECASE)
+    for entry in sorted(os.listdir(units_dir)):
+        unit = os.path.join(units_dir, entry)
+        if not os.path.isdir(unit):
+            continue
+        for name in sorted(os.listdir(unit)):
+            if not (name.startswith("REPORT") and name.endswith(".md")):
+                continue
+            path = os.path.join(unit, name)
+            try:
+                with open(path, "r", encoding="utf-8", errors="replace") as fh:
+                    text = fh.read(8192)
+            except OSError:
+                continue
+            lines = [l for l in text.splitlines() if l.strip()][:6]
+            if any(head_rx.match(l) for l in lines):
+                headed.append(path)
+            elif body_rx.search(text):
+                mentioned.append(path)
+    newest = lambda p: -os.path.getmtime(p)
+    return sorted(headed, key=newest), sorted(mentioned, key=newest)
+
+
+def log_stats(unit_dir):
+    """(files, non_empty, bytes) over captured logs in a unit directory."""
+    files = non_empty = total = 0
+    roots = [os.path.join(unit_dir, d) for d in ("logs", "log", "out")
+             if os.path.isdir(os.path.join(unit_dir, d))] or [unit_dir]
+    for root in roots:
+        for dirpath, _dirnames, filenames in os.walk(root):
+            for name in filenames:
+                if root is unit_dir and not name.endswith(LOG_SUFFIXES):
+                    continue
+                if not name.endswith(LOG_SUFFIXES):
+                    continue
+                path = os.path.join(dirpath, name)
+                try:
+                    size = os.path.getsize(path)
+                except OSError:
+                    continue
+                files += 1
+                total += size
+                if size > 0:
+                    non_empty += 1
+    return files, non_empty, total
+
+
+def find_commit(repo, cycle, suffix):
+    tag = f"c{cycle}{suffix}"
+    patterns = [rf"^{tag}[^0-9]", rf"^c{cycle}[-/:]", rf"cycle {cycle}[^0-9]"]
+    for pattern in patterns:
+        out = run(["git", "--no-pager", "log", "--all", "-i", "--extended-regexp",
+                   f"--grep={pattern}", "--pretty=%h\t%s", "-5"], repo)
+        if out.strip():
+            rows = [l.split("\t", 1) for l in out.strip().splitlines()]
+            return rows[0][0], (rows[0][1] if len(rows[0]) > 1 else ""), len(rows)
+    return None, "", 0
+
+
+def human(n):
+    for unit in ("B", "K", "M", "G"):
+        if n < 1024 or unit == "G":
+            return f"{n:.0f}{unit}" if unit == "B" else f"{n:.1f}{unit}"
+        n /= 1024.0
+
+
+def main(argv=None):
+    ap = argparse.ArgumentParser(prog="check-delivery", description=__doc__,
+                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("cycle", help="cycle id, e.g. 194, c194, c191b")
+    ap.add_argument("--repo", default=os.environ.get("CAMPAIGN_REPO"),
+                    help="repository holding the campaign (default: found from here)")
+    ap.add_argument("--campaign", default=os.environ.get("CAMPAIGN_DIR"),
+                    help="campaign directory, absolute or relative to --repo "
+                         "(default: the campaign directory found from here)")
+    ap.add_argument("--dir", dest="unit", help="unit directory, if you already know it")
+    ap.add_argument("-v", "--verbose", action="store_true", help="add detail lines")
+    args = ap.parse_args(argv)
+
+    cycle, suffix = normalise(args.cycle)
+    if cycle is None:
+        print(f"check-delivery: not a cycle id: {args.cycle!r}", file=sys.stderr)
+        return 2
+    label = f"c{cycle}{suffix}"
+
+    repo = args.repo
+    if args.campaign:
+        repo = repo or next((r for r in search_roots() if os.path.isdir(r)), os.curdir)
+        campaign = args.campaign if os.path.isabs(args.campaign) \
+            else os.path.join(repo, args.campaign)
+    else:
+        repo, campaign = discover_campaign(repo)
+        if campaign is None:
+            print(f"{label} UNKNOWN | no campaign directory "
+                  f"({'/'.join(CAMPAIGN_GLOBS)}) under "
+                  f"{', '.join([args.repo] if args.repo else search_roots())}; "
+                  "run this from the project root or pass --campaign")
+            return 2
+    if not os.path.isdir(campaign):
+        print(f"{label} UNKNOWN | campaign directory not found: {campaign}")
+        return 2
+
+    notes, extra = [], []
+
+    # --- REPORT -----------------------------------------------------------
+    report = None
+    if args.unit:
+        unit = args.unit if os.path.isabs(args.unit) else os.path.join(campaign, args.unit)
+        for name in ("REPORT.md", "REPORT.MD"):
+            if os.path.isfile(os.path.join(unit, name)):
+                report = os.path.join(unit, name)
+                break
+        if report is None:
+            notes.append(f"report MISSING (no REPORT.md in {args.unit})")
+    else:
+        root = report_root(campaign)
+        headed, mentioned = find_reports(root, cycle)
+        where = os.path.relpath(root, campaign)
+        where = "" if where == "." else where + "/"
+        if headed:
+            report = headed[0]
+            if len(headed) > 1:
+                notes.append(f"{len(headed)} reports headed {label}")
+                extra += [f"  also headed: {p}" for p in headed[1:]]
+        elif mentioned:
+            notes.append(f"report MISSING (no REPORT.md headed {label}; "
+                         f"{len(mentioned)} only mention it)")
+            extra += [f"  mentions only: {p}" for p in mentioned[:5]]
+        else:
+            notes.append(f"report MISSING (no {where}*/REPORT.md headed {label})")
+
+    report_ok = False
+    report_desc = "MISSING"
+    unit_dir = None
+    if report:
+        unit_dir = os.path.dirname(report)
+        try:
+            size = os.path.getsize(report)
+        except OSError:
+            size = 0
+        rel = os.path.relpath(report, campaign)
+        report_ok = size >= MIN_REPORT_BYTES
+        report_desc = f"{rel} {size}B" + ("" if report_ok else f" <{MIN_REPORT_BYTES}B STUB")
+        if not report_ok:
+            notes.append(f"report is a {size}B stub")
+
+    # --- LOGS -------------------------------------------------------------
+    logs_ok = False
+    logs_desc = "n/a"
+    if unit_dir:
+        files, non_empty, total = log_stats(unit_dir)
+        logs_ok = non_empty > 0
+        logs_desc = f"{non_empty}/{files} non-empty {human(total)}"
+        if files and not non_empty:
+            notes.append(f"all {files} log files are EMPTY")
+        elif not files:
+            logs_desc = "NONE"
+            notes.append("no captured log files in the unit directory")
+
+    # --- COMMIT -----------------------------------------------------------
+    sha, subject, hits = find_commit(repo, cycle, suffix)
+    commit_ok = sha is not None
+    if commit_ok:
+        commit_desc = f"{sha} {subject[:60]!r}" + (f" (+{hits - 1})" if hits > 1 else "")
+        # Only an explicit NON-DELIVERY subject counts. "REFUSED"/"hallucinated"
+        # also appear in legitimate subjects that describe what the cycle rejected
+        # (c191/191b delivered honestly after refusing a fabricated goal count).
+        if re.search(r"\bNON-DELIVERY\b", subject, re.IGNORECASE):
+            notes.append("commit subject itself records a NON-DELIVERY")
+            commit_ok = False
+    else:
+        commit_desc = "MISSING"
+        notes.append(f"no commit naming {label}")
+
+    ok = report_ok and logs_ok and commit_ok
+    failed = [n for n, good in (("report", report_ok), ("logs", logs_ok),
+                                ("commit", commit_ok)) if not good]
+    verdict = "DELIVERED" if ok else "NOT-DELIVERED"
+    line = (f"{label} {verdict} | report {report_desc} | logs {logs_desc} "
+            f"| commit {commit_desc}")
+    if failed:
+        line += f" | FAILED: {','.join(failed)}"
+    if notes:
+        line += f" | {'; '.join(notes)}"
+    print(" ".join(line.split()))
+    if args.verbose:
+        for row in extra:
+            print(row)
+        print(f"  campaign: {campaign}")
+        if unit_dir:
+            print(f"  unit: {os.path.relpath(unit_dir, campaign)}")
+    return 0 if ok else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())
