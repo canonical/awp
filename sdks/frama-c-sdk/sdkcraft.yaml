@@ -49,7 +49,11 @@ parts:
       # a plain `opam install coq.8.20.1` is upgraded to Coq 9.x as soon as a
       # later install upgrades dune (seen 2026-10-31 with alt-ergo 2.6.4).
       opam pin add coq 8.20.1
-      opam install "why3>=1.8.0" "why3<1.9" "why3-coq>=1.8.0" "why3-coq<1.9" alt-ergo z3
+      # alt-ergo PINNED to 2.6.4: Why3 1.8's prover-detection data does not
+      # recognise 2.6.5 (released after 2026-10-31), so an unpinned install
+      # floats up and -wp-detect then lists no Alt-Ergo (check-health fails);
+      # the tests also assert exactly Alt-Ergo 2.6.4.
+      opam install "why3>=1.8.0" "why3<1.9" "why3-coq>=1.8.0" "why3-coq<1.9" alt-ergo.2.6.4 z3
       test -f "$(why3 --print-libdir)/coq/BuiltIn.vo"
       coqc --version | grep -q "version 8\.20\.1"
       # The patched sources, exactly as a generated project gets them.

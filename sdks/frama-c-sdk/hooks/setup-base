@@ -5,9 +5,12 @@ ln -sfn "$SDK" /opt/frama-c-sdk
 # Run-time libraries, and the tools a C campaign runs next to Frama-C.
 # python3-venv: the framac-mcp venv below (the base image has python3 but not
 # the venv module -- the Lean SDK installs both; spec frama-c-mcp.md section 1/5).
+# python3-setuptools/python3-wheel: for the OFFLINE wheel build (base-snapshot
+# has apt but no PyPI, so the build's setuptools/wheel come from apt).
 apt-get update
 apt-get install libgmp10 zlib1g libgtk-3-0t64 libgtksourceview-3.0-1 graphviz \
-    build-essential pkg-config bear git ripgrep python3 python3-venv
+    build-essential pkg-config bear git ripgrep python3 python3-venv \
+    python3-pip python3-setuptools python3-wheel
 install -m 644 "$SDK/frama-c-sdk.profile" /etc/profile.d/frama-c-sdk.sh
 
 # framac-mcp, pinned, in a venv at a fixed path -- the shape of
@@ -23,6 +26,13 @@ if ! "$FRAMAC_MCP_HOME/venv/bin/pip" show framac-mcp 2>/dev/null \
         | grep -qx "Version: $FRAMAC_MCP_VERSION"; then
     rm -rf "$FRAMAC_MCP_HOME/venv"
     mkdir -p "$FRAMAC_MCP_HOME"
-    python3 -m venv "$FRAMAC_MCP_HOME/venv"
-    "$FRAMAC_MCP_HOME/venv/bin/pip" install --quiet "$SDK/mcp"
+    # --system-site-packages exposes apt's setuptools/wheel; --no-build-isolation
+    # --no-index build the wheel offline (no PyPI at base-snapshot); deps are none.
+    # Copy to a writable temp dir first: $SDK/mcp is on the read-only SDK mount
+    # and an in-tree --no-build-isolation build cannot create build/.
+    python3 -m venv --system-site-packages "$FRAMAC_MCP_HOME/venv"
+    mcp_src=$(mktemp -d)
+    cp -a "$SDK/mcp/." "$mcp_src/"
+    "$FRAMAC_MCP_HOME/venv/bin/pip" install --quiet --no-build-isolation --no-index "$mcp_src"
+    rm -rf "$mcp_src"
 fi
