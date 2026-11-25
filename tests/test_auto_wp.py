@@ -1547,6 +1547,77 @@ class TestLocalInference(AutoWpTestCase):
                          "http://198.51.100.7:11435/v1")
         self.assertIn(".local-llm-machine-ip.txt", r.stdout)
 
+    def test_snippet_reads_the_project_copy_when_home_has_none(self):
+        """The first-launch case: only the mounted project dir can have the file.
+
+        The hook runs at launch and refresh, and the container's home does not
+        exist before the first launch, so a home-only file can never be found
+        on that first run. The project directory is mounted, so it can.
+        """
+        home = self.tmp / "home/tester"
+        home.mkdir(parents=True)
+        project = self.tmp / "mounted-project"
+        project.mkdir()
+        (project / ".local-llm-machine-ip.txt").write_text("203.0.113.9\n")
+        r = self.run_snippet(AUTOWP_PROJECT_DIR=str(project))
+        self.assertEqual(r.returncode, 0, r.stderr)
+        cfg = json.loads((home / ".config/opencode/opencode.json").read_text())
+        for pid, port in (("ollama", 11434), ("ollama-sub", 11435)):
+            self.assertEqual(cfg["providers"][pid]["settings"]["baseURL"],
+                             f"http://203.0.113.9:{port}/v1")
+        # The shipped gates read ~/.local-llm-machine-ip.txt, so the home copy
+        # must be seeded or the cross-provider judge still has no address.
+        self.assertEqual((home / ".local-llm-machine-ip.txt").read_text().strip(),
+                         "203.0.113.9")
+        self.assertIn("seeded", r.stdout)
+
+    def test_snippet_prefers_the_home_copy_over_the_project_copy(self):
+        home = self.tmp / "home/tester"
+        home.mkdir(parents=True)
+        (home / ".local-llm-machine-ip.txt").write_text("198.51.100.7\n")
+        project = self.tmp / "mounted-project"
+        project.mkdir()
+        (project / ".local-llm-machine-ip.txt").write_text("203.0.113.9\n")
+        r = self.run_snippet(AUTOWP_PROJECT_DIR=str(project))
+        self.assertEqual(r.returncode, 0, r.stderr)
+        cfg = json.loads((home / ".config/opencode/opencode.json").read_text())
+        self.assertEqual(cfg["providers"]["ollama"]["settings"]["baseURL"],
+                         "http://198.51.100.7:11434/v1")
+
+    def test_generation_seeds_the_ip_file_from_this_machine(self):
+        """--local-inference copies the generating machine's file into the project."""
+        fake_home = self.tmp / "fakehome"
+        fake_home.mkdir()
+        (fake_home / ".local-llm-machine-ip.txt").write_text("  203.0.113.9  \nignored\n")
+        r = self.run_auto_wp("--c", "--harness", "opencode", "--local-inference",
+                             "seeded", env={"HOME": str(fake_home)})
+        self.assertOk(r)
+        ip = self.tmp / "seeded/.local-llm-machine-ip.txt"
+        # Stripped to the address alone, first line only.
+        self.assertEqual(ip.read_text(), "203.0.113.9\n")
+        self.assertIn("copied  seeded/.local-llm-machine-ip.txt", r.stdout)
+
+    def test_generation_warns_when_this_machine_has_no_ip_file(self):
+        fake_home = self.tmp / "emptyhome"
+        fake_home.mkdir()
+        r = self.run_auto_wp("--c", "--harness", "opencode", "--local-inference",
+                             "unseeded", env={"HOME": str(fake_home)})
+        self.assertOk(r)
+        self.assertFalse((self.tmp / "unseeded/.local-llm-machine-ip.txt").exists())
+        self.assertIn(".local-llm-machine-ip.txt", r.stderr)
+        self.assertIn("before `workshop launch`", r.stderr)
+
+    def test_generation_seeds_nothing_without_local_inference(self):
+        fake_home = self.tmp / "home2"
+        fake_home.mkdir()
+        (fake_home / ".local-llm-machine-ip.txt").write_text("203.0.113.9\n")
+        for args, name in ((("--no-local-inference",), "off"), ((), "plain")):
+            with self.subTest(name=name):
+                r = self.run_auto_wp("--c", "--harness", "opencode", *args, name,
+                                     env={"HOME": str(fake_home)})
+                self.assertOk(r)
+                self.assertFalse((self.tmp / name / ".local-llm-machine-ip.txt").exists())
+
     def test_snippet_writes_nothing_without_the_ip_file(self):
         """No file and no override: explain, write nothing, never guess."""
         for name, prepare in (("missing", lambda h: None),

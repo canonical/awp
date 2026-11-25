@@ -43,6 +43,11 @@ DRIVER_COMMANDS = {"rmf": "rmf.md", "fips": "fips.md"}
 # `opencode.json` names a local OpenAI-compatible provider instead of a cloud
 # one (templates/common/harness/opencode-local-inference.sh).
 LOCAL_INFERENCE_HARNESS = "opencode"
+# One line, the local LLM host's address. The workshop hook reads it from the
+# project directory as well as the container's home, because the home does not
+# exist before the first launch; copying the host's own copy into the project
+# means the first launch finds it instead of skipping.
+INFERENCE_IP_FILE = ".local-llm-machine-ip.txt"
 
 # Links created in the project: (path relative to the project, link target).
 # The first two harnesses are wired the same way: `config/` holds the skills
@@ -408,6 +413,39 @@ class Run:
             hook.write_text(text)
         self.out.append(f"copied  {self.show('.workshop')} (workshop: {WORKSHOP_NAME})")
 
+    def seed_inference_ip(self):
+        """Copy this machine's `.local-llm-machine-ip.txt` into the project.
+
+        Only under `--local-inference`, and only if this machine has one. The
+        workshop hook runs at launch and refresh, and the container's home
+        does not exist before the first launch, so a file that lives only
+        there can never be found on that first run (§1.2). The project
+        directory is mounted into the workshop, so a copy here is in place in
+        time. An existing file is kept, and a missing source is not an error:
+        the hook explains what to create and where.
+        """
+        if not self.local_inference:
+            return
+        dest = self.target / INFERENCE_IP_FILE
+        if os.path.lexists(dest):
+            self.out.append(f"kept    {self.show(INFERENCE_IP_FILE)} (already exists)")
+            return
+        src = Path.home() / INFERENCE_IP_FILE
+        if not src.is_file():
+            self.warnings.append(
+                f"warning: no {src} on this machine, so {self.show(INFERENCE_IP_FILE)} "
+                "was not created; write the LLM host's address there (one line) "
+                "before `workshop launch`, or OpenCode keeps its cloud provider")
+            return
+        address = src.read_text().strip().split("\n", 1)[0].strip()
+        if not address:
+            self.warnings.append(f"warning: {src} is empty; "
+                                 f"{self.show(INFERENCE_IP_FILE)} was not created")
+            return
+        self.created.append(("file", dest))
+        dest.write_text(address + "\n")
+        self.out.append(f"copied  {self.show(INFERENCE_IP_FILE)} ({address}, from {src})")
+
     @staticmethod
     def disable_byobu(dest_dir):
         """Drop the byobu auto-attach configuration (--no-byobu, §3.7).
@@ -509,20 +547,32 @@ class Run:
             # the login paragraph is replaced by what has to be true of the
             # inference host instead.
             harness_text = harness_text[:3] + (
-                "**Local inference.** No login and no API key: Workshop writes "
-                "`~/.config/opencode/opencode.json` in the container, naming a "
-                "local OpenAI-compatible provider, and `opencode` starts on that "
-                "model. An existing file is kept, so your edits survive "
-                "`workshop refresh`.\n\n"
-                "The address comes from **`~/.local-llm-machine-ip.txt`** in the "
-                "container — the same one-line file the cross-provider judge "
-                "uses (`skills/sl-auditor/SKILL.md`). Create it before the "
-                "first `workshop refresh`, with the address and nothing else:\n\n"
+                "**Local inference.** No login and no API key — but one file "
+                "has to be in place first.\n\n"
+                "The address of the LLM host comes from "
+                "**`.local-llm-machine-ip.txt`**, one line, the address and "
+                "nothing else — the same file the cross-provider judge uses "
+                "(`skills/sl-auditor/SKILL.md`). Put it **in this directory, "
+                "before `workshop launch`**:\n\n"
                 "```sh\n"
-                "echo 192.0.2.10 > ~/.local-llm-machine-ip.txt\n"
+                "echo 192.0.2.10 > .local-llm-machine-ip.txt\n"
                 "```\n\n"
-                "Without that file no configuration is written and the hook says "
-                "so: an invented address is worse than none.\n\n"
+                "This directory is mounted into the workshop, which is why it "
+                "works before a launch. The container's own "
+                "`~/.local-llm-machine-ip.txt` is read too and takes "
+                "precedence, but it cannot help on a *first* launch: the "
+                "workshop hook runs at launch and refresh, and that home does "
+                "not exist until the first launch is over. If `auto-wp.py` "
+                "found the file on the machine that generated this project, it "
+                "has already been copied here.\n\n"
+                "With the file present, Workshop writes "
+                "`~/.config/opencode/opencode.json` in the container at launch, "
+                "naming a local OpenAI-compatible provider, and `opencode` "
+                "starts on that model. An existing config is kept, so your "
+                "edits survive `workshop refresh`. Without the file **nothing "
+                "is written** and the hook prints where it looked — an invented "
+                "address is worse than none. Create the file and run "
+                "`workshop refresh` to apply it.\n\n"
                 "Two servers must be reachable from the container before you "
                 "start a campaign: the main one on port 11434 and a second on "
                 "11435 that only subagents use. On the LLM host, with Ollama:\n\n"
@@ -624,6 +674,7 @@ class Run:
         self.install_tools()
         self.install_specs()
         self.install_workshop()
+        self.seed_inference_ip()
         self.link()
         self.write_readme()
         self.init_git()

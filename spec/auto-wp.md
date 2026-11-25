@@ -215,19 +215,39 @@ behavior and no new value has to be supplied anywhere. `--no-local-inference`
 suppresses the question for a user who wants the old terminal behavior.
 
 **The host is not an argument.** It is read at hook time from
-`~/.local-llm-machine-ip.txt` in the container — one line, the address of the
-local LLM host — the file `skills/sl-auditor`, `skills/time-loop` and
+`.local-llm-machine-ip.txt` — one line, the address of the local LLM host —
+the file `skills/sl-auditor`, `skills/time-loop` and
 `sl-internal/scripts/no_ceiling_gate.py` already use to reach the
-cross-provider judge. No address is stored in `templates/`, in the generated
-project, or on the command line. `AUTOWP_INFERENCE_HOST` overrides the file
-for a test run; `AUTOWP_INFERENCE_PORT`, `AUTOWP_INFERENCE_SUBAGENT_PORT`,
-`AUTOWP_INFERENCE_MODEL` and `AUTOWP_INFERENCE_USER` change the rest.
+cross-provider judge. No address is stored in `templates/` or on the command
+line. `AUTOWP_INFERENCE_HOST` overrides the file for a test run;
+`AUTOWP_INFERENCE_PORT`, `AUTOWP_INFERENCE_SUBAGENT_PORT`,
+`AUTOWP_INFERENCE_MODEL`, `AUTOWP_INFERENCE_USER` and `AUTOWP_PROJECT_DIR`
+change the rest.
 
-When the file is absent or empty and no override is set, **no configuration
-is written** and the hook prints why — the rule `sl-auditor` states for the
-judge: ask for the file, never invent an address. It is not an error: the
-file lives in the container's home, which does not exist before the hook has
-run, so failing would leave no container in which to create it.
+**Two locations, and why there must be two.** The hook looks in the
+container's home (`~/.local-llm-machine-ip.txt`) first, then in the project
+directory (`/project/.local-llm-machine-ip.txt`, `AUTOWP_PROJECT_DIR`). The
+second is not a convenience: the hook runs **only at launch and refresh**,
+and the container's home does not exist until the first launch has finished,
+so a home-only file can never be found on that first run. Before this was
+fixed, a project generated with `--local-inference` reliably produced no
+configuration on its first launch, and the generated README promised one
+unconditionally. The project directory is mounted into the workshop, so a
+copy there is in place in time. When the project copy is the one used, the
+hook also installs it into the home, because the shipped gates read
+`$(cat ~/.local-llm-machine-ip.txt)` and would otherwise still have no
+address.
+
+`auto-wp.py` seeds that project copy at generation time from the generating
+machine's own `~/.local-llm-machine-ip.txt`, when it has one (§3.8); an
+existing file in the project is kept, and a missing source is a warning, not
+an error.
+
+When no location has the file and no override is set, **no configuration is
+written** and the hook prints both paths it tried — the rule `sl-auditor`
+states for the judge: ask for the file, never invent an address. It is not an
+error, because provisioning must still produce a container in which the file
+can be created; the fix is to write it and run `workshop refresh`.
 
 **What changes with the value.** Under `--no-local-inference`, nothing: the
 generated tree is byte-identical to one produced before this option existed,
@@ -1184,6 +1204,35 @@ generated file are the same.
 Tests: for both languages, the default generates `setup-project` and leaves
 `byobu tmux` in `setup-base`, and `--no-byobu` leaves no `setup-project`, no
 occurrence of `byobu` in `setup-base`, and `tmux` still installed.
+
+### 3.8 `.local-llm-machine-ip.txt` — seeding the inference host
+
+Under `--local-inference` only (§1.2), after `.workshop/` is written and
+before the links: if the machine running `auto-wp.py` has
+`~/.local-llm-machine-ip.txt`, its first line, stripped, is written to
+`<directory-name>/.local-llm-machine-ip.txt`, and the run reports
+`copied  <dir>/.local-llm-machine-ip.txt (<address>, from <source>)`.
+
+This exists so the **first** `workshop launch` finds an address. The hook
+that writes `opencode.json` runs at launch and refresh only, and reads the
+container's home before the project directory; the home does not exist until
+the first launch has finished, so without a project copy the first launch
+always skips (§1.2). The project directory is mounted into the workshop, so a
+file here is readable by the hook on that first run.
+
+Rules: an existing file in the project is kept and reported as `kept`, like
+every other pre-existing file (§3.6). A missing or empty source is a
+**warning**, not an error — generation succeeds, and the warning names the
+file to create and says to create it before `workshop launch`. Nothing is
+written under `--no-local-inference` or for any other harness. The file is
+not a secret (`tests.md` §5.2 says so of the same file) and is rolled back
+with the rest of the run on failure.
+
+Tests: with a `HOME` that has the file, `--local-inference` produces a
+project file containing exactly the stripped first line; with a `HOME` that
+does not, generation still succeeds and warns, naming the file and
+`workshop launch`; `--no-local-inference` and the flagless default write
+nothing even when the source exists.
 
 ## 4. Templates
 

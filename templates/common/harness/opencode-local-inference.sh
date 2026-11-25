@@ -2,12 +2,16 @@
 # Point OpenCode at a local OpenAI-compatible inference server (--local-inference).
 # Appended after opencode.sh, so the binary is already installed and on PATH.
 #
-# The host is NOT hardcoded: it is read from `~/.local-llm-machine-ip.txt`, the
+# The host is NOT hardcoded: it is read from `.local-llm-machine-ip.txt`, the
 # one-line LAN address of the local LLM host that this project already uses for
 # the cross-provider judge (`skills/sl-auditor/SKILL.md`, `no_ceiling_gate.py`,
-# `skills/time-loop/SKILL.md`). If that file is absent, no configuration is
-# written and the reason is printed: as sl-auditor puts it for the judge, the
-# right move is to ask for the file, never to invent an address.
+# `skills/time-loop/SKILL.md`). Looked for in the container's home first, then
+# in the project directory -- the latter because this hook runs only at launch
+# and refresh, and the container's home does not exist before the first launch,
+# so the home copy alone can never be found on that first run. If neither is
+# present, no configuration is written and the reason is printed: as sl-auditor
+# puts it for the judge, the right move is to ask for the file, never to invent
+# an address.
 #
 # Override any of these in the environment of `workshop launch` / `workshop
 # refresh`:
@@ -42,6 +46,11 @@
     home=${home:-/home/$user}
     conf="$home/.config/opencode/opencode.json"
     ip_file="$home/.local-llm-machine-ip.txt"
+    # The project directory, mounted into the workshop. Unlike the container's
+    # home it exists *before* the first launch, so it is the only place a user
+    # can put the address in time for this hook's first run.
+    project=${AUTOWP_PROJECT_DIR:-/project}
+    project_ip="$project/.local-llm-machine-ip.txt"
 
     if [ -e "$conf" ]; then
         # Kept, like every other pre-existing file auto-wp finds, so that a
@@ -51,21 +60,43 @@
         printf 'auto-wp: %s exists; left as it is\n' "$conf" >&2
     else
         # The project's existing convention for the local LLM host: one line,
-        # the address only. An explicit environment variable still wins, for a
-        # test run that needs a different host.
+        # the address only. Searched in three places, first hit wins:
+        #   1. AUTOWP_INFERENCE_HOST, for a test run on another host;
+        #   2. the container's home, the convention the skills already read;
+        #   3. the project directory, which exists before the first launch.
+        # (3) exists because of (2)'s ordering problem: this hook runs at
+        # launch and refresh only, and the container's home does not exist
+        # until the first launch has happened -- so a first launch could never
+        # find a file that can only be created afterwards.
+        read_ip() { sed -n '1{s/[[:space:]]//g; p; q;}' "$1" 2>/dev/null; }
         host=${AUTOWP_INFERENCE_HOST:-}
+        src="AUTOWP_INFERENCE_HOST"
         if [ -z "$host" ] && [ -r "$ip_file" ]; then
-            host=$(sed -n '1{s/[[:space:]]//g; p; q;}' "$ip_file")
+            host=$(read_ip "$ip_file"); src=$ip_file
+        fi
+        if [ -z "$host" ] && [ -r "$project_ip" ]; then
+            host=$(read_ip "$project_ip"); src=$project_ip
+            # The shipped gates read `$(cat ~/.local-llm-machine-ip.txt)`
+            # (skills/sl-auditor, sl-internal/scripts/no_ceiling_gate.py), so
+            # seed the home copy too or the cross-provider judge still fails.
+            if [ -n "$host" ] && [ ! -e "$ip_file" ]; then
+                install -m 644 "$project_ip" "$ip_file" 2>/dev/null \
+                    && printf 'auto-wp: seeded %s from %s\n' "$ip_file" "$project_ip"
+            fi
         fi
         if [ -z "$host" ]; then
             # Deliberately not an error: the file lives in the container's
             # home, which does not exist before this hook has run, so failing
             # here would leave no container in which to create it. Nothing is
             # written, so no configuration points at a guessed address.
-            printf 'auto-wp: no local inference host: %s is %s.\n' "$ip_file" \
+            printf 'auto-wp: no local inference host. Looked in:\n' >&2
+            printf 'auto-wp:   %s (%s)\n' "$ip_file" \
                 "$([ -e "$ip_file" ] && echo 'empty or unreadable' || echo 'missing')" >&2
-            printf 'auto-wp: create it with one line, the LLM host address, then run `workshop refresh`:\n' >&2
-            printf 'auto-wp:   echo 192.0.2.10 > %s\n' "$ip_file" >&2
+            printf 'auto-wp:   %s (%s)\n' "$project_ip" \
+                "$([ -e "$project_ip" ] && echo 'empty or unreadable' || echo 'missing')" >&2
+            printf 'auto-wp: put the LLM host address, one line, in the project directory\n' >&2
+            printf 'auto-wp: (it is mounted here, so this works before a launch), then refresh:\n' >&2
+            printf 'auto-wp:   echo 192.0.2.10 > %s && workshop refresh\n' "$project_ip" >&2
             printf 'auto-wp: %s was NOT written; OpenCode keeps its current provider.\n' "$conf" >&2
             exit 0
         fi
@@ -125,7 +156,6 @@ EOF
         chown -R "$user" "$home/.config" 2>/dev/null || true
         chmod 644 "$conf"
         printf 'auto-wp: wrote %s (local inference: %s:%s, subagents %s, from %s)\n' \
-            "$conf" "$host" "$port" "$subagent_port" \
-            "${AUTOWP_INFERENCE_HOST:+AUTOWP_INFERENCE_HOST}${AUTOWP_INFERENCE_HOST:-$ip_file}"
+            "$conf" "$host" "$port" "$subagent_port" "$src"
     fi
 )
