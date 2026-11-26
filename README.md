@@ -207,11 +207,16 @@ your agent harness in a container (for example `/time-loop grub 72` for a
 72-hour campaign on GRUB). Python 3.10 or later, standard library only.
 
 It is also a git repository with one commit already in it: `auto-wp.py` runs
-`git init -b main` and commits what it generated, so the campaign's own
-checkpoints have a baseline to diff against instead of starting from
-`No commits yet on main`. A directory already inside a work tree is left
-alone — no init, no commit. If git has no `user.name` and `user.email` the
-commit is skipped with a warning and the tree is left staged.
+`git init -b main` in the project and commits what it generated, so the
+campaign's own checkpoints have a baseline to diff against instead of starting
+from `No commits yet on main`. `./auto-wp.py foobar` always yields
+`foobar/.git`, including inside another repository — the project then is a
+nested repository, which keeps the campaign's checkpoints in its own history
+and leaves the containing one untouched (git does not recurse into a nested
+repository, so it sees one untracked directory). A directory that is *already*
+a repository is left exactly as it is, with the generated files unstaged for
+its owner to commit. If git has no `user.name` and `user.email` the commit is
+skipped with a warning and the tree is left staged.
 
 `--driver fips` also copies the FIPS 140-3 corpus, `specs/`, into the
 project. Only its index is in git; import the documents once before

@@ -682,15 +682,22 @@ class Run:
             self.warnings.append(
                 f"warning: git not found; run 'git init -b main' in {self.arg} before /time-loop")
             return
-        probe = subprocess.run(
-            ["git", "-C", str(self.target), "rev-parse", "--is-inside-work-tree"],
-            capture_output=True, text=True)
-        if probe.returncode == 0 and probe.stdout.strip() == "true":
-            self.out.append(f"git     {self.arg} is already in a git work tree")
-            return
+        # The project always gets a repository of its own, so
+        # `<directory-name>/.git` exists whatever surrounds it. A directory
+        # inside another work tree becomes a nested repository: git does not
+        # recurse into one, so the outer repository sees an untracked
+        # directory and the campaign's checkpoints stay in the project's own
+        # history, which is the point.
         dot_git = self.target / ".git"
-        if not os.path.lexists(dot_git):
-            self.created.append(("tree", dot_git))
+        if os.path.lexists(dot_git):
+            # Already the thing we would create. Not re-initialised and not
+            # committed to: rollback can only remove what this run created
+            # (§3.6), so a repository it merely found is left exactly as it
+            # was, down to the mtimes inside `.git`.
+            self.out.append(f"git     {self.arg} is already a git repository; "
+                            "nothing staged or committed")
+            return
+        self.created.append(("tree", dot_git))
         result = subprocess.run(["git", "init", "-q", "-b", "main", str(self.target)],
                                 capture_output=True, text=True)
         if result.returncode != 0:
@@ -701,9 +708,14 @@ class Run:
     def commit_generated(self):
         """Commit what was just generated, so the project starts from a baseline.
 
-        Only after an init of our own: a target already inside a work tree is
-        left alone (`init_git`), and committing there would write into someone
-        else's history.
+        The commit goes to `<directory-name>/.git`, which `init_git` has just
+        created, so it can never land in the history of a repository that
+        happens to contain this one.
+
+        Reached only for a repository this run created, so there is no history
+        to disturb and nothing in the work tree but what was just generated —
+        which is what makes `git add -A` safe. `init_git` stops before this
+        for a `.git` it merely found.
 
         `git add -A` is safe here because the project ships the `.gitignore`
         files that decide this: the project's own keeps the fetched sources,

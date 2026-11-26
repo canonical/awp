@@ -935,14 +935,25 @@ The time-loop commits and pushes a checkpoint every cycle
 (`use-frama-c/config/skills/time-loop/SKILL.md`, step 5 of the cycle), so the
 project must be a git repository.
 
-- If `git` is on the `PATH` and `<directory-name>` is not already inside a git
-  work tree (`git -C <dir> rev-parse --is-inside-work-tree` fails),
-  `auto-wp.py` runs `git init -b main` in it and **commits what it generated**
-  as that repository's first commit. It does not add a remote; the README
-  explains how to add one (§3.4).
-- If it is already inside a work tree, nothing is done: neither an init, nor
-  an `add`, nor a commit. Writing into history the program did not create is
-  the one outcome this must never produce, whatever else is true.
+- If `git` is on the `PATH` and `<directory-name>/.git` does not exist,
+  `auto-wp.py` runs `git init -b main` **in the project itself** and commits
+  what it generated as that repository's first commit. It does not add a
+  remote; the README explains how to add one (§3.4).
+- **A surrounding work tree changes nothing.** `<directory-name>/.git` is
+  created even when the project sits inside another repository, so
+  `./auto-wp.py foobar` always yields `foobar/.git`. The result is a nested
+  repository, which is what the campaign needs: git does not recurse into
+  one, so the containing repository sees a single untracked directory, and
+  the time-loop's checkpoints land in the project's own history rather than
+  in a history that is not the project's. The containing repository is
+  therefore left exactly as it was — its commits, its index and its dirty
+  files all untouched, and nothing of the project's is tracked in it.
+- If `<directory-name>/.git` already exists, it is **not** re-initialised and
+  **not** committed to: it is already the thing an init would create, and
+  rollback can only remove what this run created (§3.6), so a repository the
+  program merely found is left alone down to the mtimes inside `.git`. The
+  output says `git     <dir> is already a git repository; nothing staged or
+  committed` and the generated files are left for its owner to commit.
 - If `git` is not on the `PATH`, the program prints
   `warning: git not found; run 'git init' in foobar before /time-loop` on
   stderr and still succeeds.
@@ -951,7 +962,10 @@ project must be a git repository.
 `git     committed <dir> (<n> files) on main`. The campaign's own history then
 starts from a baseline it can diff against; before this, a generated project
 sat on `No commits yet on main` and the time-loop's first checkpoint (§3.4)
-swept the configuration in with the cycle's work.
+swept the configuration in with the cycle's work. The commit is reached only
+for a repository this run created, so there is no history to disturb and
+nothing in the work tree but what was just generated — which is what makes
+`add -A` safe, and why the two cases above stop before it.
 
 What is committed is decided entirely by the `.gitignore` files the project
 already ships, so `add -A` needs no exclusion list of its own: the project's
@@ -971,8 +985,12 @@ by hand. The message says so.
 Tests: for all four language × driver combinations, exactly one commit, a
 clean `git status` afterwards, and a message naming the version, language and
 driver (with the level under `fips`); no corpus document and no ignored path
-is ever tracked; a target inside a pre-existing work tree leaves that
-repository's commit count and index untouched; and with no git identity,
+is ever tracked; a project generated inside another work tree has its own
+`.git` and its own baseline while that outer repository keeps its commit
+count, an empty index, no tracked file of the project's and its dirty files,
+and sees only `?? <dir>/`; a target that is already a repository is reported
+as such with nothing staged or committed, and an interrupt there rolls back
+to a byte- and mtime-identical tree (T6); and with no git identity,
 generation still exits 0, warns on stderr, and leaves the tree staged.
 
 ### 3.6 Output and exit status

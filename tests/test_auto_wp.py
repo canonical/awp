@@ -644,14 +644,23 @@ class TestAutoWp(AutoWpTestCase):
         remotes = subprocess.run(["git", "-C", str(self.tmp / "foo"), "remote"],
                                  capture_output=True, text=True, timeout=15)
         self.assertEqual(remotes.stdout.strip(), "", "auto-wp.py must not add a remote")
-        # inside an existing work tree
+        # Inside an existing work tree the project still gets a repository of
+        # its own: the campaign's checkpoints belong in the project's history,
+        # not in whatever repository happens to contain it.
         outer = self.tmp / "outer"
         outer.mkdir()
         subprocess.run(["git", "init", "-q", str(outer)], check=True, timeout=15)
         r = self.run_auto_wp("--c", "--harness", "claude", "outer/foo")
         self.assertOk(r)
-        self.assertFalse(os.path.lexists(outer / "foo/.git"))
-        self.assertIn("git     outer/foo is already in a git work tree", r.stdout.splitlines())
+        self.assertTrue((outer / "foo/.git").is_dir(),
+                        "every generated project gets its own .git")
+        self.assertIn("git     initialized outer/foo", r.stdout.splitlines())
+        top = subprocess.run(["git", "-C", str(outer / "foo"), "rev-parse",
+                              "--show-toplevel"], capture_output=True, text=True,
+                             timeout=15)
+        self.assertEqual(Path(top.stdout.strip()).resolve(),
+                         (outer / "foo").resolve(),
+                         "the nested repository must be the project itself")
 
     # 18 ---------------------------------------------------------------------
     def test_18_no_git(self):
@@ -2231,29 +2240,74 @@ class TestInitialCommit(AutoWpTestCase):
             self.assertEqual([p for p in tracked if p.startswith(prefix)], [],
                              f"{prefix} must be ignored, not committed")
 
-    def test_an_existing_work_tree_is_never_committed_into(self):
-        """The one case that would write into history that is not ours."""
-        outer = self.tmp / "outer"
-        outer.mkdir()
-        env = {"GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@example.com",
-               "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@example.com"}
+    IDENT = {"GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@example.com",
+             "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@example.com"}
+
+    def make_repo(self, path, *, commit="theirs"):
+        path.mkdir(parents=True, exist_ok=True)
         for cmd in (["git", "init", "-q", "-b", "main", "."],
-                    ["git", "commit", "-q", "--allow-empty", "-m", "theirs"]):
-            subprocess.run(cmd, cwd=outer, check=True, timeout=30,
-                           env=dict(os.environ, **env))
+                    ["git", "commit", "-q", "--allow-empty", "-m", commit]):
+            subprocess.run(cmd, cwd=path, check=True, timeout=30,
+                           env=dict(os.environ, **self.IDENT))
+
+    def test_a_nested_project_gets_its_own_repository(self):
+        """Inside another work tree, the project is still its own repository.
+
+        The containing repository must come out untouched: its history, its
+        index and its dirty files are not this program's to write.
+        """
+        outer = self.tmp / "outer"
+        self.make_repo(outer)
+        (outer / "their-wip.txt").write_text("unstaged work\n")
         r = self.run_auto_wp("--c", "--harness", "none", "outer/inner")
         self.assertOk(r)
-        self.assertIn("git     outer/inner is already in a git work tree",
-                      r.stdout.splitlines())
-        self.assertNotIn("committed", r.stdout)
-        count = subprocess.run(["git", "-C", str(outer), "rev-list", "--count", "HEAD"],
+        inner = outer / "inner"
+        self.assertTrue((inner / ".git").is_dir())
+        self.assertRegex(r.stdout.splitlines()[-1],
+                         r"^git     committed outer/inner \(\d+ files\) on main$")
+        # The nested repository holds the baseline...
+        count = subprocess.run(["git", "-C", str(inner), "rev-list", "--count", "HEAD"],
                                capture_output=True, text=True, timeout=30)
-        self.assertEqual(count.stdout.strip(), "1",
-                         "auto-wp.py committed into a repository it did not create")
-        # And it staged nothing there either.
+        self.assertEqual(count.stdout.strip(), "1")
+        self.assertGreater(len(self.tracked(inner)), 100)
+        # ...and the outer repository is exactly as it was.
+        outer_count = subprocess.run(["git", "-C", str(outer), "rev-list", "--count", "HEAD"],
+                                     capture_output=True, text=True, timeout=30)
+        self.assertEqual(outer_count.stdout.strip(), "1",
+                         "committed into a repository it did not create")
         staged = subprocess.run(["git", "-C", str(outer), "diff", "--cached", "--name-only"],
                                 capture_output=True, text=True, timeout=30)
         self.assertEqual(staged.stdout, "")
+        self.assertEqual(self.tracked(outer), [],
+                         "the outer repository must have nothing of ours tracked")
+        self.assertTrue((outer / "their-wip.txt").is_file())
+        # git does not recurse into a nested repository: one untracked entry.
+        status = subprocess.run(["git", "-C", str(outer), "status", "--porcelain", "inner"],
+                                capture_output=True, text=True, timeout=30)
+        self.assertEqual(status.stdout, "?? inner/\n")
+
+    def test_a_target_that_already_has_commits_is_not_committed_to(self):
+        """Filling a project that is already a repository with history.
+
+        `add -A` there would sweep in whatever its work tree was carrying, so
+        the repository is (re)initialised and nothing is staged or committed.
+        """
+        target = self.tmp / "refill"
+        self.make_repo(target, commit="their own work")
+        (target / "their-wip.txt").write_text("WIP\n")
+        r = self.run_auto_wp("--c", "--harness", "none", "refill")
+        self.assertOk(r)
+        self.assertIn("git     refill is already a git repository; nothing staged or committed",
+                      r.stdout.splitlines())
+        count = subprocess.run(["git", "-C", str(target), "rev-list", "--count", "HEAD"],
+                               capture_output=True, text=True, timeout=30)
+        self.assertEqual(count.stdout.strip(), "1", "their history was modified")
+        staged = subprocess.run(["git", "-C", str(target), "diff", "--cached", "--name-only"],
+                                capture_output=True, text=True, timeout=30)
+        self.assertEqual(staged.stdout, "", "their work tree was staged")
+        # The project is still generated, just left for them to commit.
+        self.assertTrue((target / "README.md").is_file())
+        self.assertTrue((target / ".git").is_dir())
 
     def test_no_git_identity_warns_and_leaves_the_project_usable(self):
         blank = {"GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_SYSTEM": os.devnull,
