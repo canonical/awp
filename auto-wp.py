@@ -195,6 +195,22 @@ def parse_args(argv):
             "2. Yes (an OpenAI-compatible server on your network, such as Ollama)\n"
             "Type 1 or 2:",
             {"1": False, "2": True}, "Type 1 or 2.")
+        if args.local_inference:
+            # Said once, here, because this is the only moment the choice is
+            # being made by someone who can still act on it: the hook writes
+            # no configuration at all without this file (§1.2), and the
+            # question itself gives no hint that a file is required.
+            print(
+                "\nThe inference server's address goes in one line of "
+                "`.local-llm-machine-ip.txt`.\n"
+                "auto-wp copies this machine's `~/.local-llm-machine-ip.txt` "
+                "into the project if it\nhas one; otherwise create it in the "
+                "project directory before `workshop launch`,\nor as "
+                "`~/.local-llm-machine-ip.txt` inside the container and "
+                "`workshop refresh`.\n"
+                "Without it OpenCode is left on its current provider and the "
+                "hook says so.\n",
+                file=sys.stderr)
     if args.local_inference is None:
         args.local_inference = False
     if args.directory is None:
@@ -519,7 +535,10 @@ class Run:
         """Read one harness's README sections from `templates/common/harness/`.
 
         The prose of each harness lives beside its install snippet, as
-        `<name>.md`, rather than inside this program: it is documentation, it
+        `<name>.readme.md` -- not `<name>.md`, which on a case-insensitive
+        filesystem would make `claude.md` the same file as `CLAUDE.md` and
+        hand this prose to an agent as its instructions. It lives here rather
+        than inside this program because it is documentation, it
         is reviewed as documentation, and `write_readme` was two thirds
         English before it moved (§3.4, §4.4).
 
@@ -532,7 +551,7 @@ class Run:
         (`none` has no install or start line). Anything before the first
         marker is a comment and is ignored.
         """
-        path = TEMPLATES / "common/harness" / f"{name}.md"
+        path = TEMPLATES / "common/harness" / f"{name}.readme.md"
         sections, key = {}, None
         for line in path.read_text().splitlines(keepends=True):
             tag = line.strip()

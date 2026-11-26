@@ -310,6 +310,19 @@ or a measured cost of a 96-hour campaign against one (the figures are from
 | `agents.build.request.body.reasoning_effort` (`AUTOWP_INFERENCE_REASONING_EFFORT`, default `low`; an **empty** value omits the key) | 83.5 % of decode tokens were invisible reasoning, while visible assistant text averaged 523 characters a turn. It is set through the per-agent **request body**, never through a model variant (`provider/model#low`): a variant changes the model id, and an id the provider cannot resolve falls back to a cloud model without saying so, whereas an unknown body key is at worst ignored by the server. |
 | `AUTOWP_INFERENCE_SMALL_MODEL`, **unset** by default | Set, it adds that model to the `ollama` provider with its own `limit` and points `agents.explore` at it, so search turns do not occupy the big model. Unset, `explore` stays on `ollama-sub` with the main model, because a model that is not loaded on the host is not faster. |
 
+**The model name is not discovered.** Only the host address is read from a
+file; the model is `AUTOWP_INFERENCE_MODEL` or the default, so the written
+configuration can name a model the server does not have. The hook therefore
+asks `/api/tags` once and warns, listing what the server does serve and the
+`ollama pull` that would fix it. It is advisory in both directions: a missing
+model still gets its configuration written, because the model can be pulled
+afterwards, and a server that cannot be reached is reported as unchecked
+rather than treated as an error — provisioning must not require the inference
+host to be up. `AUTOWP_INFERENCE_CHECK=0` skips the request entirely, for a
+provisioning run with no route to the host. Discovery is not the alternative:
+OpenCode's own ollama plugin would populate `models` from that same endpoint,
+and disabling it is what keeps the timeouts (failure mode 2).
+
 Two properties of the servers themselves are documented rather than
 configured, because they live on the LLM host: both servers need the **same
 context length**, and at least the declared `limit.context` (OpenCode sizes
@@ -503,9 +516,9 @@ placeholders in it and changes nothing else:
 | `{{HARNESS_LOGIN}}`, `{{HARNESS_HOST}}` | Selected authentication/manual-install guidance and host permission warning (§1.1) |
 
 The five `{{HARNESS…}}` values are **not in the program**: each harness's
-prose is a template of its own, `templates/common/harness/<harness>.md`,
+prose is a template of its own, `templates/common/harness/<harness>.readme.md`,
 beside the install snippet it goes with (§4.1). `write_readme` reads one and,
-under `--local-inference`, overlays `opencode-local-inference.md` on top of
+under `--local-inference`, overlays `opencode-local-inference.readme.md` on top of
 it — which is why that option replaces the login paragraph rather than adding
 to it (§1.2, item 3).
 | `{{HARNESS_CAMPAIGN_NOTE}}` | Copilot-only warning that the remaining automated campaign instructions do not apply; directs the user to supervised language-skill tasks. Empty for other choices. |
@@ -1365,7 +1378,7 @@ A layer's `workshop/` holds the four files of §3.7.1 and is copied to
 `<directory-name>/.workshop/` (§3.7); only the language layers have one.
 `common/harness/` is neither copied nor merged: it holds the per-harness
 material the program reads and substitutes — `<harness>.sh` into a workshop
-hook (§1.1 item 3, §1.2 item 2) and `<harness>.md` into the README's
+hook (§1.1 item 3, §1.2 item 2) and `<harness>.readme.md` into the README's
 placeholders (§3.4, §4.1).
 
 They are seeded once from `../use-frama-c/config/` (common and C layers) and
@@ -1384,18 +1397,23 @@ Commands: none.
 Harness material, in `harness/`, read by the program and never copied into a
 project: `claude.sh`, `copilot.sh`, `opencode.sh` and
 `opencode-local-inference.sh`, appended to a workshop hook (§1.1 item 3,
-§1.2 item 2); and `claude.md`, `copilot.md`, `none.md`, `opencode.md` and
-`opencode-local-inference.md`, the README prose of each harness (§3.4).
+§1.2 item 2); and `claude.readme.md`, `copilot.readme.md`, `none.readme.md`,
+`opencode.readme.md` and `opencode-local-inference.readme.md`, the README
+prose of each harness (§3.4). The `.readme.md` suffix is not decoration: on a
+case-insensitive filesystem a file named `claude.md` **is** `CLAUDE.md`, and
+one was picked up as this repository's agent instructions, handing the prose
+to an agent as its orders. A test refuses any template `.md` whose name
+collides with an agent instruction file.
 
-A `.md` is sections, one per placeholder: `<!-- HARNESS_LOGIN -->` on its own
+A `.readme.md` is sections, one per placeholder: `<!-- HARNESS_LOGIN -->` on its own
 line opens a section that runs to the next marker or to end of file, text
 before the first marker is a comment, and an empty section is a placeholder
 that expands to nothing (`none` has no install or start line). Trailing blank
 lines are not part of a value: a placeholder is substituted mid-sentence, so a
 value ending in a newline would break the line it lands in — a test asserts
 `start <harness> in \`tmux\`` survives intact in every generated README.
-`opencode-local-inference.md` carries only `HARNESS_LOGIN` and is overlaid on
-`opencode.md`, which is what makes `--local-inference` replace the login
+`opencode-local-inference.readme.md` carries only `HARNESS_LOGIN` and is overlaid on
+`opencode.readme.md`, which is what makes `--local-inference` replace the login
 paragraph rather than add to it. A file with no sections is an error and the
 run rolls back.
 

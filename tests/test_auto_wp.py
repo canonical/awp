@@ -22,12 +22,15 @@ import os
 import pty
 import re
 import select
+import http.server
 import shutil
 import signal
+import socket
 import stat
 import subprocess
 import sys
 import tempfile
+import threading
 import termios
 import time
 import unittest
@@ -978,6 +981,31 @@ class TestInteractiveCompletion(AutoWpTestCase):
                 self.assertEqual((m["language"], m["harness"]), ("rust", "none"))
                 self.assertIn("harness:  none", r.stdout)
 
+    def test_answering_yes_names_the_address_file(self):
+        """The question gives no hint that a file is required; the answer does.
+
+        Answered yes, nothing is generated yet and the user can still act, so
+        this is the moment to say where the address goes. Answered no, there
+        is nothing to say.
+        """
+        for answer, expected in (("2", True), ("1", False)):
+            with self.subTest(answer=answer):
+                name = f"ip-note-{answer}"
+                p = TerminalProcess(self)
+                p.wait_for(self.QUESTIONS[0])
+                p.send(f"1\n2\n{answer}\n{name}\n".encode())
+                r = p.finish()
+                self.assertOk(r)
+                said = ".local-llm-machine-ip.txt" in r.stderr
+                self.assertEqual(said, expected, r.stderr)
+                if expected:
+                    # Both locations, and what happens without the file.
+                    self.assertIn("project", r.stderr)
+                    self.assertIn("workshop refresh", r.stderr)
+                    self.assertIn("current provider", r.stderr)
+                    # On stderr with the prompts, never in the result output.
+                    self.assertNotIn(".local-llm-machine-ip.txt", r.stdout)
+
     def test_t2_interactive_matches_explicit_tree(self):
         for language, number in (("c", "1"), ("rust", "2")):
             for harness, selection in (("claude", "1"), ("opencode", "2"),
@@ -1840,6 +1868,10 @@ class TestLocalInference(AutoWpTestCase):
         /home/$user; redirect that to the temporary tree.
         """
         script = self.SNIPPET.read_text().replace("/home/$user", str(self.tmp / "home/$user"))
+        # The model check is a network request, and most of these tests pin
+        # address resolution or config content. Off unless a test asks for
+        # it, so the suite does not pay a connect timeout per run.
+        env.setdefault("AUTOWP_INFERENCE_CHECK", "0")
         return subprocess.run(["bash", "-s"], input=script, text=True,
                               capture_output=True, timeout=60,
                               env=dict(os.environ, AUTOWP_INFERENCE_USER="tester", **env))
@@ -2086,6 +2118,118 @@ class TestLocalInference(AutoWpTestCase):
             with self.subTest(variable=name):
                 self.assertIn(name, header, f"{name} is not documented")
 
+    def serve_tags(self, names, spaced=False):
+        """A throwaway /api/tags server; returns its port.
+
+        The hook must not need the real inference host, so the model check is
+        exercised against a stub that answers like ollama does.
+        """
+        # ollama answers compact; `spaced` pins that the hook's extraction
+        # also survives whitespace around the colon, which is legal JSON.
+        models = {"models": [{"name": n, "model": n} for n in names]}
+        payload = json.dumps(
+            models, separators=((", ", ": ") if spaced else (",", ":"))).encode()
+
+        class Handler(http.server.BaseHTTPRequestHandler):
+            def do_GET(self):
+                body = payload if self.path == "/api/tags" else b"{}"
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+
+            def log_message(self, *a):
+                pass
+
+        class Server(http.server.HTTPServer):
+            def server_bind(self):
+                # Skip http.server's own server_bind: it calls
+                # socket.getfqdn(), a reverse lookup that takes ~35s on a
+                # network that cannot answer it.
+                super(http.server.HTTPServer, self).server_bind()
+                self.server_name, self.server_port = self.server_address[:2]
+
+        server = Server(("127.0.0.1", 0), Handler)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        self.addCleanup(server.shutdown)
+        return server.server_port
+
+    def test_snippet_checks_the_model_against_the_server(self):
+        """The model name is never discovered, so the hook asks whether it exists.
+
+        Advisory only: a model absent from the server, and a server that
+        cannot be reached at all, both warn and still write the
+        configuration. Provisioning must not need the inference host to be
+        up, and a model can be pulled afterwards.
+        """
+        served = ["qwen3.8:27b-mlx", "gemma4:12b-mlx"]
+        port = self.serve_tags(served)
+        home = self.tmp / "home/tester"
+
+        with self.subTest(case="model present"):
+            shutil.rmtree(home, ignore_errors=True)
+            home.mkdir(parents=True)
+            r = self.run_snippet(AUTOWP_INFERENCE_HOST="127.0.0.1",
+                                 AUTOWP_INFERENCE_PORT=str(port),
+                                 AUTOWP_INFERENCE_CHECK="1")
+            self.assertEqual(r.returncode, 0, r.stderr)
+            self.assertNotIn("WARNING", r.stderr)
+            self.assertNotIn("unchecked", r.stderr)
+
+        with self.subTest(case="model absent"):
+            shutil.rmtree(home, ignore_errors=True)
+            home.mkdir(parents=True)
+            r = self.run_snippet(AUTOWP_INFERENCE_HOST="127.0.0.1",
+                                 AUTOWP_INFERENCE_PORT=str(port),
+                                 AUTOWP_INFERENCE_MODEL="not-pulled:1b",
+                                 AUTOWP_INFERENCE_CHECK="1")
+            self.assertEqual(r.returncode, 0, r.stderr)
+            self.assertIn("WARNING: not-pulled:1b is not on", r.stderr)
+            for name in served:                     # it says what IS there
+                self.assertIn(name, r.stderr)
+            self.assertIn("ollama pull not-pulled:1b", r.stderr)
+            # Advisory: the configuration is written regardless.
+            cfg = json.loads((home / ".config/opencode/opencode.json").read_text())
+            self.assertIn("not-pulled:1b", cfg["providers"]["ollama"]["models"])
+
+        with self.subTest(case="small model absent"):
+            shutil.rmtree(home, ignore_errors=True)
+            home.mkdir(parents=True)
+            r = self.run_snippet(AUTOWP_INFERENCE_HOST="127.0.0.1",
+                                 AUTOWP_INFERENCE_PORT=str(port),
+                                 AUTOWP_INFERENCE_SMALL_MODEL="tiny:0b",
+                                 AUTOWP_INFERENCE_CHECK="1")
+            self.assertEqual(r.returncode, 0, r.stderr)
+            self.assertIn("WARNING: tiny:0b is not on", r.stderr)
+
+        with self.subTest(case="whitespace in the server's JSON"):
+            shutil.rmtree(home, ignore_errors=True)
+            home.mkdir(parents=True)
+            r = self.run_snippet(AUTOWP_INFERENCE_HOST="127.0.0.1",
+                                 AUTOWP_INFERENCE_PORT=str(self.serve_tags(served, spaced=True)),
+                                 AUTOWP_INFERENCE_CHECK="1")
+            self.assertEqual(r.returncode, 0, r.stderr)
+            self.assertNotIn("WARNING", r.stderr)
+            self.assertNotIn("could not list", r.stderr)
+
+        with self.subTest(case="server unreachable"):
+            shutil.rmtree(home, ignore_errors=True)
+            home.mkdir(parents=True)
+            # 127.0.0.1 on a port nothing listens on: refused at once, so the
+            # test does not wait out the hook's 5-second timeout.
+            with socket.socket() as probe:
+                probe.bind(("127.0.0.1", 0))
+                dead = probe.getsockname()[1]
+            r = self.run_snippet(AUTOWP_INFERENCE_HOST="127.0.0.1",
+                                 AUTOWP_INFERENCE_PORT=str(dead),
+                                 AUTOWP_INFERENCE_CHECK="1")
+            self.assertEqual(r.returncode, 0, r.stderr)
+            self.assertIn("could not list models", r.stderr)
+            self.assertNotIn("WARNING", r.stderr)
+            self.assertTrue((home / ".config/opencode/opencode.json").is_file(),
+                            "an unreachable server must not stop the config")
+
     def test_snippet_keeps_an_existing_config(self):
         home = self.tmp / "home/tester"
         conf = home / ".config/opencode/opencode.json"
@@ -2184,7 +2328,7 @@ class TestHarnessReadmeTemplates(AutoWpTestCase):
     def sections(self, name):
         """Parse a harness .md the way auto-wp.py does."""
         out, key = {}, None
-        for line in (self.HARNESS_DIR / f"{name}.md").read_text().splitlines(keepends=True):
+        for line in (self.HARNESS_DIR / f"{name}.readme.md").read_text().splitlines(keepends=True):
             tag = line.strip()
             marker = (tag[5:-4].strip()
                       if tag.startswith("<!-- ") and tag.endswith(" -->") else "")
@@ -2202,6 +2346,22 @@ class TestHarnessReadmeTemplates(AutoWpTestCase):
                 # Each has a shell snippet beside it, except `none`.
                 self.assertEqual((self.HARNESS_DIR / f"{harness}.sh").is_file(),
                                  harness != "none")
+
+    def test_no_template_file_collides_with_an_agent_instruction_file(self):
+        """`claude.md` is `CLAUDE.md` on a case-insensitive filesystem.
+
+        A harness file named `<harness>.md` was picked up as this repository's
+        agent instructions on macOS, handing the prose to the agent as its
+        orders. The suffix keeps them distinct on every filesystem.
+        """
+        reserved = {"claude.md", "agents.md", "gemini.md", "copilot.md",
+                    "codex.md", "cursor.md", "readme.md"}
+        for path in TEMPLATES.rglob("*.md"):
+            with self.subTest(path=str(path.relative_to(TEMPLATES))):
+                if path.parent.name in ("commands", "getting-better"):
+                    continue          # a command or note, legitimately named
+                self.assertNotIn(path.name.lower(), reserved - {"readme.md"},
+                                 f"{path} collides with an agent instruction file")
 
     def test_the_local_inference_file_overrides_only_the_login(self):
         self.assertEqual(set(self.sections("opencode-local-inference")),
@@ -2253,7 +2413,7 @@ class TestHarnessReadmeTemplates(AutoWpTestCase):
 
     def test_a_file_with_no_sections_is_an_error(self):
         prog = self._copy_program()
-        (prog / "templates/common/harness/claude.md").write_text("just a comment\n")
+        (prog / "templates/common/harness/claude.readme.md").write_text("just a comment\n")
         r = self.run_auto_wp("--c", "--harness", "claude", "foo",
                              script=prog / "auto-wp.py")
         self.assertEqual(r.returncode, 1, r.stdout + r.stderr)

@@ -44,6 +44,10 @@
 #   AUTOWP_INFERENCE_SMALL_MODEL    a second, smaller model for the `explore`
 #                                   subagent (unset by default: `explore`
 #                                   stays on the subagent slot)
+#   AUTOWP_INFERENCE_CHECK          1 (default) asks the server which models it
+#                                   has and warns if the configured one is
+#                                   missing; 0 skips that request, for a
+#                                   provisioning run with no route to the host
 #
 # The written config addresses eight failure modes seen with a single-slot
 # local runner; see the generated README's "Local inference" section.
@@ -170,6 +174,37 @@
             printf 'auto-wp:   echo 192.0.2.10 > %s && workshop refresh\n' "$project_ip" >&2
             printf 'auto-wp: %s was NOT written; OpenCode keeps its current provider.\n' "$conf" >&2
             exit 0
+        fi
+        # Advisory: the model name is a default or an override, never
+        # discovered, so this config can name a model the server does not
+        # have and nothing would notice until the first request fails. Ask
+        # the server. Never fatal and never a reason not to write the file:
+        # provisioning must not depend on the inference host being up, and a
+        # model can be pulled after the fact.
+        if [ "${AUTOWP_INFERENCE_CHECK:-1}" = 1 ] && command -v curl >/dev/null 2>&1; then
+            tags=$(curl -sS --connect-timeout 1 --max-time 5 "http://$host:$port/api/tags" 2>/dev/null) || tags=
+            # One name per line. `|| true`: grep finds nothing on an error
+            # page or an empty reply, and pipefail would end the hook.
+            # Whitespace around the colon is legal JSON: ollama answers
+            # compact today, so a stricter pattern would work and then fail
+            # silently on a reformatted reply, taking the benign
+            # "could not list" path with it.
+            available=$(printf '%s' "$tags" \
+                | grep -o '"name"[[:space:]]*:[[:space:]]*"[^"]*"' \
+                | sed 's/.*"\([^"]*\)"$/\1/' || true)
+            if [ -z "$available" ]; then
+                printf 'auto-wp: could not list models on %s:%s, so %s is unchecked.\n' \
+                    "$host" "$port" "$model" >&2
+            else
+                for want in $model $small_model; do
+                    printf '%s\n' "$available" | grep -qxF "$want" && continue
+                    printf 'auto-wp: WARNING: %s is not on %s:%s. It serves:\n' \
+                        "$want" "$host" "$port" >&2
+                    printf '%s\n' "$available" | sed 's/^/auto-wp:   /' >&2
+                    printf 'auto-wp: run `ollama pull %s` there, or set %s and refresh.\n' \
+                        "$want" "AUTOWP_INFERENCE_MODEL" >&2
+                done
+            fi
         fi
         install -d -m 755 "$home/.config" "$home/.config/opencode"
         # Expanding heredoc: \$schema is escaped so the shell leaves it alone.

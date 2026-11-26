@@ -165,6 +165,14 @@ mounting the project and as the workshop user — not in `setup-base`, which
 runs before the mount and as root. A snippet there found no address and
 skipped silently on every first launch.
 
+The **model** name, unlike the address, is never discovered: it is
+`AUTOWP_INFERENCE_MODEL` or the default, so the configuration can name a model
+the server does not have. The hook asks the server's `/api/tags` once and
+warns if it is missing, listing what is served and the `ollama pull` that
+would fix it — advisory only, so the configuration is still written (the model
+can be pulled later) and a server that is simply down is reported as
+unchecked. `AUTOWP_INFERENCE_CHECK=0` skips the request.
+
 If no location has the file, the hook writes no configuration and prints both
 paths it tried, rather than guessing an address — the same rule `sl-auditor`
 applies to the judge. Provisioning still succeeds, so you can create the file
