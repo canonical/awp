@@ -50,14 +50,27 @@
         exit 0
     fi
 
-    # `claude` and `opencode` spell this differently, and neither is on PATH
-    # for every harness. Whichever is here is the one this project installed.
-    if command -v opencode >/dev/null 2>&1; then
-        harness=opencode
-    elif command -v claude >/dev/null 2>&1; then
-        harness=claude
-    else
-        printf 'auto-wp: no harness CLI on PATH; MCP servers left unregistered\n' >&2
+    # `claude` and `opencode` spell this differently, so the right CLI has to
+    # be the one this project was GENERATED for -- recorded in the manifest.
+    # Probing PATH instead picks whichever happens to be installed, and on a
+    # machine with both it silently drives the wrong one and registers
+    # nothing.
+    manifest=${AUTOWP_MANIFEST:-${AUTOWP_PROJECT_DIR:-/project}/config/auto-wp.json}
+    harness=$(sed -n 's/.*"harness"[[:space:]]*:[[:space:]]*"\([a-z]*\)".*/\1/p' \
+        "$manifest" 2>/dev/null | head -1) || harness=
+    if [ -z "$harness" ]; then
+        printf 'auto-wp: no harness in %s; MCP servers left unregistered\n' \
+            "$manifest" >&2
+        exit 0
+    fi
+    case $harness in
+        claude|opencode) ;;
+        *) printf 'auto-wp: harness %s does not take MCP servers; skipped\n' \
+               "$harness" >&2; exit 0 ;;
+    esac
+    if ! command -v "$harness" >/dev/null 2>&1; then
+        printf 'auto-wp: %s is not on PATH; MCP servers left unregistered\n' \
+            "$harness" >&2
         exit 0
     fi
 

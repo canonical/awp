@@ -1866,6 +1866,20 @@ class TestLocalInference(AutoWpTestCase):
                     subprocess.run(["bash", "-n"], input=text, text=True,
                                    check=True, timeout=15)
 
+    def test_mcp_uses_the_generated_harness_not_whatever_is_on_path(self):
+        """The CLI is the one the project was generated for.
+
+        Probing PATH picks whichever happens to be installed; on a machine
+        with both, a claude project drove `opencode mcp add` and registered
+        nothing. The manifest records the harness, so use that.
+        """
+        snippet = self.MCP_SNIPPET.read_text()
+        self.assertIn("config/auto-wp.json", snippet,
+                      "the harness must come from the manifest")
+        # A bare `command -v opencode` chain is the bug; it must not come back.
+        self.assertNotRegex(snippet, r"if command -v opencode[^\n]*then\s*\n\s*harness=opencode")
+        self.assertIn("does not take MCP servers", snippet)
+
     def test_mcp_server_names_match_the_specs(self):
         """A server registered under the wrong name is invisible to its skill.
 
