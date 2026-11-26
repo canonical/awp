@@ -113,7 +113,10 @@ which generates exactly what earlier versions did. The options are only
 accepted next to `--harness opencode`; anywhere else they are a usage error.
 
 The generated configuration is tuned for a single-slot local runner, where a
-long prompt takes far longer than any cloud call:
+long prompt takes far longer than any cloud call. Every value has an
+`AUTOWP_INFERENCE_*` override, documented with its default and its reason at
+the top of
+[`templates/common/harness/opencode-local-inference.sh`](templates/common/harness/opencode-local-inference.sh):
 
 - `headerTimeout` is one hour. No response header is sent until the prompt has
   been processed, so OpenCode's 5-minute default aborts turns the server would
@@ -125,23 +128,47 @@ long prompt takes far longer than any cloud call:
   prompt shares almost no prefix with its parent's, so on one server it
   evicts the parent's prompt cache and the next parent turn reprocesses the
   whole context.
-- `compaction.buffer` is `50%`, keeping prompts in the range that stays fast
-  instead of compacting only at the context limit.
+- `limit` declares the context window (120000) and output budget (16000) on
+  every model entry. Undeclared, OpenCode falls back to its own assumption —
+  262144 in 2.3.2 — so `compaction.buffer: "50%"` compacted at about 131k
+  tokens, where measured decode is 28.9 tok/s against 45–52 under 60k. The
+  declared window must stay at or below the servers' `OLLAMA_CONTEXT_LENGTH`:
+  OpenCode sizes prompts against its own figure, never the server's.
+- `compaction.keep.tokens` is 15000 rather than 24000, since kept text is
+  re-read after every compaction and compactions are now more frequent.
+- `tool_output` caps a single tool result at 300 lines / 12 KiB, against a
+  default of 2000 / 50 KiB that let one 48.9k-character command output into
+  the context.
+- `reasoning_effort` is `low` for the `build` agent, set on its request body
+  rather than through a model variant: 83.5 % of decode tokens measured as
+  invisible reasoning, and a variant changes the model id, which on a
+  resolution failure falls back to a cloud model without saying so.
 
-The host address is **not** configured here or hardcoded anywhere: it is read
-from `~/.local-llm-machine-ip.txt` in the container, the one-line file this
-project already uses to reach the cross-provider judge
+The host address is **not** configured here and not hardcoded anywhere. It is
+read from `.local-llm-machine-ip.txt`, one line holding the address, the same
+file this project already uses to reach the cross-provider judge
 (`skills/sl-auditor/SKILL.md`, `no_ceiling_gate.py`, `skills/time-loop/SKILL.md`).
-Create it before the first `workshop refresh`:
+Put it **in the project directory**, which is mounted into the workshop:
 
 ```sh
-echo 192.0.2.10 > ~/.local-llm-machine-ip.txt
+echo 192.0.2.10 > <project>/.local-llm-machine-ip.txt
 ```
 
-If the file is missing, the hook writes no configuration and prints why,
-rather than guessing an address — the same rule `sl-auditor` applies to the
-judge. Provisioning itself still succeeds: the file lives in the container's
-home, which does not exist until the hook has run.
+`auto-wp.py` does that for you when the machine generating the project has its
+own `~/.local-llm-machine-ip.txt`, so the usual case needs no manual step.
+
+The container's own `~/.local-llm-machine-ip.txt` is read first and takes
+precedence, but it cannot be what a **first** launch uses: there is nowhere to
+put it until the launch has created that home. The hook that writes the
+configuration therefore lives in `setup-project`, which Workshop runs after
+mounting the project and as the workshop user — not in `setup-base`, which
+runs before the mount and as root. A snippet there found no address and
+skipped silently on every first launch.
+
+If no location has the file, the hook writes no configuration and prints both
+paths it tried, rather than guessing an address — the same rule `sl-auditor`
+applies to the judge. Provisioning still succeeds, so you can create the file
+and `workshop refresh` to apply it.
 
 Both servers must then be reachable from the container before a campaign
 starts. On the LLM host:
@@ -153,18 +180,15 @@ OLLAMA_HOST=0.0.0.0:11435 OLLAMA_KEEP_ALIVE=2h ollama serve
 
 Two things about those servers are easy to get wrong and expensive:
 
-- **Give both the same context length.** OpenCode sizes prompts against a
-  single window, so a smaller window on the subagent server truncates
-  subagent prompts silently — corrupting their reasoning without an error.
+- **Give both the same `OLLAMA_CONTEXT_LENGTH`, at or above the declared
+  `limit.context`.** OpenCode sizes prompts against that single declared
+  window, so a server with a smaller one truncates prompts silently —
+  corrupting the reasoning without an error anywhere.
 - **Keep the runners loaded between cycles.** A runner that unloads takes its
   prompt cache with it, so the next cycle reprocesses the whole context from
   scratch — minutes of prompt processing per wake at campaign-sized contexts.
   `OLLAMA_KEEP_ALIVE` must comfortably exceed the watchdog's wake interval.
 
-`AUTOWP_INFERENCE_HOST` overrides the file; `AUTOWP_INFERENCE_PORT`,
-`AUTOWP_INFERENCE_SUBAGENT_PORT`, `AUTOWP_INFERENCE_MODEL` and
-`AUTOWP_INFERENCE_USER` change the rest. All of them are read in
-[`templates/common/harness/opencode-local-inference.sh`](templates/common/harness/opencode-local-inference.sh).
 An existing `opencode.json` is never overwritten, so edits survive
 `workshop refresh`.
 
@@ -173,7 +197,9 @@ persistent [byobu](https://www.byobu.org/) session (tmux backend, with
 tmux-resurrect/continuum so the session survives a container restart): detach
 with F6, reconnect with `workshop shell`, and the running campaign is right
 there again. Pass `--no-byobu` to skip that configuration; `workshop shell`
-then opens a plain shell and you manage `tmux` yourself.
+then opens a plain shell and you manage `tmux` yourself. `--no-byobu` removes
+the `setup-project` hook that configures byobu, so under `--local-inference`
+that hook is recreated carrying only the configuration writer.
 
 The generated directory is stand-alone. It has its own `README.md` with the
 quick start: clone the code to analyse next to the configuration, then run

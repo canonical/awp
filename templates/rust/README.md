@@ -391,7 +391,13 @@ These skills can also be asked for by name:
   `tmux` and `curl` and is where the crate's own apt packages go (then
   `workshop refresh`).
 - `bin/` — `bin/rmf-lint.sh`, the lint check of `rmf-sl`'s risk study, run
-  from the project root. The other scripts of a C project (the Frama-C
+  from the project root. Two read-only queries keep the campaign's own
+  bookkeeping out of the agent's context: `bin/ledger` filters and clips
+  `verdicts.tsv` instead of `cat`-ing it, and `bin/check-delivery` answers in
+  one line whether a cycle really delivered its report, logs and commit. The
+  resource guard and the loop's own watchdog are here too: `bin/heavy` (one
+  slot per heavy job, sized from the core count), `bin/mem-watchdog` and
+  `bin/time-loop-watchdog.py`. The other scripts of a C project (the Frama-C
   campaign scripts) are not needed here.
 - `.gitignore` — keeps `.workshop.lock`, written by `workshop launch`, out
   of the project history.

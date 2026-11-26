@@ -376,7 +376,13 @@ without a container. The agent then acts with all your rights.
   `bin/rmf-lint.sh`, `bin/fips-lint.sh` and `bin/ebios-lint.sh` (the machine gates of `rmf-sl`,
   `fips-sl` and `ebios-sl`), the `bin/framac-*.sh` campaign scripts,
   `bin/ledger-ratchet.sh`, `bin/crosswalk-gen.sh`, `bin/fetch-sources.sh`,
-  and `bin/launch_lxc.sh` (step 1 of way C).
+  and `bin/launch_lxc.sh` (step 1 of way C). Two read-only queries keep the
+  campaign's own bookkeeping out of the agent's context: `bin/ledger` filters
+  and clips `verdicts.tsv` instead of `cat`-ing it, and `bin/check-delivery`
+  answers in one line whether a cycle really delivered its report, logs and
+  commit. The resource guard and the loop's own watchdog are here too:
+  `bin/heavy` (one slot per heavy job, sized from the core count),
+  `bin/mem-watchdog` and `bin/time-loop-watchdog.py`.
 - The data those scripts and skills read: the Frama-C patches
   (`frama-c-patches/`), the gold corpus (`framac-gold/`) and `no-ceiling.md`.
 - `bin/fetch-sources.sh` downloads the two trees too large to ship here:

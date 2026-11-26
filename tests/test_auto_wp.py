@@ -2115,12 +2115,43 @@ class TestLocalInference(AutoWpTestCase):
         off = (self.tmp / "off/README.md").read_text()
         self.assertNotIn("{{", on)
         self.assertIn("**Local inference.**", on)
-        self.assertIn("AUTOWP_INFERENCE_HOST", on)
+        # The address file, in the location that works on a first launch: the
+        # project directory, not the container's home.
+        self.assertIn("echo 192.0.2.10 > .local-llm-machine-ip.txt", on)
+        self.assertNotIn("> ~/.local-llm-machine-ip.txt", on)
+        # Both servers, and the two ways to get them wrong.
         self.assertIn("OLLAMA_HOST=0.0.0.0:11435", on)
+        self.assertIn("OLLAMA_CONTEXT_LENGTH", on)
+        self.assertIn("OLLAMA_KEEP_ALIVE", on)
+        # The overrides are pointed at rather than listed, so the README does
+        # not carry three copies of the whole table (§3.4: HARNESS_LOGIN is
+        # substituted once per quick-start path).
+        self.assertIn("AUTOWP_INFERENCE_*", on)
+        self.assertIn("hooks/setup-project", on)
         # The cloud-login paragraph is replaced, not added to.
         self.assertNotIn("/connect", on)
         self.assertIn("/connect", off)
         self.assertNotIn("Local inference", off)
+
+    def test_readme_names_every_installed_tool(self):
+        """The README's `bin/` list must not fall behind what is installed."""
+        for language in ("c", "rust"):
+            with self.subTest(language=language):
+                target = f"tools-{language}"
+                self.assertOk(self.run_auto_wp("--" + language, "--harness",
+                                               "none", target))
+                project = self.tmp / target
+                readme = (project / "README.md").read_text()
+                for tool in sorted(p.name for p in (project / "bin").iterdir()):
+                    # The campaign scripts are covered by one `bin/framac-*.sh`
+                    # glob rather than named one by one.
+                    if tool.startswith("framac-"):
+                        continue
+                    # Whole name only: a bare `in` check would let
+                    # `bin/ledger-ratchet.sh` stand in for `bin/ledger`.
+                    pattern = re.escape(f"bin/{tool}") + r"(?![A-Za-z0-9_.-])"
+                    self.assertRegex(readme, pattern,
+                                     f"bin/{tool} is installed but not named in the README")
 
 
 class TestTemplateByproducts(AutoWpTestCase):
