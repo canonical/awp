@@ -1783,6 +1783,7 @@ class TestLocalInference(AutoWpTestCase):
 
     HOOK = ".workshop/autowp-packages/hooks/setup-base"
     SNIPPET = TEMPLATES / "common/harness/opencode-local-inference.sh"
+    MCP_SNIPPET = TEMPLATES / "common/harness/mcp-register.sh"
 
     def hook(self, project):
         return (project / self.HOOK).read_text()
@@ -1827,17 +1828,69 @@ class TestLocalInference(AutoWpTestCase):
                 # setup-base: the installer only, exactly as without the flag.
                 self.assertEqual(self.hook(project), self.baseline(language))
                 self.assertNotIn("AUTOWP_INFERENCE_HOST", self.hook(project))
-                # setup-project: the template's byobu hook plus the snippet.
+                # setup-project: the template's byobu hook, then the snippet,
+                # then MCP registration. The order is the safety property --
+                # both snippets write the same opencode.json and the
+                # local-inference one only writes a file that is absent, so
+                # registering first would cost the provider configuration.
                 proj_hook = (project / self.PROJECT_HOOK).read_text()
                 template = (TEMPLATES / language
                             / "workshop/autowp-packages/hooks/setup-project").read_text()
-                self.assertEqual(proj_hook,
-                                 template + "\n" + self.SNIPPET.read_text())
+                mcp = self.MCP_SNIPPET.read_text()
+                self.assertEqual(proj_hook, template + "\n"
+                                 + self.SNIPPET.read_text() + "\n" + mcp)
+                self.assertLess(proj_hook.index("AUTOWP_INFERENCE_CONTEXT"),
+                                proj_hook.index("AUTOWP_MCP_REGISTER"),
+                                "MCP registration must not precede the config writer")
                 for text in (self.hook(project), proj_hook):
                     subprocess.run(["bash", "-n"], input=text, text=True,
                                    check=True, timeout=15)
                 manifest = json.loads((project / "config/auto-wp.json").read_text())
                 self.assertIs(manifest["local_inference"], True)
+
+    def test_mcp_registration_is_wired_for_the_harnesses_that_take_it(self):
+        """The mounted SDKs' MCP servers are registered at launch, not by hand.
+
+        Copilot is excluded on purpose: the generated README starts it with
+        `--disable-builtin-mcps`.
+        """
+        for harness, expected in (("opencode", True), ("claude", True),
+                                  ("copilot", False), ("none", False)):
+            with self.subTest(harness=harness):
+                target = f"mcp-{harness}"
+                self.assertOk(self.run_auto_wp("--c", "--harness", harness, target))
+                hook = self.tmp / target / self.PROJECT_HOOK
+                text = hook.read_text() if hook.exists() else ""
+                self.assertEqual("AUTOWP_MCP_REGISTER" in text, expected, harness)
+                if expected:
+                    subprocess.run(["bash", "-n"], input=text, text=True,
+                                   check=True, timeout=15)
+
+    def test_mcp_server_names_match_the_specs(self):
+        """A server registered under the wrong name is invisible to its skill.
+
+        `frama-c-monitoring` probes "the registered `framac` MCP"; the specs
+        register `framac`, `rocq`, `creusot`, `lean-lsp`. The SDK README for
+        frama-c once said `frama-c`, which would have left the capability
+        silently off.
+        """
+        snippet = self.MCP_SNIPPET.read_text()
+        for name in ("framac", "rocq", "creusot", "lean-lsp"):
+            self.assertRegex(snippet, rf"'{re.escape(name)} %s",
+                             f"{name} is not the name the snippet registers")
+        self.assertNotRegex(snippet, r"'frama-c %s",
+                            "registers `frama-c`, which no skill looks for")
+        # And every producer of the name agrees.
+        for spec, name in (("spec/frama-c-mcp.md", "framac"),
+                           ("spec/rocq-mcp.md", "rocq"),
+                           ("spec/creusot-mcp.md", "creusot")):
+            path = REPO / spec
+            if path.is_file():
+                self.assertIn(f"user {name} --", path.read_text(), spec)
+        sdk = REPO / "sdks/frama-c-sdk/README.md"
+        if sdk.is_file():
+            self.assertIn("mcp add framac --global", sdk.read_text())
+            self.assertNotIn("mcp add frama-c --global", sdk.read_text())
 
     def test_no_byobu_still_gets_the_snippet(self):
         """--no-byobu removes setup-project, so it has to be recreated for it."""

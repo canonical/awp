@@ -570,8 +570,9 @@ Implementation is the canonical preset **`linux/linux-acsl/onboard-linux.sh <ana
 - `references/build-context.md` — **Phase 0's method**: where to install the tools a build needs
   (Workshop `setup-base` + refresh / LXD / bare host), the five ways to a compile database in order
   of preference, tool substitution for a target whose native toolchain is not on this OS, why a
-  partial build and a `"built": false` record are both usable, and the three distinct oracles
-  (context-real, compile-success, parse-success) that must not be conflated.
+  partial build and a `"built": false` record are both usable, the three distinct oracles
+  (context-real, compile-success, parse-success) that must not be conflated, and the MCP servers
+  the workshop registers for you at launch (§2.4).
 - `references/learned-prober.md` — buildsystem→flags recipes, force-include/`-machdep`/profile
   discovery, the parse-oracle tells (Gate-S-gated).
 - `references/learned-architect.md` — scope-map + attack-surface-ranking heuristics; endogenous-vs-

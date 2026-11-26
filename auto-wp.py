@@ -43,6 +43,11 @@ DRIVER_COMMANDS = {"rmf": "rmf.md", "fips": "fips.md"}
 # `opencode.json` names a local OpenAI-compatible provider instead of a cloud
 # one (templates/common/harness/opencode-local-inference.sh).
 LOCAL_INFERENCE_HARNESS = "opencode"
+# Harnesses whose CLI can register an MCP server, so the mounted SDKs' servers
+# are wired up at launch (templates/common/harness/mcp-register.sh). Copilot is
+# left out on purpose: the README starts it with `--disable-builtin-mcps`, and
+# registering servers into it would contradict that launch command.
+MCP_HARNESSES = ("claude", "opencode")
 # One line, the local LLM host's address. The workshop hook reads it from the
 # project directory as well as the container's home, because the home does not
 # exist before the first launch; copying the host's own copy into the project
@@ -447,6 +452,13 @@ class Run:
                 # the address file exists and skips every first launch.
                 self.append_hook(hooks / "setup-project",
                                  f"{self.harness}-local-inference.sh",
+                                 header=SETUP_PROJECT_HEADER)
+            if self.harness in MCP_HARNESSES:
+                # After the local-inference snippet, not before: both write
+                # the same `opencode.json`, and that one only writes a file
+                # that does not exist yet. Registering first would create it
+                # and cost the campaign its provider configuration.
+                self.append_hook(hooks / "setup-project", "mcp-register.sh",
                                  header=SETUP_PROJECT_HEADER)
         self.out.append(f"copied  {self.show('.workshop')} (workshop: {WORKSHOP_NAME})")
 

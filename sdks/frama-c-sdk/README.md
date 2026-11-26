@@ -19,14 +19,14 @@ To register it with Claude Code inside the workshop:
 
 ```bash
 workshop shell
-claude mcp add --transport stdio --scope user frama-c -- "$FRAMAC_MCP_BIN"
+claude mcp add --transport stdio --scope user framac -- "$FRAMAC_MCP_BIN"
 ```
 
 To register it with OpenCode instead (the same user scope, written to
 `~/.config/opencode/opencode.json`):
 
 ```bash
-opencode mcp add frama-c --global -- "$FRAMAC_MCP_BIN"
+opencode mcp add framac --global -- "$FRAMAC_MCP_BIN"
 ```
 
 The server is stdio and reads its report directory from the environment, so

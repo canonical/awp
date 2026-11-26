@@ -91,7 +91,24 @@ everything user-local and reversible:
 Record every host-level install in the onboarding package, because the next
 run cannot see what you did and the user has to be able to undo it.
 
-### 2.4 What to record either way
+### 2.4 MCP servers are already registered
+
+The SDKs ship MCP servers (`framac`, `rocq`, `creusot`, `lean-lsp`) and the
+project's `setup-project` hook registers each mounted one with the harness at
+launch, so `framac`/`rocq` are available without a manual `mcp add`. Check with
+`opencode mcp list` (or `claude mcp list`). Two things to know:
+
+- The names are the ones the **specs and the consuming skills** use. A server
+  registered under another name is invisible to the skill that would use it —
+  `frama-c-monitoring` §4b probes "the registered `framac` MCP" — and neither
+  CLI has an `mcp remove`, so a wrong name has to be cleared by editing
+  `~/.config/opencode/opencode.json` by hand.
+- An MCP read is **a faster path to the same data, never a source of truth**
+  (`frama-c-monitoring` §4b). Banking still comes from the batch run's report.
+
+`AUTOWP_MCP_REGISTER=0` before a launch skips registration.
+
+### 2.5 What to record either way
 
 The onboarding package must name every tool the build needed and where it came
 from. A build that only works because of an undocumented install is not
