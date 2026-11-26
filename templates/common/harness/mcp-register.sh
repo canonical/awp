@@ -22,9 +22,14 @@
 #
 #   AUTOWP_MCP_REGISTER=0   skip registration entirely
 #
-# Copilot is deliberately excluded: the generated README starts it with
-# `--disable-builtin-mcps`, so wiring servers into it would contradict the
-# campaign's own launch command.
+# Copilot is included. `--disable-builtin-mcps` in the generated README reads
+# like a reason to skip it, and that was the first mistake here: its own help
+# text is "Disable all BUILT-IN MCP servers", and what it exists for is the
+# built-in `github-mcp-server` -- a write path to GitHub with the signed-in
+# credential (`spec/choose-harness.md` §5.2). A server registered locally is
+# not built-in, so the flag keeps its security value and these servers still
+# load. Copilot's spelling differs again: no `--global`, no `--transport`, and
+# the config is `~/.copilot/mcp-config.json`, not the harness's own file.
 (
     set -eu
     set -o pipefail
@@ -64,7 +69,7 @@
         exit 0
     fi
     case $harness in
-        claude|opencode) ;;
+        claude|opencode|copilot) ;;
         *) printf 'auto-wp: harness %s does not take MCP servers; skipped\n' \
                "$harness" >&2; exit 0 ;;
     esac
@@ -88,12 +93,14 @@
             printf 'auto-wp: MCP %s already registered\n' "$name"
             continue
         fi
-        if [ "$harness" = opencode ]; then
-            out=$(HOME=$home opencode mcp add "$name" --global -- "$bin" 2>&1) || out=$out
-        else
-            out=$(HOME=$home claude mcp add --transport stdio --scope user \
-                "$name" -- "$bin" 2>&1) || out=$out
-        fi
+        case $harness in
+            opencode) out=$(HOME=$home opencode mcp add "$name" --global \
+                           -- "$bin" 2>&1) || out=$out ;;
+            claude)   out=$(HOME=$home claude mcp add --transport stdio \
+                           --scope user "$name" -- "$bin" 2>&1) || out=$out ;;
+            copilot)  out=$(HOME=$home copilot mcp add "$name" \
+                           -- "$bin" 2>&1) || out=$out ;;
+        esac
         if HOME=$home "$harness" mcp list 2>/dev/null | grep -qw -- "$name"; then
             printf 'auto-wp: registered MCP %s -> %s\n' "$name" "$bin"
         else

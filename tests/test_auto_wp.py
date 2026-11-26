@@ -1851,11 +1851,12 @@ class TestLocalInference(AutoWpTestCase):
     def test_mcp_registration_is_wired_for_the_harnesses_that_take_it(self):
         """The mounted SDKs' MCP servers are registered at launch, not by hand.
 
-        Copilot is excluded on purpose: the generated README starts it with
-        `--disable-builtin-mcps`.
+        Copilot included: `--disable-builtin-mcps` in its launch line disables
+        the BUILT-IN servers, not a locally registered one. Only `none` has no
+        CLI to register with.
         """
         for harness, expected in (("opencode", True), ("claude", True),
-                                  ("copilot", False), ("none", False)):
+                                  ("copilot", True), ("none", False)):
             with self.subTest(harness=harness):
                 target = f"mcp-{harness}"
                 self.assertOk(self.run_auto_wp("--c", "--harness", harness, target))
@@ -1879,6 +1880,19 @@ class TestLocalInference(AutoWpTestCase):
         # A bare `command -v opencode` chain is the bug; it must not come back.
         self.assertNotRegex(snippet, r"if command -v opencode[^\n]*then\s*\n\s*harness=opencode")
         self.assertIn("does not take MCP servers", snippet)
+
+    def test_each_harness_gets_its_documented_mcp_syntax(self):
+        """The three CLIs spell registration differently; none may be guessed."""
+        snippet = self.MCP_SNIPPET.read_text()
+        for harness, fragment in (
+                ("opencode", 'opencode mcp add "$name" --global'),
+                ("claude", "claude mcp add --transport stdio"),
+                # Copilot takes no --global and no --transport, and keeps its
+                # own config at ~/.copilot/mcp-config.json.
+                ("copilot", 'copilot mcp add "$name"')):
+            with self.subTest(harness=harness):
+                self.assertIn(fragment, snippet)
+        self.assertNotIn('copilot mcp add "$name" --global', snippet)
 
     def test_mcp_server_names_match_the_specs(self):
         """A server registered under the wrong name is invisible to its skill.

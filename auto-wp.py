@@ -45,9 +45,10 @@ DRIVER_COMMANDS = {"rmf": "rmf.md", "fips": "fips.md"}
 LOCAL_INFERENCE_HARNESS = "opencode"
 # Harnesses whose CLI can register an MCP server, so the mounted SDKs' servers
 # are wired up at launch (templates/common/harness/mcp-register.sh). Copilot is
-# left out on purpose: the README starts it with `--disable-builtin-mcps`, and
-# registering servers into it would contradict that launch command.
-MCP_HARNESSES = ("claude", "opencode")
+# included: `--disable-builtin-mcps` in its launch line disables the BUILT-IN
+# servers -- the github one, a write path to GitHub with the signed-in
+# credential -- and leaves a locally registered server loading.
+MCP_HARNESSES = ("claude", "opencode", "copilot")
 # One line, the local LLM host's address. The workshop hook reads it from the
 # project directory as well as the container's home, because the home does not
 # exist before the first launch; copying the host's own copy into the project

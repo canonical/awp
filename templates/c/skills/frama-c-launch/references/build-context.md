@@ -96,7 +96,16 @@ run cannot see what you did and the user has to be able to undo it.
 The SDKs ship MCP servers (`framac`, `rocq`, `creusot`, `lean-lsp`) and the
 project's `setup-project` hook registers each mounted one with the harness at
 launch, so `framac`/`rocq` are available without a manual `mcp add`. Check with
-`opencode mcp list` (or `claude mcp list`). Two things to know:
+`<harness> mcp list` — all three CLIs have it, and each spells `add`
+differently (`opencode mcp add NAME --global --`, `claude mcp add --transport
+stdio --scope user NAME --`, `copilot mcp add NAME --`, the last keeping its
+config in `~/.copilot/mcp-config.json`). Three things to know:
+
+- **Copilot gets them too**, despite being launched with
+  `--disable-builtin-mcps`. That flag turns off the *built-in* servers — the
+  GitHub one, which is a write path to GitHub with the signed-in credential
+  (`spec/choose-harness.md` §5.2) — and a locally registered stdio server is
+  not built-in. The flag keeps its security value; these servers still load.
 
 - The names are the ones the **specs and the consuming skills** use. A server
   registered under another name is invisible to the skill that would use it —

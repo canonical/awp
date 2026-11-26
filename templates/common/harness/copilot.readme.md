@@ -15,7 +15,11 @@ command -v copilot >/dev/null || curl -fsSL https://gh.io/copilot-install | bash
 copilot --disable-builtin-mcps --sync-session=off
 
 <!-- HARNESS_LOGIN -->
-Inside the container, run `copilot login --device-code` and complete the displayed authorization in your host browser. Login is stored in the container's credential store, or in plaintext under `~/.copilot/` if no credential store is available. Never copy the host's `~/.copilot/` or credentials into it. Your account and organization policy must allow Copilot CLI; model requests consume your account's allowance. The start command disables built-in MCP servers and account session sync, and keeps trust and tool-approval prompts enabled. Do not use `/delegate`, `/share` or `/remote` for campaign source code.
+Inside the container, run `copilot login --device-code` and complete the displayed authorization in your host browser. Login is stored in the container's credential store, or in plaintext under `~/.copilot/` if no credential store is available. Never copy the host's `~/.copilot/` or credentials into it. Your account and organization policy must allow Copilot CLI; model requests consume your account's allowance. The start command disables the **built-in** MCP servers (the GitHub one, a
+write path to GitHub with your credential) and account session sync; the
+SDKs' own servers — `framac`, `rocq`, `creusot`, `lean-lsp` — are registered
+locally at launch and still load, so `copilot mcp list` should show them.
+It also and keeps trust and tool-approval prompts enabled. Do not use `/delegate`, `/share` or `/remote` for campaign source code.
 
 <!-- HARNESS_HOST -->
 Outside a container, keep trust and tool-approval prompts enabled; do not use `--allow-all` or `--allow-all-tools`.
