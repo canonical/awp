@@ -4,6 +4,16 @@
 # SDK; this installs only what the code under study needs to configure and
 # build (as generated: GRUB), plus tmux and curl for the README's quick
 # start. Edit the list for another code base, then `workshop refresh`.
+#
+# THIS IS THE DURABLE PLACE FOR BUILD TOOLS. `sudo apt-get install` inside
+# the container works and is the right way to test whether a package unblocks
+# the build -- but `workshop refresh` and `workshop restore` rebuild outside
+# /project, so anything installed by hand is gone. Once a package turns out
+# to be needed, add it to the list below and refresh. Never refresh while a
+# campaign is running: it discards the harness login and the in-container git
+# remote. A tool you have to compile yourself belongs under the project
+# (build_<target>-analysis/tools/bin/), which is a mount and survives.
+# See config/skills/frama-c-launch/references/build-context.md section 2.
 apt-get update
 apt-get install byobu tmux curl \
     autoconf automake autopoint gettext bison flex libtool \

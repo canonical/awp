@@ -297,15 +297,36 @@ covers the real attack surface, and whose baseline round-trips — none certifie
 Run before any `frama-c-monitoring` unit. Each step is a sub-agent; the monitor gates the returned
 artifact before the next step builds on it.
 
-0. **Probe the build** (prober). Discover the buildsystem (autotools/CMake/make + `user_settings.h`),
+0. **Probe the build** (prober). **Read `references/build-context.md` first** — it is the method for
+   this step, and if the target was onboarded before, its `<target>-analysis-*/onboarding.md` already
+   contains the answer and is cheaper than rediscovering it.
+   Discover the buildsystem (autotools/CMake/make + `user_settings.h`),
    pick the **profile from the guidance**, then **actually build it** for that profile and emit
-   `compile_commands.json` (`bear -- make` / `-DCMAKE_EXPORT_COMPILE_COMMANDS=ON` / `west build`) +
-   the build-generated headers. This real build is **mandatory** — the **build oracle (§1.0)** gates
-   it; you may not hand-synthesise the flags/headers or skip the build and call units BLOCKED. (The
-   final link may legitimately fail downstream of header generation — that is fine; the **compile**
-   of the in-scope TUs must succeed.) Then run the **parse oracle** on a representative unit. Confirm
-   `-wp-detect` + `framac-coq8`. If the target genuinely cannot be built in this environment (missing
-   toolchain/modules), that is a **hard blocker** to route, not a fallback to a synthesised config.
+   `compile_commands.json` + the build-generated headers. This real build is **mandatory** — the
+   **build oracle (§1.0)** gates it; you may not hand-synthesise the flags/headers or skip the build
+   and call units BLOCKED. (The final link may legitimately fail downstream of header generation —
+   that is fine; the **compile** of the in-scope TUs must succeed.) Then run the **parse oracle** on a
+   representative unit. Confirm `-wp-detect` + `framac-coq8`.
+   **A blocked path is not a blocked target** (`build-context.md` §1). Before routing anything as a
+   hard blocker you owe five probes, and the record of which you ran:
+   - the buildsystem's own exporter, then `bear`, then **`clang -MJ` per-TU records**, then a parsed
+     `make -Bnk` dry run, then documented reconstruction (`build-context.md` §3). `bear` failing on a
+     kernel-style build is expected, not a verdict;
+   - **missing build tools are a provisioning step, not a blocker** — install them, and in the durable
+     place for the environment: the project's `setup-base` hook plus `workshop refresh` in a Workshop,
+     `bin/launch_lxc.sh` under LXD, the user's package manager or a user-local prefix on a bare host
+     (`build-context.md` §2; never `workshop refresh` mid-campaign);
+   - a target whose native toolchain is not on this OS is a **tool-substitution** problem: substitute
+     tools, never headers/macros/flags, and keep the substitution table as the faithfulness argument
+     (§4);
+   - a **partial** build is usable — records plus generated headers are enough, the link stage is not
+     needed (§4.2);
+   - a `"built": false` record **still carries real preprocessing context**; sweep those units
+     separately rather than dropping them (§5). In the xnu campaign that was 329 further parseable
+     units out of 539.
+   Only a synthesised config remains forbidden. If after those probes the target still cannot be
+   built here, route it as a hard blocker **naming the probes that failed** — an unprobed
+   "infeasible" is the exact `no-ceiling.md` relabel this loop exists to prevent.
    **If the Frama-C TOOLCHAIN ITSELF is absent** (`frama-c` not on `PATH`, or the switch is gone, or
    `-wp-detect`/`-wp-timeout` report "unknown option" = the WP plugin failed to Dynlink-load against a
    missing switch's libs), first check for the SDK: if `FRAMA_C_SDK_SWITCH` is set, the toolchain is
@@ -464,6 +485,12 @@ The mbedtls campaign's setup, recast as a `frama-c-launch` run, shows each role 
   rows with `PASS`/`DEPENDENCY-UNMET`; exit 0 only if toolchain + parse are green. Never fakes a PASS.
   (A `DEPENDENCY-UNMET` on the **Frama-C toolchain itself** — no `frama-c`/switch, WP won't load, provers
   absent — is not a terminal stop: run the §0 install/build-the-toolchain recipe first, then re-gate.)
+  **Its `--build` tries only the two intercept/exporter paths above.** Both failing means *this
+  script* could not derive the database, never that the target has none: `clang -MJ` records, a
+  parsed `make -Bnk` dry run and documented reconstruction are all still open, and so is installing
+  whatever tool the build stopped for (`references/build-context.md` §2–§3). Derive the database by
+  hand from real build records, drop it where the script expects it, and re-gate — a hand-*derived*
+  database built from the compiler's own records is conformant; a hand-*written* flag set is not.
 - **`bin/framac-monitor-check.sh --git <file>`** — the real-codebase faithfulness oracle: strip-ACSL ==
   `git show HEAD:<file>` in the file's **owning repo**, resolved per file so a submodule file is
   diffed against the **submodule's** HEAD (the trap a single-repo diff falsely passes). Prints
@@ -540,6 +567,11 @@ Implementation is the canonical preset **`linux/linux-acsl/onboard-linux.sh <ana
   proof is the pilot (pin reality before building machinery on it).
 
 ## Reference files
+- `references/build-context.md` — **Phase 0's method**: where to install the tools a build needs
+  (Workshop `setup-base` + refresh / LXD / bare host), the five ways to a compile database in order
+  of preference, tool substitution for a target whose native toolchain is not on this OS, why a
+  partial build and a `"built": false` record are both usable, and the three distinct oracles
+  (context-real, compile-success, parse-success) that must not be conflated.
 - `references/learned-prober.md` — buildsystem→flags recipes, force-include/`-machdep`/profile
   discovery, the parse-oracle tells (Gate-S-gated).
 - `references/learned-architect.md` — scope-map + attack-surface-ranking heuristics; endogenous-vs-

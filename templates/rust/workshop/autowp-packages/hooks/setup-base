@@ -4,5 +4,12 @@
 # this installs only tmux and curl for the README's quick start. Add the apt
 # packages the crate under study needs to build (for example libssl-dev for
 # a crate with OpenSSL bindings) to the line below, then `workshop refresh`.
+#
+# THIS IS THE DURABLE PLACE FOR BUILD TOOLS. `sudo apt-get install` inside
+# the container works and is the right way to test whether a package unblocks
+# the build -- but `workshop refresh` and `workshop restore` rebuild outside
+# /project, so anything installed by hand is gone. Never refresh while a
+# campaign is running: it discards the harness login and the in-container git
+# remote.
 apt-get update
 apt-get install byobu tmux curl
