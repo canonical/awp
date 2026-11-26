@@ -514,129 +514,53 @@ class Run:
             path.symlink_to(dest)
             self.out.append(f"linked  {self.show(rel).ljust(width)} -> {dest}")
 
+    @staticmethod
+    def harness_readme(name):
+        """Read one harness's README sections from `templates/common/harness/`.
+
+        The prose of each harness lives beside its install snippet, as
+        `<name>.md`, rather than inside this program: it is documentation, it
+        is reviewed as documentation, and `write_readme` was two thirds
+        English before it moved (§3.4, §4.4).
+
+        Format: `<!-- PLACEHOLDER -->` on its own line opens a section that
+        runs to the next marker or to end of file. Trailing blank lines are
+        not part of a value — the file keeps one between sections so it reads
+        as a document, and no placeholder is substituted at the end of a line
+        where a stray newline would matter. A section can still hold
+        paragraphs; an empty one is a placeholder that expands to nothing
+        (`none` has no install or start line). Anything before the first
+        marker is a comment and is ignored.
+        """
+        path = TEMPLATES / "common/harness" / f"{name}.md"
+        sections, key = {}, None
+        for line in path.read_text().splitlines(keepends=True):
+            tag = line.strip()
+            marker = (tag[5:-4].strip()
+                      if tag.startswith("<!-- ") and tag.endswith(" -->") else "")
+            if marker and marker.replace("_", "").isalpha() and marker.isupper():
+                key = marker
+                sections[key] = ""
+            elif key is not None:
+                sections[key] += line
+        if not sections:
+            raise AutoWpError(f"{path} defines no sections")
+        return {k: v.rstrip("\n") for k, v in sections.items()}
+
     def write_readme(self):
         readme = self.target / "README.md"
         if os.path.lexists(readme):
             self.out.append(f"kept    {self.show('README.md')} (already exists)")
             return
         text = (TEMPLATES / self.language / "README.md").read_text()
-        harness_text = {
-            "claude": (
-                "Claude Code",
-                "command -v claude >/dev/null || "
-                "curl -fsSL https://claude.ai/install.sh | bash",
-                "claude --dangerously-skip-permissions",
-                "On first start, log in using the URL and code printed by Claude Code. "
-                "Login stays in the container. Never copy the host's "
-                "`~/.claude/.credentials.json` into it.",
-                "Outside a container, omit `--dangerously-skip-permissions` "
-                "and approve actions individually.",
-            ),
-            "opencode": (
-                "OpenCode",
-                "command -v opencode >/dev/null || "
-                "curl -fsSL https://opencode.ai/v2/install | bash",
-                "opencode service set disabled true\nopencode",
-                "OpenCode V2 is required (`opencode --version`); the older "
-                "`opencode.ai/install` endpoint installs V1. On first start, "
-                "run `/connect` and `/models`. Anthropic requires "
-                "an API key, not a Claude subscription token; OpenRouter also uses "
-                "an API key. The connection is stored in the container's OpenCode "
-                "database (`opencode debug paths`), not necessarily `auth.json`. "
-                "Never copy the host's OpenCode data directory into it. "
-                "Type `/` to list project commands. OpenCode allows actions by "
-                "default; add `permissions` rules to `opencode.json` to require approval.",
-                "Outside a container, add `permissions` rules to `opencode.json` "
-                "to require approval; the default policy allows actions.",
-            ),
-            "copilot": (
-                "GitHub Copilot CLI",
-                'export PATH="$HOME/.local/bin:$PATH"\n'
-                "command -v copilot >/dev/null || "
-                "curl -fsSL https://gh.io/copilot-install | bash",
-                "copilot --disable-builtin-mcps --sync-session=off",
-                "Inside the container, run `copilot login --device-code` and "
-                "complete the displayed authorization in your host browser. "
-                "Login is stored in the container's credential store, or in "
-                "plaintext under `~/.copilot/` if no credential store is available. "
-                "Never copy the host's `~/.copilot/` or credentials into it. "
-                "Your account and organization policy must allow Copilot CLI; "
-                "model requests consume your account's allowance. The start "
-                "command disables built-in MCP servers and account session sync, "
-                "and keeps trust and tool-approval prompts enabled. Do not use "
-                "`/delegate`, `/share` or `/remote` for campaign source code.",
-                "Outside a container, keep trust and tool-approval prompts enabled; "
-                "do not use `--allow-all` or `--allow-all-tools`.",
-            ),
-            "none": (
-                "a manually installed harness", "", "",
-                "No agent harness is installed. Inside `workshop shell` (or the "
-                "LXD container), install a harness that reads `.agents/skills`, "
-                "`.claude/skills` or `.opencode/skills`. Start it in the `tmux` "
-                "session and log in inside the container. Never copy a host "
-                "credential into it. Adapt the next step if your harness cannot "
-                "load the project commands; load the `time-loop` skill explicitly.",
-                "Choose a permission policy that asks before acting when running "
-                "outside a container.",
-            ),
-        }[self.harness]
+        harness_text = self.harness_readme(self.harness)
         if self.local_inference:
             # There is no cloud account to connect under --local-inference, so
             # the login paragraph is replaced by what has to be true of the
             # inference host instead.
-            harness_text = harness_text[:3] + (
-                "**Local inference.** No login and no API key — but one file "
-                "has to be in place before the first `workshop launch`.\n\n"
-                "The address of the LLM host comes from "
-                "**`.local-llm-machine-ip.txt`**: one line, the address and "
-                "nothing else, the same file the cross-provider judge uses "
-                "(`skills/sl-auditor/SKILL.md`). Put it **in this "
-                "directory**, which is mounted into the workshop:\n\n"
-                "```sh\n"
-                "echo 192.0.2.10 > .local-llm-machine-ip.txt\n"
-                "```\n\n"
-                "If `auto-wp.py` found the file on the machine that generated "
-                "this project, it is already here. The container's own "
-                "`~/.local-llm-machine-ip.txt` is read first and wins, but it "
-                "cannot help on a *first* launch: there is nowhere to put it "
-                "until the launch has created that home, so the copy in this "
-                "directory is the one that works then.\n\n"
-                "With the file present, Workshop writes "
-                "`~/.config/opencode/opencode.json` in the container as it "
-                "launches, naming a local OpenAI-compatible provider, and "
-                "`opencode` starts on that model. An existing config is kept, "
-                "so your edits survive `workshop refresh`. Without the file "
-                "**nothing is written** and the hook prints where it looked — "
-                "an invented address is worse than none; create the file and "
-                "`workshop refresh` to apply it.\n\n"
-                "Two servers must be reachable before a campaign starts: the "
-                "main one on port 11434 and a second on 11435 that only "
-                "subagents use, which is what stops a subagent evicting the "
-                "parent's prompt cache. On the LLM host, with Ollama:\n\n"
-                "```sh\n"
-                "OLLAMA_HOST=0.0.0.0 OLLAMA_KEEP_ALIVE=2h ollama serve\n"
-                "OLLAMA_HOST=0.0.0.0:11435 OLLAMA_KEEP_ALIVE=2h ollama serve\n"
-                "```\n\n"
-                "Two things there are easy to get wrong. Give both servers the "
-                "**same** context length and make it at least the window the "
-                "configuration declares (`limit.context`, 120000 by default) — "
-                "with Ollama, `OLLAMA_CONTEXT_LENGTH`. OpenCode sizes prompts "
-                "against its own declared window, never the server's, so a "
-                "smaller one truncates prompts with no error. And keep "
-                "`OLLAMA_KEEP_ALIVE` longer than the gap between cycles: when "
-                "a runner unloads it takes its prompt cache with it, and the "
-                "next cycle reprocesses the whole context.\n\n"
-                "Every value the hook writes has an `AUTOWP_INFERENCE_*` "
-                "override, each listed with its default and its reason in "
-                "the comment block above the snippet in "
-                "`.workshop/autowp-packages/hooks/setup-project`. A local "
-                "model is slower than a cloud "
-                "one: expect long turns, and check `opencode` is still "
-                "advancing before assuming it has stalled.",
-            ) + harness_text[4:]
-        for key, value in zip(
-                ("HARNESS", "HARNESS_INSTALL", "HARNESS_START", "HARNESS_LOGIN",
-                 "HARNESS_HOST"), harness_text):
+            override = self.harness_readme(f"{self.harness}-local-inference")
+            harness_text = {**harness_text, **override}
+        for key, value in harness_text.items():
             text = text.replace("{{" + key + "}}", value)
         manual_note = ""
         if self.harness == "copilot":

@@ -2174,6 +2174,94 @@ class TestLocalInference(AutoWpTestCase):
                                      f"bin/{tool} is installed but not named in the README")
 
 
+class TestHarnessReadmeTemplates(AutoWpTestCase):
+    """The harness README prose lives in templates/common/harness/*.md (§4.4)."""
+
+    HARNESS_DIR = TEMPLATES / "common/harness"
+    PLACEHOLDERS = {"HARNESS", "HARNESS_INSTALL", "HARNESS_START",
+                    "HARNESS_LOGIN", "HARNESS_HOST"}
+
+    def sections(self, name):
+        """Parse a harness .md the way auto-wp.py does."""
+        out, key = {}, None
+        for line in (self.HARNESS_DIR / f"{name}.md").read_text().splitlines(keepends=True):
+            tag = line.strip()
+            marker = (tag[5:-4].strip()
+                      if tag.startswith("<!-- ") and tag.endswith(" -->") else "")
+            if marker and marker.replace("_", "").isalpha() and marker.isupper():
+                key = marker
+                out[key] = ""
+            elif key is not None:
+                out[key] += line
+        return {k: v.rstrip("\n") for k, v in out.items()}
+
+    def test_one_file_per_harness_with_every_placeholder(self):
+        for harness in ("claude", "opencode", "copilot", "none"):
+            with self.subTest(harness=harness):
+                self.assertEqual(set(self.sections(harness)), self.PLACEHOLDERS)
+                # Each has a shell snippet beside it, except `none`.
+                self.assertEqual((self.HARNESS_DIR / f"{harness}.sh").is_file(),
+                                 harness != "none")
+
+    def test_the_local_inference_file_overrides_only_the_login(self):
+        self.assertEqual(set(self.sections("opencode-local-inference")),
+                         {"HARNESS_LOGIN"})
+
+    def test_no_value_ends_in_a_newline(self):
+        """The rule that makes `rstrip` lossless.
+
+        A placeholder is substituted mid-sentence in the README templates, so
+        a value carrying a trailing newline breaks the line it lands in --
+        which is exactly what a first version of the parser did.
+        """
+        for name in ("claude", "opencode", "copilot", "none",
+                     "opencode-local-inference"):
+            with self.subTest(name=name):
+                for key, value in self.sections(name).items():
+                    self.assertEqual(value, value.rstrip("\n"), f"{name}/{key}")
+
+    def test_every_placeholder_is_consumed(self):
+        """No README template may carry a placeholder no harness file defines."""
+        defined = set(self.PLACEHOLDERS)
+        for language in ("c", "rust"):
+            text = (TEMPLATES / language / "README.md").read_text()
+            used = {t.split("}}")[0] for t in text.split("{{")[1:]}
+            harness_used = {u for u in used if u.startswith("HARNESS")
+                            and u != "HARNESS_CAMPAIGN_NOTE"}
+            self.assertEqual(harness_used, defined,
+                             f"{language}/README.md placeholders differ from the "
+                             "harness files' sections")
+
+    def test_substitution_does_not_break_the_sentence_it_lands_in(self):
+        """`{{HARNESS}}` sits mid-sentence, so a trailing newline is visible.
+
+        The suite's other README checks look at stdout or at substrings that
+        survive a stray newline, so nothing caught this when the parser
+        stripped one newline instead of all of them.
+        """
+        for language in ("c", "rust"):
+            for harness in ("claude", "opencode", "copilot", "none"):
+                with self.subTest(language=language, harness=harness):
+                    target = f"sub-{language}-{harness}"
+                    self.assertOk(self.run_auto_wp("--" + language, "--harness",
+                                                   harness, target))
+                    readme = (self.tmp / target / "README.md").read_text()
+                    name = self.sections(harness)["HARNESS"]
+                    self.assertIn(f"start {name} in `tmux`", readme,
+                                  "a harness section leaked a newline into the "
+                                  "sentence it was substituted into")
+
+    def test_a_file_with_no_sections_is_an_error(self):
+        prog = self._copy_program()
+        (prog / "templates/common/harness/claude.md").write_text("just a comment\n")
+        r = self.run_auto_wp("--c", "--harness", "claude", "foo",
+                             script=prog / "auto-wp.py")
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn("defines no sections", r.stderr)
+        self.assertFalse(os.path.lexists(self.tmp / "foo"),
+                         "a bad harness file must roll the run back")
+
+
 class TestInitialCommit(AutoWpTestCase):
     """The generated project starts from a committed baseline (§3.9)."""
 

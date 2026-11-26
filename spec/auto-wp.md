@@ -501,6 +501,13 @@ placeholders in it and changes nothing else:
 | `{{HARNESS}}` (0.7.0) | Display name of the selected harness, or `a manually installed harness` |
 | `{{HARNESS_INSTALL}}`, `{{HARNESS_START}}` | Selected install fallback and start commands; empty under `none` |
 | `{{HARNESS_LOGIN}}`, `{{HARNESS_HOST}}` | Selected authentication/manual-install guidance and host permission warning (§1.1) |
+
+The five `{{HARNESS…}}` values are **not in the program**: each harness's
+prose is a template of its own, `templates/common/harness/<harness>.md`,
+beside the install snippet it goes with (§4.1). `write_readme` reads one and,
+under `--local-inference`, overlays `opencode-local-inference.md` on top of
+it — which is why that option replaces the login paragraph rather than adding
+to it (§1.2, item 3).
 | `{{HARNESS_CAMPAIGN_NOTE}}` | Copilot-only warning that the remaining automated campaign instructions do not apply; directs the user to supervised language-skill tasks. Empty for other choices. |
 | `{{DRIVER_NOTE}}` | empty under `rmf`; under `fips`, the sentence pointing at `/time-loop grub 72 --dir=grub-core/lib/libgcrypt` (GRUB as a whole is not a module; its crypto library is) |
 
@@ -1349,13 +1356,17 @@ auto-wp/
 ├── specs/                the FIPS 140-3 corpus (MANIFEST.tsv; PDFs and text local),
 │                         copied under --driver fips (fips-corpus-spec.md)
 └── templates/
-    ├── common/{skills,commands}/
+    ├── common/{skills,commands,tools,harness}/
     ├── c/{skills,commands,tools,workshop}/ + README.md
     └── rust/{skills,commands,tools,workshop}/ + README.md
 ```
 
-A layer's `workshop/` holds the three files of §3.7.1 and is copied to
+A layer's `workshop/` holds the four files of §3.7.1 and is copied to
 `<directory-name>/.workshop/` (§3.7); only the language layers have one.
+`common/harness/` is neither copied nor merged: it holds the per-harness
+material the program reads and substitutes — `<harness>.sh` into a workshop
+hook (§1.1 item 3, §1.2 item 2) and `<harness>.md` into the README's
+placeholders (§3.4, §4.1).
 
 They are seeded once from `../use-frama-c/config/` (common and C layers) and
 `../use-creusot/` (Rust layer), following §4.4, then maintained here, so
@@ -1369,6 +1380,28 @@ Skills: `directory-structure`, `ebios-risk-manager`, `ebios-sl`, `fips-sl`,
 `sl-internal`, `sl-monitoring-sl`, `stride`, `workshop` (14).
 
 Commands: none.
+
+Harness material, in `harness/`, read by the program and never copied into a
+project: `claude.sh`, `copilot.sh`, `opencode.sh` and
+`opencode-local-inference.sh`, appended to a workshop hook (§1.1 item 3,
+§1.2 item 2); and `claude.md`, `copilot.md`, `none.md`, `opencode.md` and
+`opencode-local-inference.md`, the README prose of each harness (§3.4).
+
+A `.md` is sections, one per placeholder: `<!-- HARNESS_LOGIN -->` on its own
+line opens a section that runs to the next marker or to end of file, text
+before the first marker is a comment, and an empty section is a placeholder
+that expands to nothing (`none` has no install or start line). Trailing blank
+lines are not part of a value: a placeholder is substituted mid-sentence, so a
+value ending in a newline would break the line it lands in — a test asserts
+`start <harness> in \`tmux\`` survives intact in every generated README.
+`opencode-local-inference.md` carries only `HARNESS_LOGIN` and is overlaid on
+`opencode.md`, which is what makes `--local-inference` replace the login
+paragraph rather than add to it. A file with no sections is an error and the
+run rolls back.
+
+This is where the prose belongs rather than in `auto-wp.py`: it is
+documentation, it is reviewed as documentation, and `write_readme` was two
+thirds English before it moved (162 lines, 110 of them quoted prose).
 
 Tools, six files in `tools/bin/`, installed by both languages as `bin/`
 (§3.6: `tools/` directories are merged across layers):
