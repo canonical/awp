@@ -937,12 +937,43 @@ project must be a git repository.
 
 - If `git` is on the `PATH` and `<directory-name>` is not already inside a git
   work tree (`git -C <dir> rev-parse --is-inside-work-tree` fails),
-  `auto-wp.py` runs `git init` in it. It does not commit and does not add a
-  remote; the README explains how to add one (§3.4).
-- If it is already inside a work tree, nothing is done.
+  `auto-wp.py` runs `git init -b main` in it and **commits what it generated**
+  as that repository's first commit. It does not add a remote; the README
+  explains how to add one (§3.4).
+- If it is already inside a work tree, nothing is done: neither an init, nor
+  an `add`, nor a commit. Writing into history the program did not create is
+  the one outcome this must never produce, whatever else is true.
 - If `git` is not on the `PATH`, the program prints
   `warning: git not found; run 'git init' in foobar before /time-loop` on
   stderr and still succeeds.
+
+**The initial commit.** `git add -A` then one commit, reported as
+`git     committed <dir> (<n> files) on main`. The campaign's own history then
+starts from a baseline it can diff against; before this, a generated project
+sat on `No commits yet on main` and the time-loop's first checkpoint (§3.4)
+swept the configuration in with the cycle's work.
+
+What is committed is decided entirely by the `.gitignore` files the project
+already ships, so `add -A` needs no exclusion list of its own: the project's
+own keeps the fetched sources (`framac-src/`, `macsl/`), `_build/` and the
+watchdog's runtime files out, and under `--driver fips` the corpus's
+`specs/.gitignore` keeps every document out — only `MANIFEST.tsv`,
+`README.md`, `import-specs.py` and that `.gitignore` are tracked
+(`.kb/fips-corpus.md` §1, a rule a commit step must not be the thing that
+breaks). The seeded `.local-llm-machine-ip.txt` (§3.8) is committed:
+`tests.md` §5.2 records that it is not a secret.
+
+A failing commit is a **warning**, not an error: the project is generated and
+staged either way, and the usual cause is a machine with no configured
+`user.name` and `user.email`, which the user fixes in one command and commits
+by hand. The message says so.
+
+Tests: for all four language × driver combinations, exactly one commit, a
+clean `git status` afterwards, and a message naming the version, language and
+driver (with the level under `fips`); no corpus document and no ignored path
+is ever tracked; a target inside a pre-existing work tree leaves that
+repository's commit count and index untouched; and with no git identity,
+generation still exits 0, warns on stderr, and leaves the tree staged.
 
 ### 3.6 Output and exit status
 

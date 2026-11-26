@@ -206,6 +206,13 @@ quick start: clone the code to analyse next to the configuration, then run
 your agent harness in a container (for example `/time-loop grub 72` for a
 72-hour campaign on GRUB). Python 3.10 or later, standard library only.
 
+It is also a git repository with one commit already in it: `auto-wp.py` runs
+`git init -b main` and commits what it generated, so the campaign's own
+checkpoints have a baseline to diff against instead of starting from
+`No commits yet on main`. A directory already inside a work tree is left
+alone — no init, no commit. If git has no `user.name` and `user.email` the
+commit is skipped with a warning and the tree is left staged.
+
 `--driver fips` also copies the FIPS 140-3 corpus, `specs/`, into the
 project. Only its index is in git; import the documents once before
 generating ([`specs/README.md`](specs/README.md)):

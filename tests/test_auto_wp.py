@@ -632,9 +632,15 @@ class TestAutoWp(AutoWpTestCase):
                                  "--short", "HEAD"], capture_output=True, text=True, timeout=15)
         self.assertEqual(branch.stdout.strip(), "main",
                          "auto-wp.py must init on branch main")
-        log = subprocess.run(["git", "-C", str(self.tmp / "foo"), "rev-list", "--all"],
+        # One commit, the generated baseline, and a clean tree after it: a
+        # project that starts with "No commits yet on main" has no baseline to
+        # diff the campaign's own work against.
+        log = subprocess.run(["git", "-C", str(self.tmp / "foo"), "rev-list", "--count", "HEAD"],
                              capture_output=True, text=True, timeout=15)
-        self.assertEqual(log.stdout.strip(), "", "auto-wp.py must not commit")
+        self.assertEqual(log.stdout.strip(), "1", "auto-wp.py must make one commit")
+        status = subprocess.run(["git", "-C", str(self.tmp / "foo"), "status", "--porcelain"],
+                                capture_output=True, text=True, timeout=15)
+        self.assertEqual(status.stdout, "", "the generated tree must be fully committed")
         remotes = subprocess.run(["git", "-C", str(self.tmp / "foo"), "remote"],
                                  capture_output=True, text=True, timeout=15)
         self.assertEqual(remotes.stdout.strip(), "", "auto-wp.py must not add a remote")
@@ -1313,7 +1319,12 @@ class TestOutputAndConstraints(AutoWpTestCase):
             "linked  foobar/.opencode/skills   -> ../config/skills\n"
             "linked  foobar/.opencode/commands -> ../config/commands\n"
             "wrote   foobar/README.md\n"
-            "git     initialized foobar\n"))
+            "git     initialized foobar\n"
+            # The file count is the only part that is not fixed, so the exact
+            # comparison stops here and the last line is matched by shape.
+            + r.stdout.splitlines(keepends=True)[-1]))
+        self.assertRegex(r.stdout.splitlines()[-1],
+                         r"^git     committed foobar \(\d+ files\) on main$")
 
     def test_rust_output_counts(self):
         r = self.run_auto_wp("--rust", "--harness", "claude", "foobar")
@@ -2152,6 +2163,114 @@ class TestLocalInference(AutoWpTestCase):
                     pattern = re.escape(f"bin/{tool}") + r"(?![A-Za-z0-9_.-])"
                     self.assertRegex(readme, pattern,
                                      f"bin/{tool} is installed but not named in the README")
+
+
+class TestInitialCommit(AutoWpTestCase):
+    """The generated project starts from a committed baseline (§3.9)."""
+
+    # .kb/fips-corpus.md §1: these four and nothing else.
+    SPECS_TRACKED = ["specs/.gitignore", "specs/MANIFEST.tsv",
+                     "specs/README.md", "specs/import-specs.py"]
+
+    def tracked(self, project):
+        out = subprocess.run(["git", "-C", str(project), "ls-files"],
+                             capture_output=True, text=True, timeout=30)
+        self.assertEqual(out.returncode, 0, out.stderr)
+        return out.stdout.split()
+
+    def test_every_language_and_driver_commits_once(self):
+        for language in ("c", "rust"):
+            for driver in ("rmf", "fips"):
+                with self.subTest(language=language, driver=driver):
+                    target = f"{language}-{driver}"
+                    args = ["--" + language, "--harness", "none",
+                            "--driver", driver]
+                    if driver == "fips":
+                        args += ["--level", "3"]
+                    r = self.run_auto_wp(*args, target)
+                    self.assertOk(r)
+                    project = self.tmp / target
+                    self.assertRegex(r.stdout.splitlines()[-1],
+                                     rf"^git     committed {target} \(\d+ files\) on main$")
+                    count = subprocess.run(
+                        ["git", "-C", str(project), "rev-list", "--count", "HEAD"],
+                        capture_output=True, text=True, timeout=30)
+                    self.assertEqual(count.stdout.strip(), "1")
+                    status = subprocess.run(
+                        ["git", "-C", str(project), "status", "--porcelain"],
+                        capture_output=True, text=True, timeout=30)
+                    self.assertEqual(status.stdout, "",
+                                     "nothing generated may be left uncommitted")
+                    # The message records what produced the tree.
+                    msg = subprocess.run(
+                        ["git", "-C", str(project), "log", "-1", "--format=%B"],
+                        capture_output=True, text=True, timeout=30).stdout
+                    self.assertIn("auto-wp 0.9.0", msg)   # VERSION, as test_11 pins it
+                    self.assertIn(f"language {language}", msg)
+                    self.assertIn(f"driver {driver}", msg)
+                    if driver == "fips":
+                        self.assertIn("level 3", msg)
+
+    def test_the_fips_corpus_is_never_committed(self):
+        """.kb/fips-corpus.md §1 -- no PDF, no text/, no checklist/, ever."""
+        self.assertOk(self.run_auto_wp("--c", "--harness", "none", "--driver",
+                                       "fips", "--level", "1", "corpus"))
+        tracked = self.tracked(self.tmp / "corpus")
+        self.assertEqual(sorted(p for p in tracked if p.startswith("specs/")),
+                         self.SPECS_TRACKED)
+        for path in tracked:
+            self.assertFalse(path.endswith(".pdf"), f"{path} is a corpus document")
+            self.assertFalse(path.startswith(("specs/pdf/", "specs/text/",
+                                              "specs/checklist/")), path)
+
+    def test_gitignored_paths_stay_out_of_the_commit(self):
+        self.assertOk(self.run_auto_wp("--c", "--harness", "none", "ignored"))
+        tracked = self.tracked(self.tmp / "ignored")
+        for prefix in (".workshop.lock", "framac-src", "macsl", "_build",
+                       ".time-loop-watchdog"):
+            self.assertEqual([p for p in tracked if p.startswith(prefix)], [],
+                             f"{prefix} must be ignored, not committed")
+
+    def test_an_existing_work_tree_is_never_committed_into(self):
+        """The one case that would write into history that is not ours."""
+        outer = self.tmp / "outer"
+        outer.mkdir()
+        env = {"GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@example.com",
+               "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@example.com"}
+        for cmd in (["git", "init", "-q", "-b", "main", "."],
+                    ["git", "commit", "-q", "--allow-empty", "-m", "theirs"]):
+            subprocess.run(cmd, cwd=outer, check=True, timeout=30,
+                           env=dict(os.environ, **env))
+        r = self.run_auto_wp("--c", "--harness", "none", "outer/inner")
+        self.assertOk(r)
+        self.assertIn("git     outer/inner is already in a git work tree",
+                      r.stdout.splitlines())
+        self.assertNotIn("committed", r.stdout)
+        count = subprocess.run(["git", "-C", str(outer), "rev-list", "--count", "HEAD"],
+                               capture_output=True, text=True, timeout=30)
+        self.assertEqual(count.stdout.strip(), "1",
+                         "auto-wp.py committed into a repository it did not create")
+        # And it staged nothing there either.
+        staged = subprocess.run(["git", "-C", str(outer), "diff", "--cached", "--name-only"],
+                                capture_output=True, text=True, timeout=30)
+        self.assertEqual(staged.stdout, "")
+
+    def test_no_git_identity_warns_and_leaves_the_project_usable(self):
+        blank = {"GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_SYSTEM": os.devnull,
+                 "GIT_CONFIG_NOSYSTEM": "1", "GIT_AUTHOR_NAME": "",
+                 "GIT_AUTHOR_EMAIL": "", "GIT_COMMITTER_NAME": "",
+                 "GIT_COMMITTER_EMAIL": ""}
+        r = self.run_auto_wp("--c", "--harness", "none", "noid", env=blank)
+        self.assertOk(r)                      # generation still succeeds
+        self.assertIn("git commit failed", r.stderr)
+        self.assertIn("user.name", r.stderr)
+        project = self.tmp / "noid"
+        self.assertTrue((project / "README.md").is_file())
+        # Staged, so the user's own commit is one command away.
+        staged = subprocess.run(["git", "-C", str(project), "diff", "--cached",
+                                 "--name-only"], capture_output=True, text=True,
+                                timeout=30)
+        self.assertGreater(len(staged.stdout.split()), 100)
 
 
 class TestTemplateByproducts(AutoWpTestCase):
