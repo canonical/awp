@@ -1758,7 +1758,16 @@ class TestLocalInference(AutoWpTestCase):
                     manifest = json.loads((project / "config/auto-wp.json").read_text())
                     self.assertIs(manifest["local_inference"], False)
 
-    def test_on_appends_the_snippet_after_the_harness(self):
+    PROJECT_HOOK = ".workshop/autowp-packages/hooks/setup-project"
+
+    def test_on_puts_the_snippet_in_setup_project_not_setup_base(self):
+        """Workshop mounts the project *after* setup-base and before setup-project.
+
+        The snippet reads the address file from the mount and writes into the
+        workshop user's home, so it only works in the later hook. In
+        `setup-base` it ran before the mount and skipped every first launch --
+        observed twice on a real project before this moved.
+        """
         for language in ("c", "rust"):
             with self.subTest(language=language):
                 target = f"{language}-on"
@@ -1767,16 +1776,42 @@ class TestLocalInference(AutoWpTestCase):
                 self.assertOk(r)
                 self.assertIn("harness:  opencode (local inference)", r.stdout)
                 project = self.tmp / target
-                hook = self.hook(project)
-                self.assertEqual(hook, self.baseline(language) + "\n"
-                                 + self.SNIPPET.read_text())
-                # The config is written after the binary it configures.
-                self.assertLess(hook.index("opencode.ai/v2/install"),
-                                hook.index("AUTOWP_INFERENCE_HOST"))
-                subprocess.run(["bash", "-n"], input=hook, text=True,
-                               check=True, timeout=15)
+                # setup-base: the installer only, exactly as without the flag.
+                self.assertEqual(self.hook(project), self.baseline(language))
+                self.assertNotIn("AUTOWP_INFERENCE_HOST", self.hook(project))
+                # setup-project: the template's byobu hook plus the snippet.
+                proj_hook = (project / self.PROJECT_HOOK).read_text()
+                template = (TEMPLATES / language
+                            / "workshop/autowp-packages/hooks/setup-project").read_text()
+                self.assertEqual(proj_hook,
+                                 template + "\n" + self.SNIPPET.read_text())
+                for text in (self.hook(project), proj_hook):
+                    subprocess.run(["bash", "-n"], input=text, text=True,
+                                   check=True, timeout=15)
                 manifest = json.loads((project / "config/auto-wp.json").read_text())
                 self.assertIs(manifest["local_inference"], True)
+
+    def test_no_byobu_still_gets_the_snippet(self):
+        """--no-byobu removes setup-project, so it has to be recreated for it."""
+        for language in ("c", "rust"):
+            with self.subTest(language=language):
+                target = f"{language}-nobyobu"
+                self.assertOk(self.run_auto_wp(
+                    "--" + language, "--harness", "opencode", "--local-inference",
+                    "--no-byobu", target))
+                hook = self.tmp / target / self.PROJECT_HOOK
+                text = hook.read_text()
+                self.assertIn("AUTOWP_INFERENCE_HOST", text)
+                # The byobu *configuration* is gone. Not the word: the header
+                # that replaces it explains which option removed it.
+                for marker in ("byobu-enable", "BYOBU_BACKEND",
+                               "#byobu-autoattach#", "configure()"):
+                    self.assertNotIn(marker, text, f"{marker} survived --no-byobu")
+                self.assertEqual(stat.S_IMODE(hook.stat().st_mode), 0o644)
+                subprocess.run(["bash", "-n"], input=text, text=True,
+                               check=True, timeout=15)
+                # And byobu is still out of setup-base's apt line.
+                self.assertNotIn("byobu", self.hook(self.tmp / target))
 
     def run_snippet(self, **env):
         """Run the generated hook's snippet against a throw-away home.

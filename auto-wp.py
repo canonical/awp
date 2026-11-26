@@ -48,6 +48,15 @@ LOCAL_INFERENCE_HARNESS = "opencode"
 # exist before the first launch; copying the host's own copy into the project
 # means the first launch finds it instead of skipping.
 INFERENCE_IP_FILE = ".local-llm-machine-ip.txt"
+# Recreates `setup-project` when `--no-byobu` has removed it but a harness
+# snippet still belongs there (§3.7.5). Workshop runs this hook after mounting
+# the project, as the workshop user; the template's own copy carries no
+# shebang, so neither does this.
+SETUP_PROJECT_HEADER = (
+    "# Written by auto-wp.py. Runs as the workshop user after the project is\n"
+    "# mounted, which is what the snippet below needs; --no-byobu removed this\n"
+    "# hook's byobu configuration.\n\n"
+)
 
 # Links created in the project: (path relative to the project, link target).
 # The first two harnesses are wired the same way: `config/` holds the skills
@@ -407,17 +416,40 @@ class Run:
         if not self.byobu:
             self.disable_byobu(dest_dir)
         if self.harness != "none":
-            hook = dest_dir / "autowp-packages/hooks/setup-base"
-            names = [self.harness]
+            hooks = dest_dir / "autowp-packages/hooks"
+            # The installer needs root and a system path: `setup-base`.
+            self.append_hook(hooks / "setup-base", f"{self.harness}.sh")
             if self.local_inference:
-                # After the harness snippet: it writes the configuration of a
-                # binary that snippet has just installed.
-                names.append(f"{self.harness}-local-inference")
-            text = hook.read_text()
-            for name in names:
-                text += "\n" + (TEMPLATES / "common/harness" / f"{name}.sh").read_text()
-            hook.write_text(text)
+                # `setup-project`, not `setup-base`. Writing the harness's
+                # configuration needs two things `setup-base` does not have:
+                # the project mount, where the inference host's address is
+                # (§3.8), and the workshop user's home to write into.
+                # Workshop's launch order is base, each SDK's `setup-base`,
+                # *then* mount the project and run `setup-project` -- and
+                # `setup-project` runs as the workshop user while `setup-base`
+                # runs as root. A snippet in `setup-base` therefore runs before
+                # the address file exists and skips every first launch.
+                self.append_hook(hooks / "setup-project",
+                                 f"{self.harness}-local-inference.sh",
+                                 header=SETUP_PROJECT_HEADER)
         self.out.append(f"copied  {self.show('.workshop')} (workshop: {WORKSHOP_NAME})")
+
+    def append_hook(self, hook, snippet, header=None):
+        """Append a harness snippet to a workshop hook, creating it if needed.
+
+        The hook normally comes from the language layer's template, so the
+        snippet is added after whatever it already does. `--no-byobu` removes
+        `setup-project` entirely (§3.7.5), so when a snippet belongs there and
+        the file is gone, `header` recreates it with nothing but the snippet.
+        """
+        text = hook.read_text() + "\n" if hook.exists() else (header or "")
+        if not hook.exists():
+            self.created.append(("file", hook))
+        hook.write_text(text + (TEMPLATES / "common/harness" / snippet).read_text())
+        # The templates ship setup-base executable and setup-project not; a
+        # recreated file keeps the mode its template had.
+        if header is not None and not os.access(hook, os.X_OK):
+            hook.chmod(0o644)
 
     def seed_inference_ip(self):
         """Copy this machine's `.local-llm-machine-ip.txt` into the project.

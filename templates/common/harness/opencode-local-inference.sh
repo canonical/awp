@@ -1,6 +1,14 @@
 
 # Point OpenCode at a local OpenAI-compatible inference server (--local-inference).
-# Appended after opencode.sh, so the binary is already installed and on PATH.
+#
+# Appended to the `setup-project` hook, NOT `setup-base`. Workshop's launch
+# order is: base, then each SDK's `setup-base` (as root), then **mount the
+# project**, then `setup-project` (as the workshop user). This snippet needs
+# both of the things only the later hook has -- the project mount, where the
+# address file lives, and the user's own home to write into. In `setup-base`
+# it ran before the mount existed and skipped every first launch. opencode
+# itself is installed by `opencode.sh` from `setup-base`, so it is already on
+# PATH by the time this runs.
 #
 # The host is NOT hardcoded: it is read from `.local-llm-machine-ip.txt`, the
 # one-line LAN address of the local LLM host that this project already uses for

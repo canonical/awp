@@ -263,12 +263,29 @@ which `1.2.1` tests directly. Under `--local-inference`:
 1. **`config/auto-wp.json`** records `"local_inference": true` (§3.2).
 2. **The Workshop definition.** A second snippet,
    `templates/common/harness/opencode-local-inference.sh`, is appended to
-   `setup-base` after `opencode.sh` — after, because it configures a binary
-   that snippet has just installed (§3.7.1). It writes
+   **`setup-project`**, not to `setup-base` (§3.7.1). It writes
    `~/.config/opencode/opencode.json` for the workshop user, and keeps an
    existing file, so a `workshop refresh` never discards local edits. That
    check precedes host resolution: a configuration already in place needs no
    address.
+
+   **Which hook, and why it matters.** Workshop's launch order is: the base,
+   then `system` and each SDK with its `setup-base`, **then mount the
+   project**, then `setup-project`
+   (`skills/workshop/references/workshop-usage.md`: *"Mounts connect after
+   `setup-base`. Seed them in `setup-project`"*). `setup-base` runs as root,
+   `setup-project` as the workshop user. This snippet needs exactly what only
+   the later hook has: the project mount, where the address file is (§3.8),
+   and the user's own home to write into. Placed in `setup-base` it ran before
+   the mount existed, found no address, and skipped — so a project generated
+   with `--local-inference` produced no configuration on its **first** launch,
+   which is every launch that matters. That was observed twice on real
+   projects before the snippet moved; a test now pins the placement.
+
+   Because `--no-byobu` deletes `setup-project` whole (§3.7.5) and that
+   deletion happens first, the snippet recreates the hook when it is missing,
+   with a short header in place of the byobu configuration and the mode the
+   template ships (0644, no shebang).
 3. **The README.** The harness's login paragraph is replaced by the
    "Local inference" paragraph: no login and no API key, how to create
    `~/.local-llm-machine-ip.txt`, the two servers to run, and the two things
@@ -1037,11 +1054,14 @@ project's name, so that the commands of the README are the same for every
 project and no name rule of Workshop's is hit). The files are therefore
 template changes only, and what follows fixes their content. The exceptions
 are the harness snippet that `--harness` appends to `setup-base` (§1.1,
-item 3) — joined, under `--harness opencode --local-inference`, by
-`opencode-local-inference.sh` appended after it (§1.2, item 2) — and the
-`setup-project` hook that `--no-byobu` removes (§3.7.5). `setup-base` is
-therefore the template's file plus the snippets of the chosen harness, in
-that order.
+item 3); `opencode-local-inference.sh`, which under
+`--harness opencode --local-inference` is appended to **`setup-project`**
+instead, because it needs the project mount and the workshop user's home and
+neither exists in `setup-base` (§1.2, item 2); and the `setup-project` hook
+that `--no-byobu` removes (§3.7.5) — removed first, so the snippet recreates
+it when it has to. `setup-base` is therefore the template's file plus the
+chosen harness's installer, and `setup-project` the template's file (or a
+header replacing it) plus the local-inference snippet.
 
 `.workshop/autowp.yaml` for `--c`:
 
